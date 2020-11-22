@@ -20,7 +20,7 @@ public class MySql_v5_7_27_TestConfiguration extends MySqlConfiguration {
 	@Bean
 	public ConnectionFactory connectionFactory() {
 		return ConnectionFactories.get(
-		    "r2dbcs:mysql://auser:sa@127.0.0.1:3306/test?sslMode=preferred"
+		    "r2dbcs:mysql://auser:sa@127.0.0.1:" + MySqlStarter.getPort() + "/test?sslMode=preferred"
 		);
 	}
 	

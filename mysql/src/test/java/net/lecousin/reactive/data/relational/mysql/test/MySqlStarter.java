@@ -37,13 +37,31 @@ public class MySqlStarter {
 			mysql = null;
 		}
 		MysqldConfig config = MysqldConfig.aMysqldConfig(version)
-		    .withPort(3306)
+		    .withPort(getPort())
 		    .withUser("auser", "sa")
 		    .withTimeout(2, TimeUnit.MINUTES)
 		    .withCharset(Charset.UTF8)
 		    .build();
 		mysql = EmbeddedMysql.anEmbeddedMysql(config).addSchema("test").start();
 		launchVersion = version;
+	}
+	
+	public static int getPort() {
+		String s = System.getProperty("mysql.port");
+		try {
+			if (s != null)
+				return Integer.valueOf(s);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		s = System.getenv("mysql.port");
+		try {
+			if (s != null)
+				return Integer.valueOf(s);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return 3306;
 	}
 
 }
