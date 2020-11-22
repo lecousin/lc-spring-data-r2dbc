@@ -6,6 +6,10 @@
     <version>0.0.1-SNAPSHOT</version>
   </parent>
   <artifactId>mysql</artifactId>
+  
+  <properties>
+    <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/../jacoco-report-aggregate/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+  </properties>
 
   <dependencies>
     <dependency>

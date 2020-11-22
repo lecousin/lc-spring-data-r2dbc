@@ -7,6 +7,10 @@
   </parent>
   <artifactId>core</artifactId>
   
+  <properties>
+    <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/../jacoco-report-aggregate/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+  </properties>
+  
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
