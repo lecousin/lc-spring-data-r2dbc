@@ -44,11 +44,11 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 		return or.getLeft().accept(this).or(or.getRight().accept(this));
 	}
 	
-	@SuppressWarnings("incomplete-switch")
+	@SuppressWarnings({"incomplete-switch", "java:S1301", "java:S131"})
 	@Override
 	public Condition visit(PropertyOperation op) {
 		RelationalPersistentEntity<?> entity = entitiesByAlias.get(op.getLeft().getEntityName());
-		Column left = Column.create(entity.getPersistentProperty(op.getLeft().getPropertyName()).getColumnName(), tablesByAlias.get(op.getLeft().getEntityName()));
+		Column left = Column.create(entity.getRequiredPersistentProperty(op.getLeft().getPropertyName()).getColumnName(), tablesByAlias.get(op.getLeft().getEntityName()));
 		
 		switch (op.getOperator()) {
 		case IS_NULL: return Conditions.isNull(left);
@@ -64,7 +64,7 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 			switch (op.getOperator()) {
 			case IN: return Conditions.in(left, expressions);
 			case NOT_IN: return Conditions.in(left, expressions).not();
-			default: throw new RuntimeException("Unexpected operator " + op.getOperator() + " on a collection");
+			default: throw new InvalidCriteriaException("Unexpected operator " + op.getOperator() + " on a collection");
 			}
 		}
 		
@@ -78,7 +78,7 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 		case LESS_THAN_OR_EQUAL: return Conditions.isLessOrEqualTo(left, right);
 		case LIKE: return Conditions.like(left, right);
 		case NOT_LIKE: return Conditions.like(left, right).not();
-		default: throw new RuntimeException("Unexpected operator " + op.getOperator());
+		default: throw new InvalidCriteriaException("Unexpected operator " + op.getOperator());
 		}
 	}
 	
@@ -86,7 +86,7 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 		if (value instanceof PropertyOperand) {
 			PropertyOperand p = (PropertyOperand)value;
 			RelationalPersistentEntity<?> rightEntity = entitiesByAlias.get(p.getEntityName());
-			return Column.create(rightEntity.getPersistentProperty(p.getPropertyName()).getColumnName(), tablesByAlias.get(p.getEntityName()));
+			return Column.create(rightEntity.getRequiredPersistentProperty(p.getPropertyName()).getColumnName(), tablesByAlias.get(p.getEntityName()));
 		}
 		
 		BindMarker marker = bindMarkers.next();

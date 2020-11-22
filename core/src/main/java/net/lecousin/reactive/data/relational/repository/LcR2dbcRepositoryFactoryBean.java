@@ -12,6 +12,7 @@ import org.springframework.data.repository.core.support.RepositoryFactorySupport
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 
+@SuppressWarnings("java:S119") // name of parameter ID
 public class LcR2dbcRepositoryFactoryBean<T extends Repository<S, ID>, S, ID extends Serializable> extends R2dbcRepositoryFactoryBean<T, S, ID> {
 
 	@Autowired

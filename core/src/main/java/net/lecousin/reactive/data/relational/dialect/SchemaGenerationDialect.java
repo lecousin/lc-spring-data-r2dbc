@@ -29,7 +29,7 @@ public abstract class SchemaGenerationDialect {
 	protected R2dbcDialect dialect;
 	protected IdentifierProcessing identifierProcessing;
 	
-	public SchemaGenerationDialect(LcReactiveDataAccessStrategy dataAccess) {
+	protected SchemaGenerationDialect(LcReactiveDataAccessStrategy dataAccess) {
 		this.dataAccess = dataAccess;
 		this.mappingContext = dataAccess.getMappingContext();
 		this.dialect = dataAccess.getDialect();

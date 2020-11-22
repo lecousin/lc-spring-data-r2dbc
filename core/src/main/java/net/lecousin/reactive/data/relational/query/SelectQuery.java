@@ -103,7 +103,7 @@ public class SelectQuery<T> {
 				if (property != null) {
 					join.targetType = property.getActualType();
 				} else {
-					Field f = ModelUtils.getForeignTableFieldForProperty(join.source.targetType, join.propertyName);
+					Field f = ModelUtils.getRequiredForeignTableFieldForProperty(join.source.targetType, join.propertyName);
 					if (ModelUtils.isCollection(f))
 						join.targetType = ModelUtils.getCollectionType(f);
 					else

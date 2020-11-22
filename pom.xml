@@ -56,6 +56,7 @@
     <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
     
     <sonar.java.source>11</sonar.java.source>
+    <sonar.test.exclusions>**/src/test/**/*</sonar.test.exclusions>
   </properties>
   
   <dependencies>

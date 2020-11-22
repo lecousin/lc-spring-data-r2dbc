@@ -154,8 +154,8 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 			Object value = row.get(identifier);
 			return readValue(value, property.getTypeInformation());
 
-		} catch (Exception o_O) {
-			throw new MappingException(String.format("Could not read property %s from result set!", property), o_O);
+		} catch (Exception error) {
+			throw new MappingException(String.format("Could not read property %s from result set!", property), error);
 		}
 	}
 
@@ -175,7 +175,7 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 		} else if (value instanceof Collection || value.getClass().isArray()) {
 			return readCollectionOrArray(asCollection(value), type);
 		} else {
-			return getPotentiallyConvertedSimpleRead(value, type.getType());
+			return getPotentiallyConvertedSimpleRead2(value, type.getType());
 		}
 	}
 
@@ -205,26 +205,24 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 				: CollectionFactory.createCollection(collectionType, rawComponentType, source.size());
 
 		if (source.isEmpty()) {
-			return getPotentiallyConvertedSimpleRead(items, targetType.getType());
+			return getPotentiallyConvertedSimpleRead2(items, targetType.getType());
 		}
 
 		for (Object element : source) {
 
-			if (!Object.class.equals(rawComponentType) && element instanceof Collection) {
-				if (!rawComponentType.isArray() && !ClassUtils.isAssignable(Iterable.class, rawComponentType)) {
-					throw new MappingException(String.format(
-							"Cannot convert %1$s of type %2$s into an instance of %3$s! Implement a custom Converter<%2$s, %3$s> and register it with the CustomConversions",
-							element, element.getClass(), rawComponentType));
-				}
+			if (!Object.class.equals(rawComponentType) && element instanceof Collection && !rawComponentType.isArray() && !ClassUtils.isAssignable(Iterable.class, rawComponentType)) {
+				throw new MappingException(String.format(
+						"Cannot convert %1$s of type %2$s into an instance of %3$s! Implement a custom Converter<%2$s, %3$s> and register it with the CustomConversions",
+						element, element.getClass(), rawComponentType));
 			}
 			if (element instanceof List) {
 				items.add(readCollectionOrArray((Collection<Object>) element, componentType));
 			} else {
-				items.add(getPotentiallyConvertedSimpleRead(element, rawComponentType));
+				items.add(getPotentiallyConvertedSimpleRead2(element, rawComponentType));
 			}
 		}
 
-		return getPotentiallyConvertedSimpleRead(items, targetType.getType());
+		return getPotentiallyConvertedSimpleRead2(items, targetType.getType());
 	}
 
 	/**
@@ -237,7 +235,7 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 	 */
 	@Nullable
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private Object getPotentiallyConvertedSimpleRead(@Nullable Object value, @Nullable Class<?> target) {
+	private Object getPotentiallyConvertedSimpleRead2(@Nullable Object value, @Nullable Class<?> target) {
 
 		if (value == null || target == null || ClassUtils.isAssignableValue(target, value)) {
 			return value;
@@ -254,32 +252,12 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 		return getConversionService().convert(value, target);
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"unchecked", "java:S2583"}) // false positive
 	private <S> S readEntityFrom(Row row, RowMetadata metadata, RelationalPersistentProperty property, Object parentInstance, ResultMappingContext resultContext) {
 		RelationalPersistentEntity<?> entity = getMappingContext().getRequiredPersistentEntity(property.getActualType());
 
-		if (property.isAnnotationPresent(ForeignKey.class)) {
-			String identifier = /*prefix + */ property.getColumnName().toString();
-			if (metadata != null && !metadata.getColumnNames().contains(identifier)) {
-				return null;
-			}
-
-			Object value = row.get(identifier);
-			if (value == null)
-				return null; // foreign key is null
-			Object instance = null;
-			if (resultContext != null) {
-				instance = resultContext.getEntityCache().getCachedInstance(property.getActualType(), value);
-			}
-			if (instance == null) {
-				instance = getInstance(row, metadata, "", entity, resultContext);
-			}
-			entity.getPropertyAccessor(instance).setProperty(entity.getIdProperty(), value);
-			ModelUtils.setReverseLink(instance, parentInstance, property);
-			EntityState state = EntityState.get(instance, client, entity);
-			state.lazyLoaded();
-			return (S) instance;
-		}
+		if (property.isAnnotationPresent(ForeignKey.class))
+			return readForeignKeyEntity(row, metadata, property, parentInstance, resultContext, entity);
 		
 		String prefix = property.getName() + "_";
 
@@ -301,6 +279,30 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 			}
 		}
 
+		return (S) instance;
+	}
+	
+	@SuppressWarnings({"unchecked", "java:S2583"}) // false positive
+	private <S> S readForeignKeyEntity(Row row, RowMetadata metadata, RelationalPersistentProperty property, Object parentInstance, ResultMappingContext resultContext, RelationalPersistentEntity<?> entity) {
+		String identifier = /*prefix + */ property.getColumnName().toString();
+		if (metadata != null && !metadata.getColumnNames().contains(identifier)) {
+			return null;
+		}
+
+		Object value = row.get(identifier);
+		if (value == null)
+			return null; // foreign key is null
+		Object instance = null;
+		if (resultContext != null) {
+			instance = resultContext.getEntityCache().getCachedInstance(property.getActualType(), value);
+		}
+		if (instance == null) {
+			instance = getInstance(row, metadata, "", entity, resultContext);
+		}
+		entity.getPropertyAccessor(instance).setProperty(entity.getRequiredIdProperty(), value);
+		ModelUtils.setReverseLink(instance, parentInstance, property);
+		EntityState state = EntityState.get(instance, client, entity);
+		state.lazyLoaded();
 		return (S) instance;
 	}
 
@@ -355,6 +357,7 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 		if (customTarget.isPresent()) {
 
 			OutboundRow result = getConversionService().convert(source, OutboundRow.class);
+			Assert.notNull(result, "OutboundRow must not be null");
 			sink.putAll(result);
 			return;
 		}
@@ -370,6 +373,7 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 		writeProperties(sink, entity, propertyAccessor);
 	}
 
+	@SuppressWarnings("java:S135") // number of continue
 	private void writeProperties(OutboundRow sink, RelationalPersistentEntity<?> entity,
 			PersistentPropertyAccessor<?> accessor) {
 
@@ -395,7 +399,9 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 	}
 
 	private void writeSimpleInternal(OutboundRow sink, Object value, RelationalPersistentProperty property) {
-		sink.put(property.getColumnName(), SettableValue.from(getPotentiallyConvertedSimpleWrite(value)));
+		Object converted = getPotentiallyConvertedSimpleWrite2(value);
+		Assert.notNull(converted, "Converted value must not be null");
+		sink.put(property.getColumnName(), SettableValue.from(converted));
 	}
 
 	private void writePropertyInternal(OutboundRow sink, Object value, RelationalPersistentProperty property) {
@@ -496,7 +502,7 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 	 * @return
 	 */
 	@Nullable
-	private Object getPotentiallyConvertedSimpleWrite(@Nullable Object value) {
+	private Object getPotentiallyConvertedSimpleWrite2(@Nullable Object value) {
 		return getPotentiallyConvertedSimpleWrite(value, Object.class);
 	}
 
@@ -514,13 +520,10 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 			return null;
 		}
 
-		if (Object.class != typeHint) {
-
-			if (getConversionService().canConvert(value.getClass(), typeHint)) {
-				value = getConversionService().convert(value, typeHint);
-				if (value == null) {
-					return null;
-				}
+		if (Object.class != typeHint && getConversionService().canConvert(value.getClass(), typeHint)) {
+			value = getConversionService().convert(value, typeHint);
+			if (value == null) {
+				return null;
 			}
 		}
 
@@ -572,9 +575,7 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 
 		Optional<Class<?>> writeTarget = getConversions().getCustomWriteTarget(valueType);
 
-		return writeTarget.orElseGet(() -> {
-			return Enum.class.isAssignableFrom(valueType) ? String.class : valueType;
-		});
+		return writeTarget.orElseGet(() -> Enum.class.isAssignableFrom(valueType) ? String.class : valueType);
 	}
 
 	// ----------------------------------
@@ -682,9 +683,11 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 		 */
 		@Override
 		@Nullable
+		@SuppressWarnings("java:S2583") // false positive
 		public <T> T getParameterValue(Parameter<T, RelationalPersistentProperty> parameter) {
-
-			RelationalPersistentProperty property = this.entity.getRequiredPersistentProperty(parameter.getName());
+			String paramName = parameter.getName();
+			Assert.notNull(paramName, "Parameter name must not be null");
+			RelationalPersistentProperty property = this.entity.getRequiredPersistentProperty(paramName);
 
 			String reference = property.getColumnName().getReference(IdentifierProcessing.NONE);
 			String column = this.prefix.isEmpty() ? reference : this.prefix + reference;
@@ -707,8 +710,8 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 					return type.cast(value);
 				}
 				return this.converter.getConversionService().convert(value, type);
-			} catch (Exception o_O) {
-				throw new MappingException(String.format("Couldn't read column %s from Row.", column), o_O);
+			} catch (Exception error) {
+				throw new MappingException(String.format("Couldn't read column %s from Row.", column), error);
 			}
 		}
 	}

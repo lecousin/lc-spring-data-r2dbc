@@ -12,6 +12,7 @@ import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+@SuppressWarnings("java:S119") // name of parameter ID
 public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> implements LcR2dbcRepository<T, ID> {
 
 	private LcReactiveDataRelationalClient lcClient;

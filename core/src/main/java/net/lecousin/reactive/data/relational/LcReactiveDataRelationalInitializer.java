@@ -21,7 +21,11 @@ public class LcReactiveDataRelationalInitializer {
 	private static boolean initialized = false;
 	
 	private static class Config {
-		public List<String> entities = new LinkedList<>();
+		private List<String> entities = new LinkedList<>();
+	}
+	
+	private LcReactiveDataRelationalInitializer() {
+		// no instance
 	}
 	
 	public static void init() {
@@ -35,19 +39,23 @@ public class LcReactiveDataRelationalInitializer {
 			while (urls.hasMoreElements()) {
 				URL url = urls.nextElement();
 				logger.info("Loading configuration from " + url);
-				try (InputStream input = url.openStream()) {
-					Yaml yaml = new Yaml();
-					Map<String, Object> root = yaml.load(input);
-					if (root.containsKey("entities")) {
-						configureEntities(config, "", root.get("entities"));
-					}
-				} catch (Exception e) {
-					logger.error("Unable to read configuration file", e);
-				}
+				loadConfiguration(url, config);
 			}
 			Enhancer.enhance(config.entities);
 		} catch (Exception e) {
 			logger.error("Error configuring lc-reactive-data-relational", e);
+		}
+	}
+	
+	private static void loadConfiguration(URL url, Config config) {
+		try (InputStream input = url.openStream()) {
+			Yaml yaml = new Yaml();
+			Map<String, Object> root = yaml.load(input);
+			if (root.containsKey("entities")) {
+				configureEntities(config, "", root.get("entities"));
+			}
+		} catch (Exception e) {
+			logger.error("Unable to read configuration file", e);
 		}
 	}
 	

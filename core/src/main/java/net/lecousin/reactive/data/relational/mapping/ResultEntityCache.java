@@ -15,11 +15,7 @@ public class ResultEntityCache {
 	}
 	
 	public void setCachedInstance(Class<?> type, Object id, Object instance) {
-		Map<Object, Object> instances = cache.get(type);
-		if (instances == null) {
-			instances = new HashMap<>();
-			cache.put(type, instances);
-		}
+		Map<Object, Object> instances = cache.computeIfAbsent(type, t -> new HashMap<>());
 		instances.put(id, instance);
 	}
 	
