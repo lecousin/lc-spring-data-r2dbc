@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.postgres.test;
 
 import java.io.IOException;
+import java.time.Duration;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,7 +28,7 @@ public class PostgresTestConfiguration extends PostgresConfiguration {
 					}
 			}
 		});
-		EmbeddedPostgres.Builder builder = EmbeddedPostgres.builder();
+		EmbeddedPostgres.Builder builder = EmbeddedPostgres.builder().setPGStartupWait(Duration.ofMinutes(2));
 		try {
 			epg = builder.start();
 		} catch (IOException e) {
