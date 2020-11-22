@@ -15,6 +15,7 @@ import net.lecousin.reactive.data.relational.postgres.PostgresConfiguration;
 public class PostgresTestConfiguration extends PostgresConfiguration {
 
 	private static EmbeddedPostgres epg;
+	private static Throwable error = null;
 	
 	static {
 		Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -28,17 +29,19 @@ public class PostgresTestConfiguration extends PostgresConfiguration {
 					}
 			}
 		});
-		EmbeddedPostgres.Builder builder = EmbeddedPostgres.builder().setPGStartupWait(Duration.ofMinutes(2));
+		EmbeddedPostgres.Builder builder = EmbeddedPostgres.builder().setPGStartupWait(Duration.ofSeconds(30));
 		try {
 			epg = builder.start();
-		} catch (IOException e) {
-			e.printStackTrace();
+		} catch (Throwable e) {
+			error = e;
 		}
 	}
 	
 	@Override
 	@Bean
 	public PostgresqlConnectionFactory connectionFactory() {
+		if (error != null)
+			throw new RuntimeException("Postgres server not started", error);
 		return new PostgresqlConnectionFactory(
 			PostgresqlConnectionConfiguration.builder()
 			.host("localhost")
