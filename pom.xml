@@ -54,6 +54,8 @@
     <maven-surefire.version>3.0.0-M5</maven-surefire.version>
     <maven-jacoco.version>0.8.4</maven-jacoco.version>
     <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
+    
+    <sonar.java.source>11</sonar.java.source>
   </properties>
   
   <dependencies>
