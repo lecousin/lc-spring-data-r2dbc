@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
+import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 
@@ -33,10 +35,10 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals("empty", root.getValue());
 		Assertions.assertTrue(root.getList() == null || root.getList().isEmpty());
 		
-		list = repo.findByValue("abcd").collectList().block();
+		list = repo.findByValueWithSubEntity("abcd").collectList().block();
 		Assertions.assertEquals(0, list.size());
 		
-		list = repo.findByValue("empty").collectList().block();
+		list = repo.findByValueWithSubEntity("empty").collectList().block();
 		Assertions.assertEquals(1, list.size());
 		root = list.get(0);
 		Assertions.assertEquals("empty", root.getValue());
@@ -75,10 +77,10 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals(1, children.size());
 		Assertions.assertEquals("sub1", children.get(0).getSubValue());
 		
-		list = repo.findByValue("abcd").collectList().block();
+		list = repo.findByValueWithSubEntity("abcd").collectList().block();
 		Assertions.assertEquals(0, list.size());
 		
-		list = repo.findByValue("one").collectList().block();
+		list = repo.findByValueWithSubEntity("one").collectList().block();
 		Assertions.assertEquals(1, list.size());
 		root = list.get(0);
 		Assertions.assertEquals("one", root.getValue());
@@ -187,17 +189,17 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 			Assertions.assertNotNull(children);
 		}
 		
-		list = repo.findByValue("abcd").collectList().block();
+		list = repo.findByValueWithSubEntity("abcd").collectList().block();
 		Assertions.assertEquals(0, list.size());
 		
-		list = repo.findByValue("zero").collectList().block();
+		list = repo.findByValueWithSubEntity("zero").collectList().block();
 		Assertions.assertEquals(1, list.size());
 		root = list.get(0);
 		Assertions.assertEquals("zero", root.getValue());
 		Assertions.assertNotNull(root.getList());
 		Assertions.assertEquals(0, root.getList().size());
 		
-		list = repo.findByValue("one").collectList().block();
+		list = repo.findByValueWithSubEntity("one").collectList().block();
 		Assertions.assertEquals(1, list.size());
 		root = list.get(0);
 		Assertions.assertEquals("one", root.getValue());
@@ -206,7 +208,7 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals("sub1.1", root.getList().get(0).getSubValue());
 		Assertions.assertEquals(root, root.getList().get(0).getParent());
 		
-		list = repo.findByValue("two").collectList().block();
+		list = repo.findByValueWithSubEntity("two").collectList().block();
 		Assertions.assertEquals(1, list.size());
 		root = list.get(0);
 		Assertions.assertEquals("two", root.getValue());
@@ -219,7 +221,7 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 			Assertions.assertEquals(root, s.getParent());
 		}
 		
-		list = repo.findByValue("five").collectList().block();
+		list = repo.findByValueWithSubEntity("five").collectList().block();
 		Assertions.assertEquals(1, list.size());
 		root = list.get(0);
 		Assertions.assertEquals("five", root.getValue());
@@ -308,19 +310,19 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals(4, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(8, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
 		
-		repo.deleteAll(repo.findByValue("two").collectList().block()).block();
+		repo.deleteAll(repo.findByValueWithSubEntity("two").collectList().block()).block();
 		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(6, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
 		
-		repo.deleteAll(repo.findByValue("zero").collectList().block()).block();
+		repo.deleteAll(repo.findByValueWithSubEntity("zero").collectList().block()).block();
 		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(6, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
 		
-		repo.deleteAll(repo.findByValue("five").collectList().block()).block();
+		repo.deleteAll(repo.findByValueWithSubEntity("five").collectList().block()).block();
 		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
 		
-		repo.deleteAll(repo.findByValue("one").collectList().block()).block();
+		repo.deleteAll(repo.findByValueWithSubEntity("one").collectList().block()).block();
 		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
 	}
@@ -694,6 +696,110 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals(2, list3.stream().filter(s -> "3.1".equals(s.getSubValue())).findFirst().get().getVersion());
 		Assertions.assertEquals(3, list3.stream().filter(s -> "3.2".equals(s.getSubValue())).findFirst().get().getVersion());
 		Assertions.assertEquals(3, list3.stream().filter(s -> "3.3".equals(s.getSubValue())).findFirst().get().getVersion());
+	}
+	
+	@Test
+	public void testDeleteWithLazyCollection() {
+		RootEntity root1 = new RootEntity();
+		root1.setValue("one");
+		RootEntity root2 = new RootEntity();
+		root2.setValue("two");
+		
+		SubEntity sub1_1 = new SubEntity();
+		sub1_1.setSubValue("1.1");
+		SubEntity sub1_2 = new SubEntity();
+		sub1_2.setSubValue("1.2");
+		
+		SubEntity2 sub2_1 = new SubEntity2();
+		sub2_1.setSubValue("2.1");
+		SubEntity2 sub2_2 = new SubEntity2();
+		sub2_2.setSubValue("2.2");
+		
+		SubEntity3 sub3_1 = new SubEntity3();
+		sub3_1.setSubValue("3.1");
+		SubEntity3 sub3_2 = new SubEntity3();
+		sub3_2.setSubValue("3.2");
+		
+		root1.setList(Arrays.asList(sub1_1, sub1_2));
+		root1.setList2(Arrays.asList(sub2_1));
+		root1.setList3(Arrays.asList(sub3_1));
+
+		root2.setList2(Arrays.asList(sub2_2));
+		root2.setList3(Arrays.asList(sub3_2));
+		
+		repo.saveAll(Arrays.asList(root1, root2)).collectList().block();
+
+		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity2.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity3.class).fetch().all().collectList().block().size());
+		
+		root1 = repo.findByValue("one").blockFirst();
+		Assertions.assertNull(root1.getList());
+		repo.delete(root1).block();
+		// root1 and its links must be removed, sub3_1 should remain with a null parent
+		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(SubEntity2.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity3.class).fetch().all().collectList().block().size());
+	}
+	
+	@Test
+	public void testConditions() {
+		RootEntity root1 = new RootEntity();
+		root1.setValue("one");
+		RootEntity root2 = new RootEntity();
+		root2.setValue("two");
+		RootEntity root3 = new RootEntity();
+		root3.setValue("abocd");
+
+		
+		SubEntity sub1_1 = new SubEntity();
+		sub1_1.setSubValue("1.1");
+		SubEntity sub1_2 = new SubEntity();
+		sub1_2.setSubValue("1.2");
+		SubEntity sub1_3 = new SubEntity();
+		sub1_3.setSubValue("1.3");
+		
+		SubEntity2 sub2_1 = new SubEntity2();
+		sub2_1.setSubValue("2.1");
+		SubEntity2 sub2_2 = new SubEntity2();
+		sub2_2.setSubValue("2.2");
+		
+		SubEntity3 sub3_1 = new SubEntity3();
+		sub3_1.setSubValue("3.1");
+		SubEntity3 sub3_2 = new SubEntity3();
+		sub3_2.setSubValue("3.2");
+		SubEntity3 sub3_3 = new SubEntity3();
+		sub3_3.setSubValue("3.3");
+		
+		root1.setList(Arrays.asList(sub1_1));
+		root1.setList2(Arrays.asList(sub2_1));
+		root1.setList3(Arrays.asList(sub3_1));
+
+		root2.setList(Arrays.asList(sub1_3));
+		root2.setList2(Arrays.asList(sub2_2));
+		root2.setList3(Arrays.asList(sub3_2));
+		
+		root3.setList(Arrays.asList(sub1_2));
+		root3.setList3(Arrays.asList(sub3_3));
+		
+		repo.saveAll(Arrays.asList(root1, root2, root3)).collectList().block();
+
+		List<SubEntity> subs =
+			SelectQuery.from(SubEntity.class, "sub1")
+			.join("sub1", "parent", "root")
+			.join("root", "list3", "sub3")
+			.where(
+				Criteria.property("sub3", "subValue").isNotNull()
+				.and(Criteria.property("root", "value").like("%o%"))
+				.and(Criteria.property("sub1", "subValue").like("%.2").or(Criteria.property("sub3", "subValue").is("3.1")))
+			)
+			.execute(lcClient)
+			.collectList().block();
+		Assertions.assertEquals(2, subs.size());
+		Assertions.assertTrue(subs.stream().anyMatch(sub -> "1.1".equals(sub.getSubValue())));
+		Assertions.assertTrue(subs.stream().anyMatch(sub -> "1.2".equals(sub.getSubValue())));
 	}
 
 }

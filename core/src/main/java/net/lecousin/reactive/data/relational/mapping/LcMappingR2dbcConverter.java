@@ -297,12 +297,18 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 			instance = resultContext.getEntityCache().getCachedInstance(property.getActualType(), value);
 		}
 		if (instance == null) {
-			instance = getInstance(row, metadata, "", entity, resultContext);
+			try {
+				instance = entity.getType().getConstructor().newInstance();
+			} catch (Exception  e) {
+				throw new MappingException("Error instantiating entity " + entity.getType().getName() + " with default contructor to set a foreign key", e);
+			}
 		}
-		entity.getPropertyAccessor(instance).setProperty(entity.getRequiredIdProperty(), value);
-		ModelUtils.setReverseLink(instance, parentInstance, property);
 		EntityState state = EntityState.get(instance, client, entity);
-		state.lazyLoaded();
+		if (!state.isLoaded())
+			entity.getPropertyAccessor(instance).setProperty(entity.getRequiredIdProperty(), value);
+		ModelUtils.setReverseLink(instance, parentInstance, property);
+		if (!state.isLoaded())
+			state.lazyLoaded();
 		return (S) instance;
 	}
 
@@ -310,22 +316,18 @@ public class LcMappingR2dbcConverter extends BasicRelationalConverter implements
 	private <S> S getInstance(Row row, @Nullable RowMetadata rowMetadata, String prefix,
 			RelationalPersistentEntity<S> entity, @Nullable ResultMappingContext resultContext) {
 
-		RelationalPersistentProperty idProperty = null;
 		Object id = null;
 		
 		if (resultContext != null) {
-			idProperty = entity.getIdProperty();
-			if (idProperty != null) {
-				try {
-					id = row.get(idProperty.getName());
-				} catch (Exception e) {
-					// not available
-				}
-				if (id != null) {
-					Object instance = resultContext.getEntityCache().getCachedInstance(entity.getType(), id);
-					if (instance != null)
-						return (S) instance;
-				}
+			try {
+				id = ModelUtils.getId(row, entity);
+			} catch (Exception e) {
+				// not available
+			}
+			if (id != null) {
+				Object instance = resultContext.getEntityCache().getCachedInstance(entity.getType(), id);
+				if (instance != null)
+					return (S) instance;
 			}
 		}
 		

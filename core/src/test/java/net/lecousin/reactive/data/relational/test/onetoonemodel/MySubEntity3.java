@@ -18,7 +18,7 @@ public class MySubEntity3 {
 	@Column
 	private String subValue;
 	
-	@ForeignKey(optional = true, onForeignKeyDeleted = OnForeignDeleted.SET_TO_NULL)
+	@ForeignKey(optional = true, onForeignDeleted = OnForeignDeleted.SET_TO_NULL)
 	private MyEntity3 parent;
 
 	public Long getId() {

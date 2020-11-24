@@ -9,9 +9,11 @@ import java.util.Map;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
+import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
+import reactor.core.publisher.Flux;
 
 public class SelectQuery<T> {
 	
@@ -77,6 +79,10 @@ public class SelectQuery<T> {
 		this.offset = start;
 		this.limit = nb;
 		return this;
+	}
+	
+	public Flux<T> execute(LcReactiveDataRelationalClient client) {
+		return client.execute(this);
 	}
 	
 	

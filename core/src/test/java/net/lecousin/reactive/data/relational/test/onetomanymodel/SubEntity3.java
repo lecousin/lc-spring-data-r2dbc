@@ -22,7 +22,7 @@ public class SubEntity3 {
 	@Column
 	private String subValue;
 	
-	@ForeignKey(optional = true, onForeignKeyDeleted = OnForeignDeleted.SET_TO_NULL)
+	@ForeignKey(optional = true, onForeignDeleted = OnForeignDeleted.SET_TO_NULL)
 	private RootEntity parent;
 
 	public Long getId() {

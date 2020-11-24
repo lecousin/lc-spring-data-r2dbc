@@ -84,8 +84,8 @@ abstract class AbstractProcessor<R extends AbstractProcessor.Request> {
 		for (RelationalPersistentProperty property : request.entityType) {
 			ForeignKey fkAnnotation = property.findAnnotation(ForeignKey.class);
 			if (fkAnnotation != null) {
-				Pair<Field, ForeignTable> p = ModelUtils.getRequiredForeignTableWithFieldForJoinKey(property.getActualType(), property.getName());
-				processForeignKey(op, request, property, fkAnnotation, p.getFirst(), p.getSecond());
+				Pair<Field, ForeignTable> p = ModelUtils.getForeignTableWithFieldForJoinKey(property.getActualType(), property.getName(), request.entityType.getType());
+				processForeignKey(op, request, property, fkAnnotation, p != null ? p.getFirst() : null, p != null ? p.getSecond() : null);
 			}
 		}
 		
@@ -112,22 +112,23 @@ abstract class AbstractProcessor<R extends AbstractProcessor.Request> {
 	
 	protected abstract boolean checkRequest(Operation op, R request);
 	
-	protected abstract void processForeignKey(Operation op, R request, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation, Field foreignTableField, ForeignTable foreignTableAnnotation);
+	protected abstract void processForeignKey(Operation op, R request, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation, @Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation);
 	
 	@SuppressWarnings("java:S107")
 	protected abstract void processForeignTableField(Operation op, R request, Field foreignTableField, ForeignTable foreignTableAnnotation, MutableObject<?> foreignFieldValue, boolean isCollection, RelationalPersistentEntity<?> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation);
 	
+	@SuppressWarnings("java:S3824")
 	private R addRequest(Operation op, Object instance, @Nullable RelationalPersistentEntity<?> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<?> accessor) {
 		if (entity == null)
 			entity = op.lcClient.getMappingContext().getRequiredPersistentEntity(instance.getClass());
 		if (accessor == null)
 			accessor = entity.getPropertyAccessor(instance);
-		instance = op.cache.getInstance(instance, entity, accessor);
+		if (state == null)
+			state = EntityState.get(instance, op.lcClient, entity);
+		instance = op.cache.getInstance(state, entity, accessor, op.lcClient.getMappingContext());
 		Map<Object, R> map = requests.computeIfAbsent(entity, e -> new HashMap<>());
 		R r = map.get(instance);
 		if (r == null) {
-			if (state == null)
-				state = EntityState.get(instance, op.lcClient, entity);
 			r = createRequest(instance, state, entity, accessor);
 			map.put(instance, r);
 		}

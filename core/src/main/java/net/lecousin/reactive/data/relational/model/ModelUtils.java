@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.core.CollectionFactory;
@@ -22,6 +23,7 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 import org.springframework.data.util.Pair;
 import org.springframework.lang.Nullable;
 
+import io.r2dbc.spi.Row;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
@@ -88,12 +90,12 @@ public class ModelUtils {
 	 */
 	@SuppressWarnings("java:S3011")
 	public static void setReverseLink(Object instance, Object linkedInstance, RelationalPersistentProperty linkedProperty) {
-		Field field = getForeignTableFieldForJoinKey(instance.getClass(), linkedProperty.getName());
+		Field field = getForeignTableFieldForJoinKey(instance.getClass(), linkedProperty.getName(), linkedInstance.getClass());
 		if (field != null && !isCollection(field))
 			try {
 				field.set(instance, linkedInstance);
 			} catch (Exception e) {
-				throw new ModelAccessException("Unable to set ForeignTable field", e);
+				throw new ModelAccessException("Unable to set ForeignTable field " + field.getName() + " on " + instance.getClass().getSimpleName() + " with value " + linkedInstance, e);
 			}
 	}
 	
@@ -104,8 +106,8 @@ public class ModelUtils {
 	 * @return the field
 	 */
 	@Nullable
-	public static Field getForeignTableFieldForJoinKey(Class<?> entity, String joinKey) {
-		Pair<Field, ForeignTable> p = getForeignTableWithFieldForJoinKey(entity, joinKey);
+	public static Field getForeignTableFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
+		Pair<Field, ForeignTable> p = getForeignTableWithFieldForJoinKey(entity, joinKey, targetType);
 		return p != null ? p.getFirst() : null;
 	}
 	
@@ -115,8 +117,8 @@ public class ModelUtils {
 	 * @param joinKey join key
 	 * @return the field
 	 */
-	public static Field getRequiredForeignTableFieldForJoinKey(Class<?> entity, String joinKey) {
-		return getRequiredForeignTableWithFieldForJoinKey(entity, joinKey).getFirst();
+	public static Field getRequiredForeignTableFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
+		return getRequiredForeignTableWithFieldForJoinKey(entity, joinKey, targetType).getFirst();
 	}
 	
 	/** Return the foreign table field on the given entity type, having the given join key.
@@ -126,10 +128,10 @@ public class ModelUtils {
 	 * @return the field and the foreign table annotation
 	 */
 	@Nullable
-	public static Pair<Field, ForeignTable> getForeignTableWithFieldForJoinKey(Class<?> entity, String joinKey) {
+	public static Pair<Field, ForeignTable> getForeignTableWithFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
 		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(entity);
 		for (Map.Entry<String, Pair<Field, ForeignTable>> e : map.entrySet())
-			if (e.getValue().getSecond().joinKey().equals(joinKey))
+			if (e.getValue().getSecond().joinKey().equals(joinKey) && e.getValue().getFirst().getType().equals(targetType))
 				return e.getValue();
 		return null;
 	}
@@ -140,12 +142,11 @@ public class ModelUtils {
 	 * @param joinKey join key
 	 * @return the field and the foreign table annotation
 	 */
-	public static Pair<Field, ForeignTable> getRequiredForeignTableWithFieldForJoinKey(Class<?> entity, String joinKey) {
-		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(entity);
-		for (Map.Entry<String, Pair<Field, ForeignTable>> e : map.entrySet())
-			if (e.getValue().getSecond().joinKey().equals(joinKey))
-				return e.getValue();
-		throw new MappingException("Missing @ForeignTable field with join key '" + joinKey + "' in class " + entity.getName());
+	public static Pair<Field, ForeignTable> getRequiredForeignTableWithFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
+		Pair<Field, ForeignTable> p = getForeignTableWithFieldForJoinKey(entity, joinKey, targetType);
+		if (p == null)
+			throw new MappingException("Missing @ForeignTable field with join key '" + joinKey + "' in class " + entity.getName());
+		return p;
 	}
 	
 	/** Return the foreign table field on the given property in the given entity type.
@@ -402,5 +403,59 @@ public class ModelUtils {
 			value = e.getPropertyAccessor(value).getProperty(e.getRequiredIdProperty());
 		}
 		return value;
+	}
+	
+	public static Object getId(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+		if (entityType.hasIdProperty())
+			return getIdPropertyValue(entityType, accessor);
+		return getIdFromAllProperties(entityType, accessor, mappingContext);
+	}
+	
+	public static Object getIdPropertyValue(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor) {
+		return accessor.getProperty(entityType.getRequiredIdProperty());
+	}
+	
+	public static CompositeIdValue getIdFromAllProperties(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+		CompositeIdValue id = new CompositeIdValue();
+		for (RelationalPersistentProperty property : entityType) {
+			id.add(property.getName(), getDatabaseValue(accessor.getBean(), property, mappingContext));
+		}
+		return id;
+	}
+	
+	public static Object getId(Map<String, Object> row, RelationalPersistentEntity<?> entityType, UnaryOperator<String> propertyRowName) {
+		if (entityType.hasIdProperty())
+			return getIdPropertyValue(row, entityType, propertyRowName);
+		return getIdFromAllProperties(row, entityType, propertyRowName);
+	}
+	
+	public static Object getIdPropertyValue(Map<String, Object> row, RelationalPersistentEntity<?> entityType, UnaryOperator<String>  propertyRowName) {
+		return row.get(propertyRowName.apply(entityType.getRequiredIdProperty().getName()));
+	}
+	
+	public static CompositeIdValue getIdFromAllProperties(Map<String, Object> row, RelationalPersistentEntity<?> entityType, UnaryOperator<String>  propertyRowName) {
+		CompositeIdValue id = new CompositeIdValue();
+		for (RelationalPersistentProperty property : entityType) {
+			id.add(property.getName(), row.get(propertyRowName.apply(property.getName())));
+		}
+		return id;
+	}
+	
+	public static Object getId(Row row, RelationalPersistentEntity<?> entityType) {
+		if (entityType.hasIdProperty())
+			return getIdPropertyValue(row, entityType);
+		return getIdFromAllProperties(row, entityType);
+	}
+
+	public static Object getIdPropertyValue(Row row, RelationalPersistentEntity<?> entityType) {
+		return row.get(entityType.getRequiredIdProperty().getName());
+	}
+	
+	public static CompositeIdValue getIdFromAllProperties(Row row, RelationalPersistentEntity<?> entityType) {
+		CompositeIdValue id = new CompositeIdValue();
+		for (RelationalPersistentProperty property : entityType) {
+			id.add(property.getName(), row.get(property.getName()));
+		}
+		return id;
 	}
 }

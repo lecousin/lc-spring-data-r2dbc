@@ -13,6 +13,7 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentEnti
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.data.util.Pair;
+import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
@@ -28,9 +29,19 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	private Map<RelationalPersistentEntity<?>, Criteria> toDeleteWithoutLoading = new HashMap<>();
 	
 	static class DeleteRequest extends AbstractProcessor.Request {
+		
+		private Map<String, Object> savedForeignKeys = new HashMap<>();
 
 		DeleteRequest(RelationalPersistentEntity<?> entityType, Object instance, EntityState state, PersistentPropertyAccessor<?> accessor) {
 			super(entityType, instance, state, accessor);
+		}
+		
+		private void saveForeignKeyValue(String foreignKey, Object value) {
+			savedForeignKeys.put(foreignKey, value);
+		}
+		
+		private Object getSavedForeignKeyValue(String foreignKey) {
+			return savedForeignKeys.get(foreignKey);
 		}
 		
 	}
@@ -50,30 +61,44 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	protected void processForeignKey(
 		Operation op, DeleteRequest request,
 		RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation,
-		Field foreignTableField, ForeignTable foreignTableAnnotation
+		@Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation
 	) {
-		if (ModelUtils.isCollection(foreignTableField)) {
-			// remove from collection if loaded
-			removeFromForeignTableCollection(request, fkProperty, foreignTableField);
-			return;
+		if (!request.entityType.hasIdProperty()) {
+			// no id, the delete will be by values, but we need to keep foreign key ids because they will be set to null before
+			Object foreignInstance = request.accessor.getProperty(fkProperty);
+			if (foreignInstance != null) {
+				RelationalPersistentEntity<?> fe = op.lcClient.getMappingContext().getPersistentEntity(foreignInstance.getClass());
+				foreignInstance = fe.getPropertyAccessor(foreignInstance).getProperty(fe.getIdProperty());
+			}
+			request.saveForeignKeyValue(fkProperty.getName(), foreignInstance);
 		}
-		
-		if (foreignTableAnnotation.optional()) {
-			// set to null if loaded
-			if (request.state.isLoaded() && !request.state.isFieldModified(fkProperty.getName())) {
-				Object foreignInstance = request.accessor.getProperty(fkProperty);
-				if (foreignInstance != null) {
-					try {
-						foreignTableField.set(foreignInstance, null);
-					} catch (Exception e) {
-						throw new ModelAccessException("Cannot set foreign table field", e);
+		if (foreignTableAnnotation != null) {
+			if (ModelUtils.isCollection(foreignTableField)) {
+				// remove from collection if loaded
+				removeFromForeignTableCollection(request, fkProperty, foreignTableField);
+				return;
+			}
+			
+			if (foreignTableAnnotation.optional() && !fkAnnotation.cascadeDelete()) {
+				// set to null if loaded
+				if (request.state.isLoaded() && !request.state.isFieldModified(fkProperty.getName())) {
+					Object foreignInstance = request.accessor.getProperty(fkProperty);
+					if (foreignInstance != null) {
+						try {
+							foreignTableField.set(foreignInstance, null);
+						} catch (Exception e) {
+							throw new ModelAccessException("Cannot set foreign table field", e);
+						}
 					}
 				}
+				return;
 			}
+		} else if (!fkAnnotation.cascadeDelete()) {
+			// no ForeignTable, and no cascade => do nothing
 			return;
 		}
 		
-		// delete where id in (foreign key values)
+		// delete
 		if (request.state.isLoaded()) {
 			deleteForeignKeyInstance(op, request, request.state.getPersistedValue(fkProperty.getName()));
 			return;
@@ -108,7 +133,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 		Field foreignTableField, ForeignTable foreignTableAnnotation, MutableObject<?> foreignFieldValue, boolean isCollection,
 		RelationalPersistentEntity<?> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
 	) {
-		if (fkAnnotation.optional() && fkAnnotation.onForeignKeyDeleted().equals(ForeignKey.OnForeignDeleted.SET_TO_NULL)) {
+		if (fkAnnotation.optional() && fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.SET_TO_NULL)) {
 			// update to null
 			Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
 			op.updater.update(foreignEntity, fkProperty, instId, null);
@@ -183,6 +208,8 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	@Override
 	protected Mono<Void> doRequests(Operation op, RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
 		Criteria criteria = entityType.hasIdProperty() ? createCriteriaOnIds(entityType, requests) : createCriteriaOnProperties(entityType, requests);
+		if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
+			LcReactiveDataRelationalClient.logger.debug("Delete " + entityType.getType().getName() + " where " + criteria);
 		return op.lcClient.getSpringClient()
 			.delete().from(entityType.getType())
 			.matching(criteria)
@@ -196,8 +223,6 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 			Object id = entityType.getPropertyAccessor(request.instance).getProperty(entityType.getRequiredIdProperty());
 			ids.add(id);
 		}
-		if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
-			LcReactiveDataRelationalClient.logger.debug("Delete " + entityType.getType().getName() + " with ids " + ids);
 		return Criteria.where(entityType.getRequiredIdProperty().getName()).in(ids);
 	}
 	
@@ -207,10 +232,15 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 			Criteria c = Criteria.empty();
 			for (RelationalPersistentProperty property : entityType) {
 				Object value = request.accessor.getProperty(property);
-				if (value == null)
+				if (value == null) {
 					c = c.and(Criteria.where(property.getName()).isNull());
-				else
+				} else {
+					if (property.isAnnotationPresent(ForeignKey.class)) {
+						// get the id instead of the entity
+						value = request.getSavedForeignKeyValue(property.getName());
+					}
 					c = c.and(Criteria.where(property.getName()).is(value));
+				}
 			}
 			criteria = criteria.or(c);
 		}

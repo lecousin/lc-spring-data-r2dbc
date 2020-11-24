@@ -55,6 +55,7 @@
     <maven-jacoco.version>0.8.4</maven-jacoco.version>
     <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
     
+    <sonar.projectName>lc-spring-data-r2dbc</sonar.projectName>
     <sonar.java.source>11</sonar.java.source>
     <sonar.test.exclusions>**/src/test/**/*</sonar.test.exclusions>
   </properties>

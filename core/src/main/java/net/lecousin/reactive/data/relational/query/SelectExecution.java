@@ -387,9 +387,7 @@ public class SelectExecution<T> {
 			return;
 		}
 		RelationalPersistentEntity<?> rootEntity = mapper.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
-		Object rootId = null;
-		if (rootEntity.hasIdProperty())
-			rootId = row.get(mapping.fieldAliasesByTableAlias.get(query.from.alias).get(rootEntity.getRequiredIdProperty().getName()));
+		Object rootId = ModelUtils.getId(row, rootEntity, name -> mapping.fieldAliasesByTableAlias.get(query.from.alias).get(name));
 		if (currentRoot != null) {
 			if (rootId != null && !currentRootId.equals(rootId)) {
 				endOfRoot();
@@ -419,22 +417,17 @@ public class SelectExecution<T> {
 				else
 					type = field.getType();
 				RelationalPersistentEntity<?> entity = mapper.getMappingContext().getRequiredPersistentEntity(type);
-				Object instance;
-				if (entity.hasIdProperty()) {
-					Object id = row.get(mapping.fieldAliasesByTableAlias.get(join.alias).get(entity.getRequiredIdProperty().getName()));
-					if (id == null) {
-						// left join without any match
-						if (isCollection)
-							field.set(parent, CollectionFactory.createCollection(field.getType(), ModelUtils.getCollectionType(field), 0));
-						continue;
-					}
-					instance = resultContext.getEntityCache().getCachedInstance(type, id);
-					if (instance == null) {
-						instance = mapper.read(join.targetType, createRow(row, entity, join.alias, mapping), null, resultContext);
-						resultContext.getEntityCache().setCachedInstance(type, id, instance);
-					}
-				} else {
+				Object id = ModelUtils.getId(row, entity, name -> mapping.fieldAliasesByTableAlias.get(join.alias).get(name));
+				if (id == null) {
+					// left join without any match
+					if (isCollection)
+						field.set(parent, CollectionFactory.createCollection(field.getType(), ModelUtils.getCollectionType(field), 0));
+					continue;
+				}
+				Object instance = resultContext.getEntityCache().getCachedInstance(type, id);
+				if (instance == null) {
 					instance = mapper.read(join.targetType, createRow(row, entity, join.alias, mapping), null, resultContext);
+					resultContext.getEntityCache().setCachedInstance(type, id, instance);
 				}
 				if (isCollection)
 					ModelUtils.addToCollectionField(field, parent, instance);

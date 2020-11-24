@@ -20,6 +20,7 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.data.relational.core.query.Update;
 import org.springframework.data.relational.core.sql.SqlIdentifier;
+import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
@@ -53,25 +54,27 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 	protected void processForeignKey(
 		Operation op, SaveRequest request,
 		RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation,
-		Field foreignTableField, ForeignTable foreignTableAnnotation
+		@Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation
 	) {
 		Object value = request.accessor.getProperty(fkProperty);
 		Object originalValue = request.state.getPersistedValue(fkProperty.getName());
 		if (!Objects.equals(originalValue, value) && originalValue != null) {
 			// link changed, we need to delete/null the previous one
 			// remove the link
-			try {
-				if (ModelUtils.isCollection(foreignTableField)) {
-					ModelUtils.removeFromCollectionField(foreignTableField, originalValue, request.instance);
-				} else {
-					EntityState foreignState = EntityState.get(originalValue, op.lcClient);
-					foreignState.setForeignTableField(originalValue, foreignTableField, null, false);
+			if (foreignTableAnnotation != null) {
+				try {
+					if (ModelUtils.isCollection(foreignTableField)) {
+						ModelUtils.removeFromCollectionField(foreignTableField, originalValue, request.instance);
+					} else {
+						EntityState foreignState = EntityState.get(originalValue, op.lcClient);
+						foreignState.setForeignTableField(originalValue, foreignTableField, null, false);
+					}
+				} catch (Exception e) {
+					throw new RuntimeException("Unable to remove link for removed entity", e);
 				}
-			} catch (Exception e) {
-				throw new RuntimeException("Unable to remove link for removed entity", e);
 			}
-			if (!foreignTableAnnotation.optional()) {
-				// not optional specified on ForeignTable -> this is a delete
+			if ((foreignTableAnnotation != null && !foreignTableAnnotation.optional()) || fkAnnotation.cascadeDelete()) {
+				// not optional specified on ForeignTable, or cascadeDelete -> this is a delete
 				op.addToDelete(originalValue, null, null, null);
 			} else {
 				op.addToSave(originalValue, null, null, null);
@@ -107,7 +110,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 				deletedElements.remove(element);
 			}
 			if (!deletedElements.isEmpty()) {
-				if (!fkAnnotation.optional() || fkAnnotation.onForeignKeyDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
+				if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
 					// delete
 					for (Object element : deletedElements)
 						op.addToDelete(element, foreignEntity, null, null);
@@ -127,7 +130,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			Object originalValue = request.state.getPersistedValue(foreignTableField.getName());
 			if (!Objects.equals(originalValue, value) && originalValue != null) {
 				// it has been changed, we need to update/delete the previous one
-				if (!fkAnnotation.optional() || fkAnnotation.onForeignKeyDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
+				if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
 					// delete
 					op.addToDelete(originalValue, foreignEntity, null, null);
 				} else {

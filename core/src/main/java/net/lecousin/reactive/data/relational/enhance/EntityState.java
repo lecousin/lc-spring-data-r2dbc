@@ -231,7 +231,7 @@ public class EntityState {
 			Field field = entity.getClass().getDeclaredField(fieldName);
 			Object id = ModelUtils.getRequiredId(entity, entityType, null);
 			Mono<T> fromDb = (Mono<T>) client.getSpringClient().select().from(field.getType()).matching(Criteria.where(joinKey).is(id)).fetch().one();
-			fromDb = fromDb.doOnSuccess(inst -> {
+			fromDb = fromDb.doOnNext(inst -> {
 				try {
 					field.setAccessible(true);
 					field.set(entity, inst);

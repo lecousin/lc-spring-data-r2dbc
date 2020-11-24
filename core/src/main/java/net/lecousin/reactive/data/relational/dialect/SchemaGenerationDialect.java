@@ -45,9 +45,7 @@ public abstract class SchemaGenerationDialect {
 	}
 	
 	protected String toSql(SqlIdentifier identifier) {
-		if (identifierProcessing != null)
-			return identifier.toSql(identifierProcessing);
-		return dataAccess.toSql(identifier);
+		return identifier.toSql(identifierProcessing);
 	}
 	
 	public void dropTable(RelationalPersistentEntity<?> entity, boolean ifExists, StringBuilder sql) {

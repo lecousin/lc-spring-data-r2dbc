@@ -27,6 +27,11 @@ public @interface ForeignKey {
 	 */
 	boolean optional() default false;
 	
-	OnForeignDeleted onForeignKeyDeleted() default OnForeignDeleted.DELETE;
+	OnForeignDeleted onForeignDeleted() default OnForeignDeleted.DELETE;
+	
+	/**
+	 * Specifies if the foreign entity must be deleted when the owning entity is deleted or the foreign key is set to null.
+	 */
+	boolean cascadeDelete() default false;
 	
 }

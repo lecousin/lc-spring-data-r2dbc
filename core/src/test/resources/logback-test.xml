@@ -6,10 +6,10 @@
   <root level="INFO">
     <appender-ref ref="CONSOLE" />
   </root>
-  
-<!-- 
+
+<!--   
   <logger name="org.springframework.data.r2dbc" level="debug"/>
   <logger name="net.lecousin.reactive.data.relational" level="debug"/>
  -->
- 
+
 </configuration>

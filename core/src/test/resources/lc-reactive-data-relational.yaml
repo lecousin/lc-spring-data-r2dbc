@@ -22,3 +22,10 @@ entities:
       - Entity1
       - Entity2
       - JoinEntity
+    - model1:
+      - Company
+      - Employee
+      - Person
+      - PointOfContact
+      - PostalAddress
+      - Site
