@@ -215,7 +215,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 				if (property.isAnnotationPresent(Version.class)) {
 					Object value = request.accessor.getProperty(property);
 					long currentVersion = ((Number)value).longValue();
-					criteria = criteria.and(Criteria.where(property.getName()).is(Long.valueOf(currentVersion)));
+					criteria = criteria.and(Criteria.where(op.lcClient.getDataAccess().toSql(property.getColumnName())).is(Long.valueOf(currentVersion)));
 					versionAssignments.put(property.getColumnName(), Long.valueOf(currentVersion + 1));
 					if (isDebug)
 						debug.append(' ').append(property.getName()).append('=').append(currentVersion + 1);
@@ -236,7 +236,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			assignments.putAll(versionAssignments);
 			RelationalPersistentProperty idProperty = request.entityType.getRequiredIdProperty();
 			Object id = request.accessor.getProperty(idProperty);
-			criteria = criteria.and(Criteria.where(idProperty.getName()).is(id));
+			criteria = criteria.and(Criteria.where(op.lcClient.getDataAccess().toSql(idProperty.getColumnName())).is(id));
 			if (isDebug) {
 				debug.append(" WHERE ").append(idProperty.getName()).append('=').append(id);
 				LcReactiveDataRelationalClient.logger.debug(debug.toString());

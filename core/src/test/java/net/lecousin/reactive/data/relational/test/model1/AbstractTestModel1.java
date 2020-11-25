@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
+import org.springframework.data.relational.core.query.Criteria;
 
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
@@ -151,6 +152,95 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Assertions.assertEquals(4 - 2, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(7 - 1, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(5 - 1, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+	}
+	
+	@Test
+	public void testDeletePointOfContact() {
+		createModel();
+		
+		Company microsoft = repoCompany.findByName("Microsoft").block();
+		List<PointOfContact> pocs = microsoft.lazyGetProviders().collectList().block();
+		Assertions.assertEquals(1, pocs.size());
+		PointOfContact lazyPoc = lcClient.getSpringClient().select().from(PointOfContact.class).matching(Criteria.where("id").is(pocs.get(0).getId())).fetch().one().block();
+		lcClient.delete(lazyPoc).block();
+
+		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(7, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+	}
+	
+	@Test
+	public void testDeletePointOfContactFromLoadedCompany() {
+		createModel();
+		
+		Company microsoft = repoCompany.findByName("Microsoft").block();
+		List<PointOfContact> pocs = microsoft.lazyGetProviders().collectList().block();
+		Assertions.assertEquals(1, pocs.size());
+		lcClient.delete(pocs.get(0)).block();
+		
+		Assertions.assertEquals(0, microsoft.getProviders().length);
+
+		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(7, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+	}
+	
+	@Test
+	public void testDeleteSitesFromLoadedCompany() {
+		createModel();
+		
+		Company microsoft = repoCompany.findByName("Microsoft").block();
+		List<Site> sites = microsoft.lazyGetSites().collectList().block();
+		Assertions.assertEquals(2, sites.size());
+		lcClient.delete(sites).block();
+		
+		Assertions.assertEquals(0, microsoft.getSites().size());
+
+		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(7 - 2, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5 - 2, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+	}
+	
+	@Test
+	public void testDeletePerson() {
+		createModel();
+		
+		List<Person> persons = repoPerson.findByFirstName("Jessica").collectList().block();
+		Assertions.assertEquals(1, persons.size());
+		Person jessica = persons.get(0);
+		repoPerson.delete(jessica).block();
+		
+		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(6 - 1, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(7 - 1, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+	}
+	
+	@Test
+	public void testDeletePersonNotLoaded() {
+		createModel();
+		
+		Company microsoft = repoCompany.findByName("Microsoft").block();
+		Person jessica = microsoft.lazyGetEmployees().collectList().block().get(0).getPerson();
+		repoPerson.delete(jessica).block();
+		
+		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(6 - 1, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(7 - 1, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
 	}
 
 }

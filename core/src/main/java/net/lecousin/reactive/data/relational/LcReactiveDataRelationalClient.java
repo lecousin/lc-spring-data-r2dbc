@@ -170,7 +170,7 @@ public class LcReactiveDataRelationalClient {
 	private <T> Mono<T> doLoading(T entity, RelationalPersistentEntity<?> entityType) {
 		RelationalPersistentProperty idProperty = entityType.getRequiredIdProperty();
 		Object id = ModelUtils.getRequiredId(entity, entityType, null);
-		return client.select().from(entity.getClass()).matching(Criteria.where(idProperty.getName()).is(id)).fetch().first()
+		return client.select().from(entity.getClass()).matching(Criteria.where(dataAccess.toSql(idProperty.getColumnName())).is(id)).fetch().first()
 			.map(read -> ModelUtils.copyProperties((T)read, entity, entityType));
 	}
 	

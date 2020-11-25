@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational.enhance;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.HashMap;
@@ -15,6 +16,7 @@ import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.core.CollectionFactory;
 import org.springframework.data.mapping.MappingException;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
+import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.lang.Nullable;
 
@@ -230,7 +232,9 @@ public class EntityState {
 			foreignTablesLoaded.add(fieldName);
 			Field field = entity.getClass().getDeclaredField(fieldName);
 			Object id = ModelUtils.getRequiredId(entity, entityType, null);
-			Mono<T> fromDb = (Mono<T>) client.getSpringClient().select().from(field.getType()).matching(Criteria.where(joinKey).is(id)).fetch().one();
+			RelationalPersistentEntity<?> elementEntity = client.getMappingContext().getRequiredPersistentEntity(field.getType());
+			RelationalPersistentProperty fkProperty = elementEntity.getRequiredPersistentProperty(joinKey);
+			Mono<T> fromDb = (Mono<T>) client.getSpringClient().select().from(field.getType()).matching(Criteria.where(client.getDataAccess().toSql(fkProperty.getColumnName())).is(id)).fetch().one();
 			fromDb = fromDb.doOnNext(inst -> {
 				try {
 					field.setAccessible(true);
@@ -269,21 +273,41 @@ public class EntityState {
 			Class<?> elementType = ModelUtils.getCollectionType(field);
 			if (elementType == null)
 				throw new MappingException("Property is not a collection: " + fieldName);
-			Flux<T> flux = (Flux<T>) client.getSpringClient().select().from(elementType).matching(Criteria.where(joinKey).is(id)).fetch().all();
-			final Object col = CollectionFactory.createCollection(field.getType(), elementType, 10);
-			field.set(entity, col);
+			RelationalPersistentEntity<?> elementEntity = client.getMappingContext().getRequiredPersistentEntity(elementType);
+			RelationalPersistentProperty fkProperty = elementEntity.getRequiredPersistentProperty(joinKey);
+			Flux<T> flux = (Flux<T>) client.getSpringClient().select().from(elementType).matching(Criteria.where(client.getDataAccess().toSql(fkProperty.getColumnName())).is(id)).fetch().all();
 			Field fk = elementType.getDeclaredField(joinKey);
-			flux = flux.doOnNext(element -> {
-				((Collection)col).add(element);
-				fk.setAccessible(true);
-				try {
-					fk.set(element, entity);
-				} catch (Exception e) {
-					throw new ModelAccessException("Unable to set field " + joinKey, e);
-				}
-			});
-			flux = flux.doOnComplete(() -> savePersistedValue(field, col));
-			return flux;
+			fk.setAccessible(true);
+			if (field.getType().isArray()) {
+				return flux.collectList().flatMapMany(list -> {
+					Object array = list.toArray((Object[])Array.newInstance(elementType, list.size()));
+					try {
+						field.set(entity, array);
+					} catch (Exception e) {
+						return Flux.error(e);
+					}
+					for (Object element : list)
+						try {
+							fk.set(element, entity);
+						} catch (Exception e) {
+							throw new ModelAccessException("Unable to set field " + joinKey, e);
+						}
+					return Flux.fromIterable(list);
+				});
+			} else {
+				final Object col = CollectionFactory.createCollection(field.getType(), elementType, 10);
+				field.set(entity, col);
+				flux = flux.doOnNext(element -> {
+					((Collection)col).add(element);
+					try {
+						fk.set(element, entity);
+					} catch (Exception e) {
+						throw new ModelAccessException("Unable to set field " + joinKey, e);
+					}
+				});
+				flux = flux.doOnComplete(() -> savePersistedValue(field, col));
+				return flux;
+			}
 		} catch (Exception e) {
 			return Flux.error(e);
 		}

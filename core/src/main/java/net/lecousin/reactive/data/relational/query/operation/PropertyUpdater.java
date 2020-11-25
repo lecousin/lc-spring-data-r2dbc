@@ -52,7 +52,7 @@ class PropertyUpdater {
 						op.lcClient.getSpringClient().update()
 						.table(entity.getKey().getTableName())
 						.using(Update.from(assignments))
-						.matching(Criteria.where(property.getKey().getName()).in(update.getValue()))
+						.matching(Criteria.where(op.lcClient.getDataAccess().toSql(property.getKey().getColumnName())).in(update.getValue()))
 						.then()
 					);
 				}

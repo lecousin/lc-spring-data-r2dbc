@@ -163,7 +163,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 			Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
 			if (!hasOtherLinks(op, foreignEntity.getType(), foreignTableAnnotation.joinKey())) {
 				// can do delete where fk in (ids)
-				deleteWithoutLoading(foreignEntity, Criteria.where(fkProperty.getName()).is(instId));
+				deleteWithoutLoading(foreignEntity, Criteria.where(op.lcClient.getDataAccess().toSql(fkProperty.getColumnName())).is(instId));
 			} else {
 				// need to retrieve the entity from database, then process them to be deleted
 				op.loader.retrieve(foreignEntity, fkProperty, instId, loaded -> addToProcess(op, loaded, foreignEntity, null, null));
@@ -207,7 +207,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	
 	@Override
 	protected Mono<Void> doRequests(Operation op, RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
-		Criteria criteria = entityType.hasIdProperty() ? createCriteriaOnIds(entityType, requests) : createCriteriaOnProperties(entityType, requests);
+		Criteria criteria = entityType.hasIdProperty() ? createCriteriaOnIds(op, entityType, requests) : createCriteriaOnProperties(op, entityType, requests);
 		if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
 			LcReactiveDataRelationalClient.logger.debug("Delete " + entityType.getType().getName() + " where " + criteria);
 		return op.lcClient.getSpringClient()
@@ -217,16 +217,16 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 			.doOnSuccess(v -> op.toCall(() -> deleteDone(entityType, requests)));
 	}
 	
-	private static Criteria createCriteriaOnIds(RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
+	private static Criteria createCriteriaOnIds(Operation op, RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
 		List<Object> ids = new ArrayList<>(requests.size());
 		for (DeleteRequest request : requests) {
 			Object id = entityType.getPropertyAccessor(request.instance).getProperty(entityType.getRequiredIdProperty());
 			ids.add(id);
 		}
-		return Criteria.where(entityType.getRequiredIdProperty().getName()).in(ids);
+		return Criteria.where(op.lcClient.getDataAccess().toSql(entityType.getRequiredIdProperty().getColumnName())).in(ids);
 	}
 	
-	private static Criteria createCriteriaOnProperties(RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
+	private static Criteria createCriteriaOnProperties(Operation op, RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
 		Criteria criteria = Criteria.empty();
 		for (DeleteRequest request : requests) {
 			Criteria c = Criteria.empty();
@@ -239,7 +239,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 						// get the id instead of the entity
 						value = request.getSavedForeignKeyValue(property.getName());
 					}
-					c = c.and(Criteria.where(property.getName()).is(value));
+					c = c.and(Criteria.where(op.lcClient.getDataAccess().toSql(property.getColumnName())).is(value));
 				}
 			}
 			criteria = criteria.or(c);

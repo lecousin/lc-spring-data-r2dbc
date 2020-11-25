@@ -71,5 +71,13 @@ public class Company {
 	public Flux<Employee> lazyGetEmployees() {
 		return null;
 	}
+	
+	public Flux<PointOfContact> lazyGetProviders() {
+		return null;
+	}
+	
+	public Flux<Site> lazyGetSites() {
+		return null;
+	}
 
 }

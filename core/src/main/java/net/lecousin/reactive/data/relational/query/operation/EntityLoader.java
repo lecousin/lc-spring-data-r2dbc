@@ -39,8 +39,7 @@ class EntityLoader {
 	@SuppressWarnings("unchecked")
 	<T> void load(RelationalPersistentEntity<?> entity, T instance, Consumer<T> onLoaded) {
 		Map<Object, List<Consumer<Object>>> map = toLoad.computeIfAbsent(entity, e -> new HashMap<>());
-		Object id = entity.getPropertyAccessor(instance).getProperty(entity.getRequiredIdProperty());
-		List<Consumer<Object>> consumers = map.computeIfAbsent(id, v -> new LinkedList<>());
+		List<Consumer<Object>> consumers = map.computeIfAbsent(instance, v -> new LinkedList<>());
 		consumers.add((Consumer<Object>)onLoaded);
 	}
 

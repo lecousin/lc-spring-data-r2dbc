@@ -131,8 +131,16 @@ public class ModelUtils {
 	public static Pair<Field, ForeignTable> getForeignTableWithFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
 		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(entity);
 		for (Map.Entry<String, Pair<Field, ForeignTable>> e : map.entrySet())
-			if (e.getValue().getSecond().joinKey().equals(joinKey) && e.getValue().getFirst().getType().equals(targetType))
-				return e.getValue();
+			if (e.getValue().getSecond().joinKey().equals(joinKey)) {
+				Field field = e.getValue().getFirst();
+				Class<?> type;
+				if (ModelUtils.isCollection(field))
+					type = ModelUtils.getCollectionType(field);
+				else
+					type = field.getType();
+				if (type.equals(targetType))
+					return e.getValue();
+			}
 		return null;
 	}
 	
