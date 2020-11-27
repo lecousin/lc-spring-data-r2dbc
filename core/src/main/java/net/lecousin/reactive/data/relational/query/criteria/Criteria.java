@@ -137,11 +137,11 @@ public interface Criteria {
 			return new PropertyOperation(this, PropertyOperator.LESS_THAN, new PropertyOperand(entityName, propertyName));
 		}
 		
-		public Criteria lessThanOrEqualTo(Object value) {
+		public Criteria lessOrEqualTo(Object value) {
 			return new PropertyOperation(this, PropertyOperator.LESS_THAN_OR_EQUAL, value);
 		}
 		
-		public Criteria lessThanOrEqualTo(String entityName, String propertyName) {
+		public Criteria lessOrEqualTo(String entityName, String propertyName) {
 			return new PropertyOperation(this, PropertyOperator.LESS_THAN_OR_EQUAL, new PropertyOperand(entityName, propertyName));
 		}
 		

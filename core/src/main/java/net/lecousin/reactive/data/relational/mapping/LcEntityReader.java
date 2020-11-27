@@ -1,12 +1,7 @@
 package net.lecousin.reactive.data.relational.mapping;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.core.CollectionFactory;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.data.convert.CustomConversions;
 import org.springframework.data.mapping.MappingException;
@@ -144,48 +139,9 @@ public class LcEntityReader {
 			return conversionService.convert(value, type.getType());
 		} else if ((value instanceof String) && char[].class.equals(type.getType())) {
 			return ((String)value).toCharArray();
-		} else if (value instanceof Collection || value.getClass().isArray()) {
-			return readCollectionOrArray(LcMappingR2dbcConverter.asCollection(value), type);
 		} else {
 			return getPotentiallyConvertedSimpleRead(value, type.getType());
 		}
-	}
-
-	/**
-	 * Reads the given value into a collection of the given {@link TypeInformation}.
-	 *
-	 * @param source must not be {@literal null}.
-	 * @param targetType must not be {@literal null}.
-	 * @return the converted {@link Collection} or array, will never be {@literal null}.
-	 */
-	@SuppressWarnings("unchecked")
-	protected Object readCollectionOrArray(Collection<?> source, TypeInformation<?> targetType) {
-		Assert.notNull(targetType, "Target type must not be null!");
-
-		Class<?> collectionType = targetType.isSubTypeOf(Collection.class) ? targetType.getType() : List.class;
-
-		TypeInformation<?> componentType = targetType.getComponentType() != null ? targetType.getComponentType() : ClassTypeInformation.OBJECT;
-		Class<?> rawComponentType = componentType.getType();
-
-		Collection<Object> items = targetType.getType().isArray() ? new ArrayList<>(source.size()) : CollectionFactory.createCollection(collectionType, rawComponentType, source.size());
-
-		if (source.isEmpty())
-			return getPotentiallyConvertedSimpleRead(items, targetType.getType());
-
-		for (Object element : source) {
-			if (!Object.class.equals(rawComponentType) && element instanceof Collection && !rawComponentType.isArray() && !ClassUtils.isAssignable(Iterable.class, rawComponentType)) {
-				throw new MappingException(String.format(
-						"Cannot convert %1$s of type %2$s into an instance of %3$s! Implement a custom Converter<%2$s, %3$s> and register it with the CustomConversions",
-						element, element.getClass(), rawComponentType));
-			}
-			if (element instanceof List) {
-				items.add(readCollectionOrArray((Collection<Object>) element, componentType));
-			} else {
-				items.add(getPotentiallyConvertedSimpleRead(element, rawComponentType));
-			}
-		}
-
-		return getPotentiallyConvertedSimpleRead(items, targetType.getType());
 	}
 
 	/**

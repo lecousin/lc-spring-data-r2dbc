@@ -14,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
+import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 
@@ -390,5 +392,88 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		} catch (OptimisticLockingFailureException e) {
 			// expected
 		}
+	}
+	
+	@Test
+	public void testCriteria() {
+		NumericTypes e1 = new NumericTypes();
+		e1.setByte1((byte)51);
+		e1.setByte2(null);
+		e1.setShort1((short)52);
+		e1.setShort2(null);
+		e1.setInt_1(13);
+		e1.setInt_2(null);
+		e1.setLong1(54L);
+		e1.setLong2(null);
+		e1.setFloat1(1.01f);
+		e1.setFloat2(null);
+		e1.setDouble1(1.02d);
+		e1.setDouble2(null);
+		e1.setBigDec(null);
+		
+		NumericTypes e2 = new NumericTypes();
+		e2.setByte1((byte)11);
+		e2.setByte2(Byte.valueOf((byte)1));
+		e2.setShort1((short)12);
+		e2.setShort2(Short.valueOf((short)2));
+		e2.setInt_1(13);
+		e2.setInt_2(1);
+		e2.setLong1(14L);
+		e2.setLong2(4L);
+		e2.setFloat1(0.01f);
+		e2.setFloat2(0.01f);
+		e2.setDouble1(0.02d);
+		e2.setDouble2(1.2d);
+		e2.setBigDec(null);
+		
+		repoNum.saveAll(Arrays.asList(e1, e2)).collectList().block();
+		
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").is(Byte.valueOf((byte)51))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").is(Byte.valueOf((byte)52))).execute(lcClient).blockFirst());
+		
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "float1").is("e", "float2")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte2").is("e", "short1")).execute(lcClient).blockFirst());
+		
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").isNot(Byte.valueOf((byte)51))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").isNot(Integer.valueOf(13))).execute(lcClient).blockFirst());
+		
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte2").isNot("e", "short2")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte2").isNot("e", "int_2")).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").greaterThan(Byte.valueOf((byte)20))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").greaterThan(Integer.valueOf(13))).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").greaterThan("e", "int_1")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").greaterThan("e", "byte1")).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").greaterOrEqualTo(Byte.valueOf((byte)51))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").greaterOrEqualTo(Integer.valueOf(14))).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").greaterOrEqualTo("e", "int_1")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").greaterOrEqualTo("e", "byte1")).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").lessThan(Byte.valueOf((byte)51))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").lessThan(Integer.valueOf(0))).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").lessThan("e", "int_1")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "long1").lessThan("e", "byte1")).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").lessOrEqualTo(Byte.valueOf((byte)11))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").lessOrEqualTo(Integer.valueOf(0))).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").lessOrEqualTo("e", "int_1")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "long1").lessOrEqualTo("e", "byte1")).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte2").isNull()).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte1").isNull()).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "byte2").isNotNull()).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "bigDec").isNotNull()).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").in(Arrays.asList(1, 2, 3))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").in(Arrays.asList(40, 50, 60))).execute(lcClient).blockFirst());
+
+		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").notIn(Arrays.asList(2, 3, 4))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").notIn(Arrays.asList(12, 13, 14))).execute(lcClient).blockFirst());
 	}
 }

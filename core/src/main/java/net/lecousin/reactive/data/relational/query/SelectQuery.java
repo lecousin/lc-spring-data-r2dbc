@@ -41,27 +41,17 @@ public class SelectQuery<T> {
 	long limit = -1;
 	
 	private SelectQuery(Class<T> type, String alias) {
-		if (alias == null)
-			alias = generateAliasFor(type);
 		from = new TableReference(null, null, type, alias);
 		tableAliases.put(alias, from);
-	}
-	
-	public static <T> SelectQuery<T> from(Class<T> type) {
-		return from(type, null);
 	}
 	
 	public static <T> SelectQuery<T> from(Class<T> type, String alias) {
 		return new SelectQuery<>(type, alias);
 	}
 
-	public SelectQuery<T> join(String entityName, String propertyName) {
-		return join(entityName, propertyName, null);
-	}
-	
 	public SelectQuery<T> join(String entityName, String propertyName, String alias) {
 		TableReference source = tableAliases.get(entityName);
-		TableReference table = new TableReference(source, propertyName, null, alias != null ? alias : generateTableAlias());
+		TableReference table = new TableReference(source, propertyName, null, alias);
 		joins.add(table);
 		tableAliases.put(table.alias, table);
 		return this;
@@ -85,21 +75,6 @@ public class SelectQuery<T> {
 		return client.execute(this);
 	}
 	
-	
-	private String generateAliasFor(Class<?> type) {
-		String alias = type.getSimpleName();
-		if (!tableAliases.containsKey(alias))
-			return alias;
-		int i;
-		for (i = 2; tableAliases.containsKey(alias + i); ++i);
-		return alias + i;
-	}
-	
-	private String generateTableAlias() {
-		int i;
-		for (i = 1; tableAliases.containsKey("e" + i); ++i);
-		return "e" + i;
-	}
 	
 	void setJoinsTargetType(LcMappingR2dbcConverter mapper) {
 		for (TableReference join : joins) {

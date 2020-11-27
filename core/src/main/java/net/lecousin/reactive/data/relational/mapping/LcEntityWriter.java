@@ -14,7 +14,6 @@ import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.mapping.SettableValue;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.util.ClassTypeInformation;
 import org.springframework.data.util.TypeInformation;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -89,7 +88,7 @@ public class LcEntityWriter {
 		if (conversions.isSimpleType(value.getClass())) {
 			writeSimple(sink, value, property);
 		} else {
-			writeProperty(sink, value, property);
+			throw new InvalidDataAccessApiUsageException("Nested entities are not supported");
 		}
 	}
 	
@@ -117,24 +116,6 @@ public class LcEntityWriter {
 		Object converted = getPotentiallyConvertedSimpleWrite(value);
 		Assert.notNull(converted, "Converted value must not be null");
 		sink.put(property.getColumnName(), SettableValue.from(converted));
-	}
-	
-	protected void writeProperty(OutboundRow sink, Object value, RelationalPersistentProperty property) {
-		TypeInformation<?> valueType = ClassTypeInformation.from(value.getClass());
-
-		if (valueType.isCollectionLike()) {
-			if (valueType.getActualType() != null && valueType.getRequiredActualType().isCollectionLike()) {
-				// pass-thru nested collections
-				writeSimple(sink, value, property);
-				return;
-			}
-
-			List<Object> collectionInternal = createCollection(LcMappingR2dbcConverter.asCollection(value), property);
-			sink.put(property.getColumnName(), SettableValue.from(collectionInternal));
-			return;
-		}
-
-		throw new InvalidDataAccessApiUsageException("Nested entities are not supported");
 	}
 	
 	/**
