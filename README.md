@@ -32,6 +32,10 @@ this library aims at providing the most useful features that are really missing 
  - H2
  - Postgres
  - MySql 
+ 
+## Dependencies
+
+ - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.3.4.RELEASE, Latest version: [Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
 
 # Configuration
 

@@ -167,14 +167,6 @@ public class LcEntityWriter {
 				return null;
 		}
 
-		Optional<Class<?>> customTarget = conversions.getCustomWriteTarget(value.getClass());
-
-		if (customTarget.isPresent())
-			return conversionService.convert(value, customTarget.get());
-
-		if (Enum.class.isAssignableFrom(value.getClass()))
-			return ((Enum<?>) value).name();
-		
 		if (value instanceof Number) {
 			if (value instanceof Double || value instanceof Float)
 				return Double.valueOf(((Number)value).doubleValue());
@@ -185,7 +177,15 @@ public class LcEntityWriter {
 		} else if (char[].class.equals(value.getClass())) {
 			return new String((char[])value);
 		}
+		
+		Optional<Class<?>> customTarget = conversions.getCustomWriteTarget(value.getClass());
 
+		if (customTarget.isPresent())
+			return conversionService.convert(value, customTarget.get());
+
+		if (Enum.class.isAssignableFrom(value.getClass()))
+			return ((Enum<?>) value).name();
+		
 		return value;
 	}
 	
