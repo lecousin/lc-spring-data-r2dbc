@@ -40,8 +40,6 @@ import net.lecousin.reactive.data.relational.model.PropertiesSource;
 import net.lecousin.reactive.data.relational.model.PropertiesSourceMap;
 import net.lecousin.reactive.data.relational.query.SelectQuery.TableReference;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
-import net.lecousin.reactive.data.relational.query.criteria.Criteria.And;
-import net.lecousin.reactive.data.relational.query.criteria.Criteria.Or;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.PropertyOperand;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.PropertyOperation;
 import net.lecousin.reactive.data.relational.query.criteria.CriteriaSqlBuilder;
@@ -112,15 +110,7 @@ public class SelectExecution<T> {
 	private boolean hasConditionOnManyEntity() {
 		if (query.where == null)
 			return false;
-		Boolean found = query.where.accept(new CriteriaVisitor.DefaultVisitor<Boolean>() {
-			@Override
-			public Boolean visit(And and) {
-				return Boolean.valueOf(and.getLeft().accept(this).booleanValue() && and.getRight().accept(this).booleanValue());
-			}
-			@Override
-			public Boolean visit(Or or) {
-				return Boolean.valueOf(or.getLeft().accept(this).booleanValue() && or.getRight().accept(this).booleanValue());
-			}
+		Boolean found = query.where.accept(new CriteriaVisitor.SearchVisitor() {
 			@Override
 			public Boolean visit(PropertyOperation op) {
 				TableReference table = query.tableAliases.get(op.getLeft().getEntityName());
@@ -149,15 +139,7 @@ public class SelectExecution<T> {
 	private boolean needsTableForPreSelect(TableReference table) {
 		if (query.where == null)
 			return false;
-		Boolean found = query.where.accept(new CriteriaVisitor.DefaultVisitor<Boolean>() {
-			@Override
-			public Boolean visit(And and) {
-				return Boolean.valueOf(and.getLeft().accept(this).booleanValue() && and.getRight().accept(this).booleanValue());
-			}
-			@Override
-			public Boolean visit(Or or) {
-				return Boolean.valueOf(or.getLeft().accept(this).booleanValue() && or.getRight().accept(this).booleanValue());
-			}
+		Boolean found = query.where.accept(new CriteriaVisitor.SearchVisitor() {
 			@Override
 			public Boolean visit(PropertyOperation op) {
 				TableReference t = query.tableAliases.get(op.getLeft().getEntityName());
@@ -280,7 +262,7 @@ public class SelectExecution<T> {
 	}
 	
 	private SqlQuery buildFinalSql(SelectMapping mapping, Criteria criteria, boolean applyLimit) {
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getPersistentEntity(query.from.targetType);
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
 		List<Column> selectFields = new ArrayList<>(mapping.fields.size());
 		for (SelectField field : mapping.fields)
@@ -291,25 +273,7 @@ public class SelectExecution<T> {
 		}
 		
 		for (TableReference join : query.joins) {
-			RelationalPersistentEntity<?> sourceEntity = client.getMappingContext().getRequiredPersistentEntity(join.source.targetType); 
-			RelationalPersistentEntity<?> targetEntity = client.getMappingContext().getRequiredPersistentEntity(join.targetType); 
-			RelationalPersistentProperty property = sourceEntity.getPersistentProperty(join.propertyName);
-			if (property != null) {
-				Table joinTargetTable = mapping.tableByAlias.get(join.alias);
-				Column joinTarget = Column.create(targetEntity.getIdColumn(), joinTargetTable);
-				Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
-				Column joinSource = Column.create(property.getColumnName(), joinSourceTable);
-				select = ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
-			} else {
-				ForeignTable ft = ModelUtils.getRequiredForeignTableForProperty(join.source.targetType, join.propertyName);
-				property = targetEntity.getRequiredPersistentProperty(ft.joinKey());
-
-				Table joinTargetTable = mapping.tableByAlias.get(join.alias);
-				Column joinTarget = Column.create(property.getColumnName(), joinTargetTable);
-				Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
-				Column joinSource = Column.create(sourceEntity.getIdColumn(), joinSourceTable);
-				select = ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
-			}
+			select = join(select, join, mapping);
 		}
 
 		SqlQuery q = new SqlQuery();
@@ -337,25 +301,7 @@ public class SelectExecution<T> {
 		for (TableReference join : query.joins) {
 			if (!needsTableForPreSelect(join))
 				continue;
-			RelationalPersistentEntity<?> sourceEntity = client.getMappingContext().getRequiredPersistentEntity(join.source.targetType); 
-			RelationalPersistentEntity<?> targetEntity = client.getMappingContext().getRequiredPersistentEntity(join.targetType); 
-			RelationalPersistentProperty property = sourceEntity.getPersistentProperty(join.propertyName);
-			if (property != null) {
-				Table joinTargetTable = mapping.tableByAlias.get(join.alias);
-				Column joinTarget = Column.create(targetEntity.getIdColumn(), joinTargetTable);
-				Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
-				Column joinSource = Column.create(property.getColumnName(), joinSourceTable);
-				select = ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
-			} else {
-				ForeignTable ft = ModelUtils.getRequiredForeignTableForProperty(join.source.targetType, join.propertyName);
-				property = targetEntity.getRequiredPersistentProperty(ft.joinKey());
-
-				Table joinTargetTable = mapping.tableByAlias.get(join.alias);
-				Column joinTarget = Column.create(property.getColumnName(), joinTargetTable);
-				Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
-				Column joinSource = Column.create(sourceEntity.getIdColumn(), joinSourceTable);
-				select = ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
-			}
+			select = join(select, join, mapping);
 		}
 
 		SqlQuery q = new SqlQuery();
@@ -366,6 +312,29 @@ public class SelectExecution<T> {
 		
 		q.query = select.build();
 		return q;
+	}
+	
+	private BuildSelect join(BuildSelect select, TableReference join, SelectMapping mapping) {
+		RelationalPersistentEntity<?> sourceEntity = client.getMappingContext().getRequiredPersistentEntity(join.source.targetType); 
+		RelationalPersistentEntity<?> targetEntity = client.getMappingContext().getRequiredPersistentEntity(join.targetType); 
+		RelationalPersistentProperty property = sourceEntity.getPersistentProperty(join.propertyName);
+		if (property != null) {
+			Table joinTargetTable = mapping.tableByAlias.get(join.alias);
+			Column joinTarget = Column.create(targetEntity.getIdColumn(), joinTargetTable);
+			Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
+			Column joinSource = Column.create(property.getColumnName(), joinSourceTable);
+			select = ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
+		} else {
+			ForeignTable ft = ModelUtils.getRequiredForeignTableForProperty(join.source.targetType, join.propertyName);
+			property = targetEntity.getRequiredPersistentProperty(ft.joinKey());
+
+			Table joinTargetTable = mapping.tableByAlias.get(join.alias);
+			Column joinTarget = Column.create(property.getColumnName(), joinTargetTable);
+			Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
+			Column joinSource = Column.create(sourceEntity.getIdColumn(), joinSourceTable);
+			select = ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
+		}
+		return select;
 	}
 	
 	private T currentRoot = null;

@@ -58,6 +58,7 @@
     <sonar.projectName>lc-spring-data-r2dbc</sonar.projectName>
     <sonar.java.source>11</sonar.java.source>
     <sonar.test.exclusions>**/src/test/**/*</sonar.test.exclusions>
+    <sonar.exclusions>test-spring-boot/**/*</sonar.exclusions>
   </properties>
   
   <dependencies>

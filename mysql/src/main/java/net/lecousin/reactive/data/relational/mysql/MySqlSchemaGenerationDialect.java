@@ -32,12 +32,10 @@ public class MySqlSchemaGenerationDialect extends SchemaGenerationDialect {
 	protected void columnDefinitionDataTypeString(RelationalPersistentProperty property, StringBuilder sql) {
 		ColumnDefinition def = property.findAnnotation(ColumnDefinition.class);
 		if (def != null) {
-			if (def.min() > 0 && def.max() == def.min()) {
-				// fixed length
-				if (def.max() <= 255) {
-					sql.append("CHAR(").append(def.max()).append(')');
-					return;
-				}
+			if (def.min() > 0 && def.max() == def.min() && def.max() <= 255) {
+				// fixed length <= 255
+				sql.append("CHAR(").append(def.max()).append(')');
+				return;
 			}
 			if (def.max() > 255) {
 				// large text

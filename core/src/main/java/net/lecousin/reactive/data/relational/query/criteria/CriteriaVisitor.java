@@ -32,4 +32,16 @@ public interface CriteriaVisitor<T> {
 		}
 	}
 	
+	public abstract static class SearchVisitor implements CriteriaVisitor<Boolean> {
+		@Override
+		public Boolean visit(And and) {
+			return Boolean.valueOf(and.getLeft().accept(this).booleanValue() && and.getRight().accept(this).booleanValue());
+		}
+		
+		@Override
+		public Boolean visit(Or or) {
+			return Boolean.valueOf(or.getLeft().accept(this).booleanValue() && or.getRight().accept(this).booleanValue());
+		}
+	}
+	
 }

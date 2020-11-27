@@ -39,11 +39,11 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		addEmployee(apple, emilyTaylor);
 		addEmployee(microsoft, jessicaTaylor);
 		
-		addSite(google, createAddress("Street 1", 12345, "Madrid", "ES"));
-		addSite(apple, createAddress("Street 5", 4587, "London", "UK"));
-		addSite(apple, createAddress("Street 1", 6982, "Paris", "FR"));
-		addSite(microsoft, createAddress("Street 2", 12345, "Madrid", "ES"));
-		addSite(microsoft, createAddress("Street 3", 963852, "Marseille", "FR"));
+		addSite(google, createAddress("Street 1", 12345, "Madrid", "ES"), "Google Spain");
+		addSite(apple, createAddress("Street 5", 4587, "London", "UK"), "Apple UK");
+		addSite(apple, createAddress("Street 1", 6982, "Paris", "FR"), "Apple FR");
+		addSite(microsoft, createAddress("Street 2", 12345, "Madrid", "ES"), "Microsoft Spain");
+		addSite(microsoft, createAddress("Street 3", 963852, "Marseille", "FR"), "Microsoft France");
 		
 		google.setProviders(new PointOfContact[] { createPOC(google, apple, meganDavis) , createPOC(google, microsoft, jessicaTaylor)});
 		apple.setProviders(new PointOfContact[] { createPOC(apple, microsoft, jamesMiller) });
@@ -91,10 +91,11 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		c.getEmployees().add(e);
 	}
 	
-	private static void addSite(Company c, PostalAddress a) {
+	private static void addSite(Company c, PostalAddress a, String name) {
 		Site s = new Site();
 		s.setCompany(c);
 		s.setAddress(a);
+		s.setName(name);
 		if (c.getSites() == null)
 			c.setSites(new LinkedList<>());
 		c.getSites().add(s);
@@ -198,6 +199,8 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Company microsoft = repoCompany.findByName("Microsoft").block();
 		List<Site> sites = microsoft.lazyGetSites().collectList().block();
 		Assertions.assertEquals(2, sites.size());
+		Assertions.assertTrue(sites.stream().anyMatch(site -> "Microsoft Spain".equals(site.getName())));
+		Assertions.assertTrue(sites.stream().anyMatch(site -> "Microsoft France".equals(site.getName())));
 		lcClient.delete(sites).block();
 		
 		Assertions.assertEquals(0, microsoft.getSites().size());

@@ -23,8 +23,7 @@ public class LcReactiveDataRelationalTestEngine implements TestEngine {
 	public TestDescriptor discover(EngineDiscoveryRequest discoveryRequest, UniqueId uniqueId) {
 		LcReactiveDataRelationalInitializer.init();
 		JupiterConfiguration configuration = new CachingJupiterConfiguration(new DefaultJupiterConfiguration(discoveryRequest.getConfigurationParameters()));
-		JupiterEngineDescriptor engineDescriptor = new JupiterEngineDescriptor(uniqueId, configuration);
-		return engineDescriptor;
+		return new JupiterEngineDescriptor(uniqueId, configuration);
 	}
 
 	@Override

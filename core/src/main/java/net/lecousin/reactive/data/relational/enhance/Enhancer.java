@@ -13,6 +13,7 @@ import org.springframework.data.annotation.Transient;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Column;
 
+import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtField;
@@ -24,6 +25,7 @@ import javassist.bytecode.ConstPool;
 import javassist.bytecode.annotation.Annotation;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
+import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import reactor.core.publisher.Mono;
 
 @SuppressWarnings({"squid:S3011"})
@@ -59,7 +61,7 @@ public final class Enhancer {
 				fieldInfo.setAccessible(true);
 				entities.put(newClass, fieldInfo);
 			} catch (Exception e) {
-				throw new RuntimeException("Error accessing to enhanced class " + newClass.getName(), e);
+				throw new ModelAccessException("Error accessing to enhanced class " + newClass.getName(), e);
 			}
 		}
 	}
@@ -77,7 +79,6 @@ public final class Enhancer {
 	        addStateAttribute(classPool, cl);
 			
 	        for (CtField field : cl.getDeclaredFields()) {
-	        	// TODO we should find annotation in a better way
 	        	if (!field.hasAnnotation(Id.class) &&
 	        		!field.hasAnnotation(Column.class) &&
 	        		!field.hasAnnotation(Version.class) &&
@@ -99,11 +100,11 @@ public final class Enhancer {
 	        Class<?> newClass = cl.toClass();
 	        entities.put(newClass, null);
 		} catch (Exception e) {
-			throw new RuntimeException("Unable to enhance entity " + className, e);
+			throw new ModelAccessException("Unable to enhance entity " + className, e);
 		}
 	}
 	
-	private static void addStateAttribute(ClassPool classPool, CtClass cl) throws Exception {
+	private static void addStateAttribute(ClassPool classPool, CtClass cl) throws CannotCompileException, NotFoundException {
 		CtField f = new CtField(classPool.get("net.lecousin.reactive.data.relational.enhance.EntityState"), STATE_FIELD_NAME, cl);
 		cl.addField(f);
 		ConstPool cpool = cl.getClassFile().getConstPool();
@@ -115,11 +116,11 @@ public final class Enhancer {
         f.getFieldInfo().addAttribute(attr);
 	}
 	
-	private static void enhanceSetter(CtField field, CtMethod setter) throws Exception {
+	private static void enhanceSetter(CtField field, CtMethod setter) throws CannotCompileException {
 		setter.insertBefore("if ($0._lcState != null) { $0._lcState.fieldSet(\"" + field.getName() + "\", $1); }");
 	}
 	
-	private static void enhanceLazyMethods(CtClass cl, ClassPool classPool) throws Exception {
+	private static void enhanceLazyMethods(CtClass cl, ClassPool classPool) throws ReflectiveOperationException, CannotCompileException, NotFoundException {
 		boolean hasLoadEntity = false;
 		for (CtMethod method : cl.getMethods()) {
 			if (method.getName().equals("entityLoaded") && method.getParameterTypes().length == 0 && method.getReturnType().getName().equals("boolean")) {
@@ -133,6 +134,11 @@ public final class Enhancer {
 			CtMethod m = CtNewMethod.make("public reactor.core.publisher.Mono loadEntity() { return $0._lcState.load($0); }", cl);
 		    cl.addMethod(m);
 		}
+		enhanceLazyGetMethods(cl, classPool);
+	}
+	
+	@SuppressWarnings("java:S3776")
+	private static void enhanceLazyGetMethods(CtClass cl, ClassPool classPool) throws ReflectiveOperationException, CannotCompileException, NotFoundException {
 		for (CtMethod method : cl.getMethods()) {
 			if (method.getName().startsWith("lazyGet")) {
 				String propertyName = method.getName().substring(7);
@@ -145,15 +151,15 @@ public final class Enhancer {
 					} else {
 						method.setBody("return $0._lcState.lazyGetForeignTableField($0, \"" + propertyName + "\", \"" + ft.joinKey() + "\");");
 					}
-					continue;
+				} else {
+					ForeignKey fk = (ForeignKey) field.getAnnotation(ForeignKey.class);
+					if (fk != null) {
+						// if ForeignKey, ensure it is loaded
+						method.setBody("return $0.get" + method.getName().substring(7) + "().loadEntity();");
+					} else {
+						method.setBody("return $0.loadEntity().map($0._lcState.getFieldMapper($0, \"" + propertyName + "\"));");
+					}
 				}
-				ForeignKey fk = (ForeignKey) field.getAnnotation(ForeignKey.class);
-				if (fk != null) {
-					// if ForeignKey, ensure it is loaded
-					method.setBody("return $0.get" + method.getName().substring(7) + "().loadEntity();");
-					continue;
-				}
-				method.setBody("return $0.loadEntity().map($0._lcState.getFieldMapper($0, \"" + propertyName + "\"));");
 			}
 		}
 	}
