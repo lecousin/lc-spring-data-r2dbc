@@ -68,6 +68,7 @@ public class LcReactiveDataRelationalClient {
 		return client;
 	}
 	
+	@SuppressWarnings("java:S1452") // usage of generic wildcard type
 	public MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> getMappingContext() {
 		return mappingContext;
 	}
@@ -114,7 +115,8 @@ public class LcReactiveDataRelationalClient {
 	
 	public <T> Mono<T> save(T entity) {
 		try {
-			RelationalPersistentEntity<?> entityType = mappingContext.getRequiredPersistentEntity(entity.getClass());
+			@SuppressWarnings("unchecked")
+			RelationalPersistentEntity<T> entityType = (RelationalPersistentEntity<T>) mappingContext.getRequiredPersistentEntity(entity.getClass());
 			Operation op = new Operation(this);
 			op.addToSave(entity, entityType, null, null);
 			return op.execute().thenReturn(entity);
@@ -129,7 +131,8 @@ public class LcReactiveDataRelationalClient {
 			if (!it.hasNext())
 				return Flux.empty();
 			T instance = it.next();
-			RelationalPersistentEntity<?> entityType = mappingContext.getRequiredPersistentEntity(instance.getClass());
+			@SuppressWarnings("unchecked")
+			RelationalPersistentEntity<T> entityType = (RelationalPersistentEntity<T>) mappingContext.getRequiredPersistentEntity(instance.getClass());
 			Operation op = new Operation(this);
 			op.addToSave(instance, entityType, null, null);
 			while (it.hasNext())
@@ -180,7 +183,8 @@ public class LcReactiveDataRelationalClient {
 	
 	public <T> Mono<Void> delete(T entity) {
 		try {
-			RelationalPersistentEntity<?> entityType = mappingContext.getRequiredPersistentEntity(entity.getClass());
+			@SuppressWarnings("unchecked")
+			RelationalPersistentEntity<T> entityType = (RelationalPersistentEntity<T>) mappingContext.getRequiredPersistentEntity(entity.getClass());
 			Operation op = new Operation(this);
 			op.addToDelete(entity, entityType, null, null);
 			return op.execute();
@@ -195,7 +199,8 @@ public class LcReactiveDataRelationalClient {
 			if (!it.hasNext())
 				return Mono.empty();
 			T instance = it.next();
-			RelationalPersistentEntity<?> entityType = mappingContext.getRequiredPersistentEntity(instance.getClass());
+			@SuppressWarnings("unchecked")
+			RelationalPersistentEntity<T> entityType = (RelationalPersistentEntity<T>) mappingContext.getRequiredPersistentEntity(instance.getClass());
 			Operation op = new Operation(this);
 			op.addToDelete(instance, entityType, null, null);
 			while (it.hasNext())

@@ -32,7 +32,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 		
 		private Map<String, Object> savedForeignKeys = new HashMap<>();
 
-		DeleteRequest(RelationalPersistentEntity<?> entityType, Object instance, EntityState state, PersistentPropertyAccessor<?> accessor) {
+		<T> DeleteRequest(RelationalPersistentEntity<T> entityType, T instance, EntityState state, PersistentPropertyAccessor<T> accessor) {
 			super(entityType, instance, state, accessor);
 		}
 		
@@ -47,7 +47,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	}
 	
 	@Override
-	protected DeleteRequest createRequest(Object instance, EntityState state, RelationalPersistentEntity<?> entity, PersistentPropertyAccessor<?> accessor) {
+	protected <T> DeleteRequest createRequest(T instance, EntityState state, RelationalPersistentEntity<T> entity, PersistentPropertyAccessor<T> accessor) {
 		return new DeleteRequest(entity, instance, state, accessor);
 	}
 	
@@ -67,12 +67,12 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 			// no id, the delete will be by values, but we need to keep foreign key ids because they will be set to null before
 			Object foreignInstance = request.accessor.getProperty(fkProperty);
 			if (foreignInstance != null) {
-				RelationalPersistentEntity<?> fe = op.lcClient.getMappingContext().getPersistentEntity(foreignInstance.getClass());
-				foreignInstance = fe.getPropertyAccessor(foreignInstance).getProperty(fe.getIdProperty());
+				RelationalPersistentEntity<?> fe = op.lcClient.getMappingContext().getRequiredPersistentEntity(foreignInstance.getClass());
+				foreignInstance = fe.getPropertyAccessor(foreignInstance).getProperty(fe.getRequiredIdProperty());
 			}
 			request.saveForeignKeyValue(fkProperty.getName(), foreignInstance);
 		}
-		if (foreignTableAnnotation != null) {
+		if (foreignTableAnnotation != null && foreignTableField != null) {
 			if (ModelUtils.isCollection(foreignTableField)) {
 				// remove from collection if loaded
 				removeFromForeignTableCollection(request, fkProperty, foreignTableField);
@@ -127,11 +127,12 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 		request.dependsOn(deleteForeign);
 	}
 	
+	@SuppressWarnings("unchecked")
 	@Override
-	protected void processForeignTableField(
+	protected <T> void processForeignTableField(
 		Operation op, DeleteRequest request,
 		Field foreignTableField, ForeignTable foreignTableAnnotation, MutableObject<?> foreignFieldValue, boolean isCollection,
-		RelationalPersistentEntity<?> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
+		RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
 	) {
 		if (fkAnnotation.optional() && fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.SET_TO_NULL)) {
 			// update to null
@@ -154,9 +155,9 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 				return; // no link
 			if (ModelUtils.isCollection(foreignTableField)) {
 				for (Object o : ModelUtils.getAsCollection(foreignFieldValue.getValue()))
-					addToProcess(op, o, foreignEntity, null, null);
+					addToProcess(op, (T) o, foreignEntity, null, null);
 			} else {
-				addToProcess(op, foreignFieldValue.getValue(), foreignEntity, null, null);
+				addToProcess(op, (T) foreignFieldValue.getValue(), foreignEntity, null, null);
 			}
 		} else {
 			// foreign not loaded
@@ -166,7 +167,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 				deleteWithoutLoading(foreignEntity, Criteria.where(op.lcClient.getDataAccess().toSql(fkProperty.getColumnName())).is(instId));
 			} else {
 				// need to retrieve the entity from database, then process them to be deleted
-				op.loader.retrieve(foreignEntity, fkProperty, instId, loaded -> addToProcess(op, loaded, foreignEntity, null, null));
+				op.loader.retrieve(foreignEntity, fkProperty, instId, loaded -> addToProcess(op, (T) loaded, foreignEntity, null, null));
 			}
 		}
 	}

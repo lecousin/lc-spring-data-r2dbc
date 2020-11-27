@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.UnaryOperator;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.core.CollectionFactory;
@@ -23,7 +22,6 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 import org.springframework.data.util.Pair;
 import org.springframework.lang.Nullable;
 
-import io.r2dbc.spi.Row;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
@@ -138,7 +136,7 @@ public class ModelUtils {
 					type = ModelUtils.getCollectionType(field);
 				else
 					type = field.getType();
-				if (type.equals(targetType))
+				if (targetType.equals(type))
 					return e.getValue();
 			}
 		return null;
@@ -431,39 +429,22 @@ public class ModelUtils {
 		return id;
 	}
 	
-	public static Object getId(Map<String, Object> row, RelationalPersistentEntity<?> entityType, UnaryOperator<String> propertyRowName) {
+	public static Object getId(RelationalPersistentEntity<?> entityType, PropertiesSource source) {
 		if (entityType.hasIdProperty())
-			return getIdPropertyValue(row, entityType, propertyRowName);
-		return getIdFromAllProperties(row, entityType, propertyRowName);
+			return getIdPropertyValue(entityType, source);
+		return getIdFromAllProperties(entityType, source);
 	}
 	
-	public static Object getIdPropertyValue(Map<String, Object> row, RelationalPersistentEntity<?> entityType, UnaryOperator<String>  propertyRowName) {
-		return row.get(propertyRowName.apply(entityType.getRequiredIdProperty().getName()));
+	public static Object getIdPropertyValue(RelationalPersistentEntity<?> entityType, PropertiesSource source) {
+		return source.getPropertyValue(entityType.getRequiredIdProperty());
 	}
 	
-	public static CompositeIdValue getIdFromAllProperties(Map<String, Object> row, RelationalPersistentEntity<?> entityType, UnaryOperator<String>  propertyRowName) {
+	public static CompositeIdValue getIdFromAllProperties(RelationalPersistentEntity<?> entityType, PropertiesSource source) {
 		CompositeIdValue id = new CompositeIdValue();
 		for (RelationalPersistentProperty property : entityType) {
-			id.add(property.getName(), row.get(propertyRowName.apply(property.getName())));
+			id.add(property.getName(), source.getPropertyValue(property));
 		}
 		return id;
 	}
 	
-	public static Object getId(Row row, RelationalPersistentEntity<?> entityType) {
-		if (entityType.hasIdProperty())
-			return getIdPropertyValue(row, entityType);
-		return getIdFromAllProperties(row, entityType);
-	}
-
-	public static Object getIdPropertyValue(Row row, RelationalPersistentEntity<?> entityType) {
-		return row.get(entityType.getRequiredIdProperty().getName());
-	}
-	
-	public static CompositeIdValue getIdFromAllProperties(Row row, RelationalPersistentEntity<?> entityType) {
-		CompositeIdValue id = new CompositeIdValue();
-		for (RelationalPersistentProperty property : entityType) {
-			id.add(property.getName(), row.get(property.getName()));
-		}
-		return id;
-	}
 }

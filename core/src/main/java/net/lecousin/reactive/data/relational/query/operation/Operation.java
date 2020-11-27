@@ -9,6 +9,7 @@ import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.model.EntityCache;
 import net.lecousin.reactive.data.relational.query.operation.DeleteProcessor.DeleteRequest;
 import net.lecousin.reactive.data.relational.query.operation.SaveProcessor.SaveRequest;
 import reactor.core.publisher.Mono;
@@ -16,7 +17,7 @@ import reactor.core.publisher.Mono;
 public class Operation {
 	
 	LcReactiveDataRelationalClient lcClient;
-	OperationEntityCache cache = new OperationEntityCache();
+	EntityCache cache = new EntityCache();
 	SaveProcessor save = new SaveProcessor();
 	DeleteProcessor delete = new DeleteProcessor();
 	EntityLoader loader = new EntityLoader();
@@ -29,13 +30,14 @@ public class Operation {
 		this.lcClient = lcClient;
 	}
 	
-	public SaveRequest addToSave(Object entity, @Nullable RelationalPersistentEntity<?> entityType, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<?> accessor) {
+	@SuppressWarnings("unchecked")
+	public <T> SaveRequest addToSave(T entity, @Nullable RelationalPersistentEntity<T> entityType, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
 		SaveRequest request = save.addToProcess(this, entity, entityType, state, accessor);
-		delete.addToNotProcess(this, entity, request.entityType, request.state, request.accessor);
+		delete.addToNotProcess(this, entity, (RelationalPersistentEntity<T>) request.entityType, request.state, (PersistentPropertyAccessor<T>) request.accessor);
 		return request;
 	}
 	
-	public DeleteRequest addToDelete(Object entity, @Nullable RelationalPersistentEntity<?> entityType, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<?> accessor) {
+	public <T> DeleteRequest addToDelete(T entity, @Nullable RelationalPersistentEntity<T> entityType, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
 		return delete.addToProcess(this, entity, entityType, state, accessor);
 	}
 

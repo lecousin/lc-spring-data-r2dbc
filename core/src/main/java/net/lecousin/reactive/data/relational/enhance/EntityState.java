@@ -253,7 +253,7 @@ public class EntityState {
 		}
 	}
 	
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings("unchecked")
 	public <T> Flux<T> lazyGetForeignTableCollectionField(Object entity, String fieldName, String joinKey) {
 		try {
 			MutableObject<?> instance = getForeignTableField(entity, fieldName);
@@ -278,39 +278,46 @@ public class EntityState {
 			Flux<T> flux = (Flux<T>) client.getSpringClient().select().from(elementType).matching(Criteria.where(client.getDataAccess().toSql(fkProperty.getColumnName())).is(id)).fetch().all();
 			Field fk = elementType.getDeclaredField(joinKey);
 			fk.setAccessible(true);
-			if (field.getType().isArray()) {
-				return flux.collectList().flatMapMany(list -> {
-					Object array = list.toArray((Object[])Array.newInstance(elementType, list.size()));
-					try {
-						field.set(entity, array);
-					} catch (Exception e) {
-						return Flux.error(e);
-					}
-					for (Object element : list)
-						try {
-							fk.set(element, entity);
-						} catch (Exception e) {
-							throw new ModelAccessException("Unable to set field " + joinKey, e);
-						}
-					return Flux.fromIterable(list);
-				});
-			} else {
-				final Object col = CollectionFactory.createCollection(field.getType(), elementType, 10);
-				field.set(entity, col);
-				flux = flux.doOnNext(element -> {
-					((Collection)col).add(element);
-					try {
-						fk.set(element, entity);
-					} catch (Exception e) {
-						throw new ModelAccessException("Unable to set field " + joinKey, e);
-					}
-				});
-				flux = flux.doOnComplete(() -> savePersistedValue(field, col));
-				return flux;
-			}
+			if (field.getType().isArray())
+				return toArray(flux, field, entity, elementType, fk);
+			return toCollection(flux, field, entity, elementType, fk);
 		} catch (Exception e) {
 			return Flux.error(e);
 		}
+	}
+	
+	private static <T> Flux<T> toArray(Flux<T> flux, Field field, Object entity, Class<?> elementType, Field fk) {
+		return flux.collectList().flatMapMany(list -> {
+			Object array = list.toArray((Object[])Array.newInstance(elementType, list.size()));
+			try {
+				field.set(entity, array);
+			} catch (Exception e) {
+				return Flux.error(e);
+			}
+			for (Object element : list)
+				try {
+					fk.set(element, entity);
+				} catch (Exception e) {
+					throw new ModelAccessException("Unable to set field " + fk.getName(), e);
+				}
+			return Flux.fromIterable(list);
+		});
+	}
+	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private <T> Flux<T> toCollection(Flux<T> flux, Field field, Object entity, Class<?> elementType, Field fk) throws IllegalAccessException {
+		final Object col = CollectionFactory.createCollection(field.getType(), elementType, 10);
+		field.set(entity, col);
+		flux = flux.doOnNext(element -> {
+			((Collection)col).add(element);
+			try {
+				fk.set(element, entity);
+			} catch (Exception e) {
+				throw new ModelAccessException("Unable to set field " + fk.getName(), e);
+			}
+		});
+		flux = flux.doOnComplete(() -> savePersistedValue(field, col));
+		return flux;
 	}
 	
 	public void foreignTableLoaded(Field field, Object value) {

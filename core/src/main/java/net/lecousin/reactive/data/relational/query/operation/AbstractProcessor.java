@@ -24,6 +24,7 @@ import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import reactor.core.publisher.Mono;
 
+@SuppressWarnings("rawtypes")
 abstract class AbstractProcessor<R extends AbstractProcessor.Request> {
 
 	/** Requests, by table, by instance. */
@@ -41,7 +42,7 @@ abstract class AbstractProcessor<R extends AbstractProcessor.Request> {
 		
 		Set<Request> dependencies = new HashSet<>();
 		
-		Request(RelationalPersistentEntity<?> entityType, Object instance, EntityState state, PersistentPropertyAccessor<?> accessor) {
+		<T> Request(RelationalPersistentEntity<T> entityType, T instance, EntityState state, PersistentPropertyAccessor<T> accessor) {
 			this.entityType = entityType;
 			this.instance = instance;
 			this.state = state;
@@ -53,11 +54,11 @@ abstract class AbstractProcessor<R extends AbstractProcessor.Request> {
 		}
 	}
 	
-	public R addToProcess(Operation op, Object instance, @Nullable RelationalPersistentEntity<?> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<?> accessor) {
+	public <T> R addToProcess(Operation op, T instance, @Nullable RelationalPersistentEntity<T> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
 		return addRequest(op, instance, entity, state, accessor);
 	}
 	
-	public R addToNotProcess(Operation op, Object instance, @Nullable RelationalPersistentEntity<?> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<?> accessor) {
+	public <T> R addToNotProcess(Operation op, T instance, @Nullable RelationalPersistentEntity<T> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
 		R request = addRequest(op, instance, entity, state, accessor);
 		request.toProcess = false;
 		return request;
@@ -80,7 +81,13 @@ abstract class AbstractProcessor<R extends AbstractProcessor.Request> {
 		if (!checkRequest(op, request))
 			return false;
 		
-		// process foreign keys
+		processForeignKeys(op, request);
+		processForeignTables(op, request);
+		
+		return true;
+	}
+	
+	private void processForeignKeys(Operation op, R request) {
 		for (RelationalPersistentProperty property : request.entityType) {
 			ForeignKey fkAnnotation = property.findAnnotation(ForeignKey.class);
 			if (fkAnnotation != null) {
@@ -88,8 +95,9 @@ abstract class AbstractProcessor<R extends AbstractProcessor.Request> {
 				processForeignKey(op, request, property, fkAnnotation, p != null ? p.getFirst() : null, p != null ? p.getSecond() : null);
 			}
 		}
-		
-		// process foreign tables
+	}
+	
+	private void processForeignTables(Operation op, R request) {
 		for (Pair<Field, ForeignTable> p : ModelUtils.getForeignTables(request.instance.getClass())) {
 			boolean isCollection = ModelUtils.isCollection(p.getFirst());
 			RelationalPersistentEntity<?> foreignEntity = op.lcClient.getMappingContext().getRequiredPersistentEntity(isCollection ? ModelUtils.getRequiredCollectionType(p.getFirst()) : p.getFirst().getType());
@@ -104,28 +112,26 @@ abstract class AbstractProcessor<R extends AbstractProcessor.Request> {
 			
 			processForeignTableField(op, request, p.getFirst(), p.getSecond(), foreignFieldValue, isCollection, foreignEntity, fkProperty, fk);
 		}
-		
-		return true;
 	}
 	
-	protected abstract R createRequest(Object instance, EntityState state, RelationalPersistentEntity<?> entity, PersistentPropertyAccessor<?> accessor);
+	protected abstract <T> R createRequest(T instance, EntityState state, RelationalPersistentEntity<T> entity, PersistentPropertyAccessor<T> accessor);
 	
 	protected abstract boolean checkRequest(Operation op, R request);
 	
 	protected abstract void processForeignKey(Operation op, R request, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation, @Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation);
 	
 	@SuppressWarnings("java:S107")
-	protected abstract void processForeignTableField(Operation op, R request, Field foreignTableField, ForeignTable foreignTableAnnotation, MutableObject<?> foreignFieldValue, boolean isCollection, RelationalPersistentEntity<?> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation);
+	protected abstract <T> void processForeignTableField(Operation op, R request, Field foreignTableField, ForeignTable foreignTableAnnotation, MutableObject<?> foreignFieldValue, boolean isCollection, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation);
 	
-	@SuppressWarnings("java:S3824")
-	private R addRequest(Operation op, Object instance, @Nullable RelationalPersistentEntity<?> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<?> accessor) {
+	@SuppressWarnings({ "java:S3824", "unchecked" })
+	private <T> R addRequest(Operation op, T instance, @Nullable RelationalPersistentEntity<T> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
 		if (entity == null)
-			entity = op.lcClient.getMappingContext().getRequiredPersistentEntity(instance.getClass());
+			entity = (RelationalPersistentEntity<T>) op.lcClient.getMappingContext().getRequiredPersistentEntity(instance.getClass());
 		if (accessor == null)
 			accessor = entity.getPropertyAccessor(instance);
 		if (state == null)
 			state = EntityState.get(instance, op.lcClient, entity);
-		instance = op.cache.getInstance(state, entity, accessor, op.lcClient.getMappingContext());
+		instance = op.cache.getOrSet(state, entity, accessor, op.lcClient.getMappingContext());
 		Map<Object, R> map = requests.computeIfAbsent(entity, e -> new HashMap<>());
 		R r = map.get(instance);
 		if (r == null) {

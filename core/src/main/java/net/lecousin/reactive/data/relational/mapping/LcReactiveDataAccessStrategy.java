@@ -7,6 +7,7 @@ import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 
 import io.r2dbc.spi.Row;
 import io.r2dbc.spi.RowMetadata;
+import net.lecousin.reactive.data.relational.model.PropertiesSourceRow;
 
 public class LcReactiveDataAccessStrategy extends DefaultReactiveDataAccessStrategy {
 
@@ -19,8 +20,8 @@ public class LcReactiveDataAccessStrategy extends DefaultReactiveDataAccessStrat
 	
 	@Override
 	public <T> BiFunction<Row, RowMetadata, T> getRowMapper(Class<T> typeToRead) {
-		ResultMappingContext resultContext = new ResultMappingContext();
-		return (row, metadata) -> ((LcMappingR2dbcConverter)getConverter()).read(typeToRead, row, metadata, resultContext);
+		LcEntityReader reader = new LcEntityReader(null, (LcMappingR2dbcConverter)getConverter());
+		return (row, metadata) -> reader.read(typeToRead, new PropertiesSourceRow(row, metadata));
 	}
 	
 	public R2dbcDialect getDialect() {

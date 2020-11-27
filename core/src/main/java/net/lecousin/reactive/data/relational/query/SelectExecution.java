@@ -3,7 +3,6 @@ package net.lecousin.reactive.data.relational.query;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -32,13 +31,13 @@ import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.relational.core.sql.render.RenderContext;
 import org.springframework.data.relational.core.sql.render.SqlRenderer;
 
-import io.r2dbc.spi.Row;
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
-import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
-import net.lecousin.reactive.data.relational.mapping.ResultMappingContext;
+import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
+import net.lecousin.reactive.data.relational.model.PropertiesSource;
+import net.lecousin.reactive.data.relational.model.PropertiesSourceMap;
 import net.lecousin.reactive.data.relational.query.SelectQuery.TableReference;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.And;
@@ -59,14 +58,12 @@ public class SelectExecution<T> {
 	private LcReactiveDataRelationalClient client;
 	private R2dbcDialect dialect;
 	private RenderContext renderContext;
-	private LcMappingR2dbcConverter mapper;
 	
 	public SelectExecution(SelectQuery<T> query, LcReactiveDataRelationalClient client) {
 		this.query = query;
 		this.client = client;
 		this.dialect = client.getDataAccess().getDialect();
 		this.renderContext = client.getDataAccess().getStatementMapper().getRenderContext();
-		this.mapper = client.getMapper();
 	}
 	
 	public Flux<T> execute() {
@@ -76,7 +73,7 @@ public class SelectExecution<T> {
 	
 	private boolean needsPreSelectIds() {
 		// first step is to ensure we wave the target type for all joins
-		query.setJoinsTargetType(mapper);
+		query.setJoinsTargetType(client.getMapper());
 		if (!hasJoinMany())
 			return false;
 		if (query.limit > 0)
@@ -94,7 +91,7 @@ public class SelectExecution<T> {
 	private boolean isMany(TableReference table) {
 		if (table.source == null)
 			return false;
-		RelationalPersistentEntity<?> entity = mapper.getMappingContext().getRequiredPersistentEntity(table.source.targetType);
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(table.source.targetType);
 		try {
 			Field field = entity.getType().getDeclaredField(table.propertyName);
 			return ModelUtils.isCollection(field);
@@ -179,7 +176,7 @@ public class SelectExecution<T> {
 	
 	private Flux<T> executeWithPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
-		ResultMappingContext resultContext = new ResultMappingContext();
+		LcEntityReader reader = new LcEntityReader(null, client.getMapper());
 		return buildDistinctRootIdSql(mapping).execute(client.getSpringClient(), renderContext).fetch().all()
 			.map(row -> row.values().iterator().next())
 			.buffer(100)
@@ -187,19 +184,19 @@ public class SelectExecution<T> {
 				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getIdProperty().getName();
 				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false).execute(client.getSpringClient(), renderContext).fetch().all();
 				return Flux.create(sink ->
-					fromDb.doOnComplete(() -> handleRow(null, sink, mapping, resultContext))
-						.subscribe(row -> handleRow(row, sink, mapping, resultContext))
+					fromDb.doOnComplete(() -> handleRow(null, sink, mapping, reader))
+						.subscribe(row -> handleRow(row, sink, mapping, reader))
 				);
 			});
 	}
 	
 	private Flux<T> executeWithoutPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
-		ResultMappingContext resultContext = new ResultMappingContext();
 		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true).execute(client.getSpringClient(), renderContext).fetch().all();
+		LcEntityReader reader = new LcEntityReader(null, client.getMapper());
 		return Flux.create(sink ->
-			fromDb.doOnComplete(() -> handleRow(null, sink, mapping, resultContext))
-				.subscribe(row -> handleRow(row, sink, mapping, resultContext))
+			fromDb.doOnComplete(() -> handleRow(null, sink, mapping, reader))
+				.subscribe(row -> handleRow(row, sink, mapping, reader))
 		);
 	}
 	
@@ -229,7 +226,7 @@ public class SelectExecution<T> {
 	
 	private SelectMapping buildSelectMapping() {
 		SelectMapping mapping = new SelectMapping();
-		RelationalPersistentEntity<?> entity = mapper.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		Map<String, String> fieldAliases = new HashMap<>();
 		mapping.fieldAliasesByTableAlias.put(query.from.alias, fieldAliases);
 		mapping.entitiesByAlias.put(query.from.alias, entity);
@@ -240,7 +237,7 @@ public class SelectExecution<T> {
 			fieldAliases.put(property.getName(), alias);
 		}
 		for (TableReference join : query.joins) {
-			RelationalPersistentEntity<?> joinEntity = mapper.getMappingContext().getRequiredPersistentEntity(join.targetType); 
+			RelationalPersistentEntity<?> joinEntity = client.getMappingContext().getRequiredPersistentEntity(join.targetType); 
 			fieldAliases = new HashMap<>();
 			mapping.fieldAliasesByTableAlias.put(join.alias, fieldAliases);
 			mapping.entitiesByAlias.put(join.alias, joinEntity);
@@ -283,7 +280,7 @@ public class SelectExecution<T> {
 	}
 	
 	private SqlQuery buildFinalSql(SelectMapping mapping, Criteria criteria, boolean applyLimit) {
-		RelationalPersistentEntity<?> entity = mapper.getMappingContext().getPersistentEntity(query.from.targetType);
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getPersistentEntity(query.from.targetType);
 		
 		List<Column> selectFields = new ArrayList<>(mapping.fields.size());
 		for (SelectField field : mapping.fields)
@@ -294,8 +291,8 @@ public class SelectExecution<T> {
 		}
 		
 		for (TableReference join : query.joins) {
-			RelationalPersistentEntity<?> sourceEntity = mapper.getMappingContext().getRequiredPersistentEntity(join.source.targetType); 
-			RelationalPersistentEntity<?> targetEntity = mapper.getMappingContext().getRequiredPersistentEntity(join.targetType); 
+			RelationalPersistentEntity<?> sourceEntity = client.getMappingContext().getRequiredPersistentEntity(join.source.targetType); 
+			RelationalPersistentEntity<?> targetEntity = client.getMappingContext().getRequiredPersistentEntity(join.targetType); 
 			RelationalPersistentProperty property = sourceEntity.getPersistentProperty(join.propertyName);
 			if (property != null) {
 				Table joinTargetTable = mapping.tableByAlias.get(join.alias);
@@ -330,7 +327,7 @@ public class SelectExecution<T> {
 
 	
 	private SqlQuery buildDistinctRootIdSql(SelectMapping mapping) {
-		RelationalPersistentEntity<?> entity = mapper.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
 		BuildSelect select = Select.builder().select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias))).distinct().from(mapping.tableByAlias.get(query.from.alias));
 		if (query.limit > 0) {
@@ -340,8 +337,8 @@ public class SelectExecution<T> {
 		for (TableReference join : query.joins) {
 			if (!needsTableForPreSelect(join))
 				continue;
-			RelationalPersistentEntity<?> sourceEntity = mapper.getMappingContext().getRequiredPersistentEntity(join.source.targetType); 
-			RelationalPersistentEntity<?> targetEntity = mapper.getMappingContext().getRequiredPersistentEntity(join.targetType); 
+			RelationalPersistentEntity<?> sourceEntity = client.getMappingContext().getRequiredPersistentEntity(join.source.targetType); 
+			RelationalPersistentEntity<?> targetEntity = client.getMappingContext().getRequiredPersistentEntity(join.targetType); 
 			RelationalPersistentProperty property = sourceEntity.getPersistentProperty(join.propertyName);
 			if (property != null) {
 				Table joinTargetTable = mapping.tableByAlias.get(join.alias);
@@ -375,7 +372,7 @@ public class SelectExecution<T> {
 	private Object currentRootId = null;
 	
 	@SuppressWarnings("unchecked")
-	private void handleRow(Map<String, Object> row, FluxSink<T> sink, SelectMapping mapping, ResultMappingContext resultContext) {
+	private void handleRow(Map<String, Object> row, FluxSink<T> sink, SelectMapping mapping, LcEntityReader reader) {
 		if (logger.isDebugEnabled())
 			logger.debug("Result row = " + row);
 		if (row == null) {
@@ -386,103 +383,64 @@ public class SelectExecution<T> {
 			sink.complete();
 			return;
 		}
-		RelationalPersistentEntity<?> rootEntity = mapper.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
-		Object rootId = ModelUtils.getId(row, rootEntity, name -> mapping.fieldAliasesByTableAlias.get(query.from.alias).get(name));
+		RelationalPersistentEntity<?> rootEntity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		PropertiesSource source = new PropertiesSourceMap(row, mapping.fieldAliasesByTableAlias.get(query.from.alias), rootEntity);
+		Object rootId = ModelUtils.getId(rootEntity, source);
 		if (currentRoot != null) {
 			if (rootId != null && !currentRootId.equals(rootId)) {
 				endOfRoot();
 				sink.next(currentRoot);
-				currentRoot = (T) mapper.read(query.from.targetType, createRow(row, rootEntity, query.from.alias, mapping), null, resultContext);
+				currentRoot = (T) reader.read(query.from.targetType, source);
 				currentRootId = rootId;
 			}
 		} else {
-			currentRoot = (T) mapper.read(query.from.targetType, createRow(row, rootEntity, query.from.alias, mapping), null, resultContext);
+			currentRoot = (T) reader.read(query.from.targetType, source);
 			currentRootId = rootId;
 		}
-		fillLinkedEntities(currentRoot, query.from, row, mapping, resultContext);
+		fillLinkedEntities(currentRoot, query.from, row, mapping, reader);
 	}
 	
-	@SuppressWarnings({"java:S3011"}) // access directly to field
-	private void fillLinkedEntities(Object parent, TableReference parentTable, Map<String, Object> row, SelectMapping mapping, ResultMappingContext resultContext) {
+	private void fillLinkedEntities(Object parent, TableReference parentTable, Map<String, Object> row, SelectMapping mapping, LcEntityReader reader) {
 		for (TableReference join : query.joins) {
 			if (join.source != parentTable)
 				continue;
 			try {
-				Field field = parent.getClass().getDeclaredField(join.propertyName);
-				field.setAccessible(true);
-				Class<?> type;
-				boolean isCollection = ModelUtils.isCollection(field);
-				if (isCollection)
-					type = ModelUtils.getRequiredCollectionType(field);
-				else
-					type = field.getType();
-				RelationalPersistentEntity<?> entity = mapper.getMappingContext().getRequiredPersistentEntity(type);
-				Object id = ModelUtils.getId(row, entity, name -> mapping.fieldAliasesByTableAlias.get(join.alias).get(name));
-				if (id == null) {
-					// left join without any match
-					if (isCollection)
-						field.set(parent, CollectionFactory.createCollection(field.getType(), ModelUtils.getCollectionType(field), 0));
-					continue;
-				}
-				Object instance = resultContext.getEntityCache().getCachedInstance(type, id);
-				if (instance == null) {
-					instance = mapper.read(join.targetType, createRow(row, entity, join.alias, mapping), null, resultContext);
-					resultContext.getEntityCache().setCachedInstance(type, id, instance);
-				}
-				if (isCollection)
-					ModelUtils.addToCollectionField(field, parent, instance);
-				else
-					field.set(parent, instance);
-				fillLinkedEntities(instance, join, row, mapping, resultContext);
+				fillLinkedEntity(join, parent, row, mapping, reader);
 			} catch (Exception e) {
 				throw new MappingException("Error mapping result for entity " + join.targetType.getName(), e);
 			}
 		}
 	}
 	
+	@SuppressWarnings({"java:S3011", "unchecked"}) // access directly to field
+	private <J> void fillLinkedEntity(TableReference join, Object parent, Map<String, Object> row, SelectMapping mapping, LcEntityReader reader) throws ReflectiveOperationException {
+		if (logger.isDebugEnabled())
+			logger.debug("Read join " + join.targetType.getSimpleName() + " as " + join.alias + " from " + parent.getClass().getSimpleName());
+		Field field = parent.getClass().getDeclaredField(join.propertyName);
+		field.setAccessible(true);
+		Class<?> type;
+		boolean isCollection = ModelUtils.isCollection(field);
+		if (isCollection)
+			type = ModelUtils.getRequiredCollectionType(field);
+		else
+			type = field.getType();
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(type);
+		PropertiesSource source = new PropertiesSourceMap(row, mapping.fieldAliasesByTableAlias.get(join.alias), entity);
+		Object id = ModelUtils.getId(entity, source);
+		if (id == null) {
+			// left join without any match
+			if (isCollection)
+				field.set(parent, CollectionFactory.createCollection(field.getType(), ModelUtils.getCollectionType(field), 0));
+			return;
+		}
+		J instance = reader.read((Class<J>) join.targetType, source);
+		if (isCollection)
+			ModelUtils.addToCollectionField(field, parent, instance);
+		else
+			field.set(parent, instance);
+		fillLinkedEntities(instance, join, row, mapping, reader);
+	}
 	
-	private static Row createRow(Map<String, Object> data, RelationalPersistentEntity<?> entity, String tableAlias, SelectMapping mapping) {
-		RowWrapper r = new RowWrapper();
-		Map<String, String> aliases = mapping.fieldAliasesByTableAlias.get(tableAlias);
-		for (RelationalPersistentProperty property : entity) {
-			String fieldAlias = aliases.get(property.getName());
-			r.names.add(property.getColumnName().toString());
-			r.data.add(data.get(fieldAlias));
-		}
-		return r;
-	}
-
-	private static class RowWrapper implements Row {
-		private List<Object> data = new LinkedList<>();
-		private List<String> names = new LinkedList<>();
-		
-		@SuppressWarnings("unchecked")
-		@Override
-		public <T> T get(int index, Class<T> type) {
-			if (index < 0 || index >= data.size())
-				return null;
-			return (T) data.get(index);
-		}
-		
-		@Override
-		public <T> T get(String name, Class<T> type) {
-			return get(names.indexOf(name), type);
-		}
-		
-		@Override
-		public String toString() {
-			StringBuilder s = new StringBuilder();
-			s.append('{');
-			Iterator<Object> itData = data.iterator();
-			Iterator<String> itName = names.iterator();
-			while (itData.hasNext()) {
-				s.append(itName.next()).append('=').append(itData.next());
-				if (itData.hasNext())
-					s.append(", ");
-			}
-			return s.toString();
-		}
-	}
 	
 	private void endOfRoot() {
 		signalLoadedForeignTables(currentRoot, query.from);

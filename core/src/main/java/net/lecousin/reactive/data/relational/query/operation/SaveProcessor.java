@@ -1,7 +1,6 @@
 package net.lecousin.reactive.data.relational.query.operation;
 
 import java.lang.reflect.Field;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -15,6 +14,8 @@ import org.springframework.data.annotation.Version;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.r2dbc.core.DatabaseClient.GenericInsertSpec;
 import org.springframework.data.r2dbc.core.RowsFetchSpec;
+import org.springframework.data.r2dbc.mapping.OutboundRow;
+import org.springframework.data.r2dbc.mapping.SettableValue;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.query.Criteria;
@@ -27,6 +28,8 @@ import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.mapping.LcEntityWriter;
+import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import reactor.core.publisher.Mono;
 
@@ -34,14 +37,14 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 
 	static class SaveRequest extends AbstractProcessor.Request {
 
-		SaveRequest(RelationalPersistentEntity<?> entityType, Object instance, EntityState state, PersistentPropertyAccessor<?> accessor) {
+		<T> SaveRequest(RelationalPersistentEntity<T> entityType, T instance, EntityState state, PersistentPropertyAccessor<T> accessor) {
 			super(entityType, instance, state, accessor);
 		}
 		
 	}
 	
 	@Override
-	protected SaveRequest createRequest(Object instance, EntityState state, RelationalPersistentEntity<?> entity, PersistentPropertyAccessor<?> accessor) {
+	protected <T> SaveRequest createRequest(T instance, EntityState state, RelationalPersistentEntity<T> entity, PersistentPropertyAccessor<T> accessor) {
 		return new SaveRequest(entity, instance, state, accessor);
 	}
 	
@@ -70,7 +73,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 						foreignState.setForeignTableField(originalValue, foreignTableField, null, false);
 					}
 				} catch (Exception e) {
-					throw new RuntimeException("Unable to remove link for removed entity", e);
+					throw new ModelAccessException("Unable to remove link for removed entity", e);
 				}
 			}
 			if ((foreignTableAnnotation != null && !foreignTableAnnotation.optional()) || fkAnnotation.cascadeDelete()) {
@@ -87,11 +90,12 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 		}
 	}
 	
+	@SuppressWarnings("unchecked")
 	@Override
-	protected void processForeignTableField(
+	protected <T> void processForeignTableField(
 		Operation op, SaveRequest request,
 		Field foreignTableField, ForeignTable foreignTableAnnotation, MutableObject<?> foreignFieldValue, boolean isCollection,
-		RelationalPersistentEntity<?> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
+		RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
 	) {
 		if (foreignFieldValue == null)
 			return; // not loaded -> not saved
@@ -113,21 +117,21 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 				if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
 					// delete
 					for (Object element : deletedElements)
-						op.addToDelete(element, foreignEntity, null, null);
+						op.addToDelete((T) element, foreignEntity, null, null);
 				} else {
 					// update to null
 					for (Object element : deletedElements) {
-						SaveRequest save = op.addToSave(element, foreignEntity, null, null);
+						SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
 						save.state.setPersistedField(element, fkProperty.getField(), null, false);
 					}
 				}
 			}
 			for (Object element : ModelUtils.getAsCollection(value)) {
-				SaveRequest save = op.addToSave(element, foreignEntity, null, null);
+				SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
 				save.state.setPersistedField(element, fkProperty.getField(), request.instance, false);
 			}
 		} else {
-			Object originalValue = request.state.getPersistedValue(foreignTableField.getName());
+			T originalValue = (T) request.state.getPersistedValue(foreignTableField.getName());
 			if (!Objects.equals(originalValue, value) && originalValue != null) {
 				// it has been changed, we need to update/delete the previous one
 				if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
@@ -141,7 +145,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			}
 			if (value != null) {
 				// save value
-				SaveRequest save = op.addToSave(value, foreignEntity, null, null);
+				SaveRequest save = op.addToSave((T) value, foreignEntity, null, null);
 				save.state.setPersistedField(value, fkProperty.getField(), request.instance, false);
 			}
 		}
@@ -163,41 +167,37 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 		return Mono.fromCallable(() -> {
 			GenericInsertSpec<Map<String, Object>> insert = op.lcClient.getSpringClient().insert().into(request.entityType.getTableName());
 			final List<RelationalPersistentProperty> generated = new LinkedList<>();
-			boolean isDebug = LcReactiveDataRelationalClient.logger.isDebugEnabled();
-			StringBuilder debug = isDebug ? new StringBuilder("Insert into ").append(request.entityType.getName()).append(": ") : null;
+			OutboundRow row = new OutboundRow();
+			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
 			for (RelationalPersistentProperty property : request.entityType) {
 				if (property.isAnnotationPresent(GeneratedValue.class)) {
 					generated.add(property);
-					continue;
-				}
-				Object value;
-				if (property.isAnnotationPresent(Version.class)) {
-					// Version 1 for an insert
-					value = Long.valueOf(1);
-					request.accessor.setProperty(property, 1L);
-				} else {
-					value = request.accessor.getProperty(property);
-					if (value == null)
-						continue;
-					if (property.isAnnotationPresent(ForeignKey.class)) {
-						// get the id instead of the entity
-						RelationalPersistentEntity<?> fe = op.lcClient.getMappingContext().getPersistentEntity(value.getClass());
-						value = fe.getPropertyAccessor(value).getProperty(fe.getIdProperty());
+				} else if (property.isWritable()) { 
+					if (property.isAnnotationPresent(Version.class)) {
+						// Version 1 for an insert
+						request.accessor.setProperty(property, 1L);
 					}
-					value = getValueForRequest(value, op.lcClient);
+					writer.writeProperty(row, property, request.accessor);
 				}
-				insert = insert.value(property.getColumnName(), value);
-				if (isDebug)
-					debug.append('<').append(property.getName()).append('=').append(value).append('>');
 			}
 			
-			if (isDebug)
+			if (LcReactiveDataRelationalClient.logger.isDebugEnabled()) {
+				StringBuilder debug = new StringBuilder("Insert into ").append(request.entityType.getName()).append(": ");
+				for (Map.Entry<SqlIdentifier, SettableValue> entry : row.entrySet())
+					debug.append(entry.getKey()).append('=').append(entry.getValue().getValue());
 				LcReactiveDataRelationalClient.logger.debug(debug.toString());
+			}
+
+			for (Map.Entry<SqlIdentifier, SettableValue> entry : row.entrySet())
+				if (entry.getValue().getValue() == null)
+					insert = insert.nullValue(entry.getKey(), entry.getValue().getType());
+				else
+					insert = insert.value(entry.getKey(), entry.getValue().getValue());
 			
-			return insert.map((row, meta) -> {
+			return insert.map((r, meta) -> {
 				int index = 0;
 				for (RelationalPersistentProperty property : generated)
-					request.accessor.setProperty(property, row.get(index++));
+					request.accessor.setProperty(property, r.get(index++));
 				request.state.loaded(request.instance);
 				return request.instance;
 			});
@@ -206,38 +206,31 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 	
 	private static Mono<Object> doUpdate(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> {
+			OutboundRow row = new OutboundRow();
+			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
 			Map<SqlIdentifier, Object> assignments = new HashMap<>();
-			Map<SqlIdentifier, Object> versionAssignments = new HashMap<>();
-			boolean isDebug = LcReactiveDataRelationalClient.logger.isDebugEnabled();
-			StringBuilder debug = isDebug ? new StringBuilder("Update ").append(request.entityType.getName()) : null;
 			Criteria criteria = Criteria.empty();
 			for (RelationalPersistentProperty property : request.entityType) {
 				if (property.isAnnotationPresent(Version.class)) {
 					Object value = request.accessor.getProperty(property);
 					long currentVersion = ((Number)value).longValue();
 					criteria = criteria.and(Criteria.where(op.lcClient.getDataAccess().toSql(property.getColumnName())).is(Long.valueOf(currentVersion)));
-					versionAssignments.put(property.getColumnName(), Long.valueOf(currentVersion + 1));
-					if (isDebug)
-						debug.append(' ').append(property.getName()).append('=').append(currentVersion + 1);
-				} else if (!property.isIdProperty() && request.state.isFieldModified(property.getField().getName())) {
-					Object value = request.accessor.getProperty(property);
-					if (property.isAnnotationPresent(ForeignKey.class) && value != null) {
-						// get the id instead of the entity
-						RelationalPersistentEntity<?> fe = op.lcClient.getMappingContext().getPersistentEntity(value.getClass());
-						value = fe.getPropertyAccessor(value).getProperty(fe.getIdProperty());
-					}
-					assignments.put(property.getColumnName(), getValueForRequest(value, op.lcClient));
-					if (isDebug)
-						debug.append(' ').append(property.getName()).append('=').append(value);
+					assignments.put(property.getColumnName(), Long.valueOf(currentVersion + 1));
+				} else if (!property.isIdProperty() && request.state.isFieldModified(property.getField().getName()) && property.isWritable()) {
+					writer.writeProperty(row, property, request.accessor);
 				}
 			}
-			if (assignments.isEmpty())
+			if (row.isEmpty())
 				return null;
-			assignments.putAll(versionAssignments);
+			for (Map.Entry<SqlIdentifier, SettableValue> entry : row.entrySet())
+				assignments.put(entry.getKey(), entry.getValue().getValue());
 			RelationalPersistentProperty idProperty = request.entityType.getRequiredIdProperty();
 			Object id = request.accessor.getProperty(idProperty);
 			criteria = criteria.and(Criteria.where(op.lcClient.getDataAccess().toSql(idProperty.getColumnName())).is(id));
-			if (isDebug) {
+			if (LcReactiveDataRelationalClient.logger.isDebugEnabled()) {
+				StringBuilder debug = new StringBuilder("Update ").append(request.entityType.getName());
+				for (Map.Entry<SqlIdentifier, Object> entry : assignments.entrySet())
+					debug.append(entry.getKey()).append('=').append(entry.getValue());
 				debug.append(" WHERE ").append(idProperty.getName()).append('=').append(id);
 				LcReactiveDataRelationalClient.logger.debug(debug.toString());
 			}
@@ -261,23 +254,6 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 				request.accessor.setProperty(property, ((Long)request.accessor.getProperty(property)) + 1);
 			}
 		}
-	}
-	
-	private static Object getValueForRequest(Object value, LcReactiveDataRelationalClient client) {
-		if (value == null)
-			return null;
-		value = client.getSchemaDialect().convertToDataBase(value);
-		if (value instanceof Number) {
-			if (value instanceof Double || value instanceof Float)
-				return Double.valueOf(((Number)value).doubleValue());
-			if (!(value instanceof BigDecimal))
-				return Long.valueOf(((Number)value).longValue());
-		} else if (value instanceof Character) {
-			return Long.valueOf((Character)value);
-		} else if (char[].class.equals(value.getClass())) {
-			return new String((char[])value);
-		}
-		return value;
 	}
 	
 }
