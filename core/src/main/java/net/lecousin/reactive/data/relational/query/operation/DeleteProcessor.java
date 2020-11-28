@@ -16,6 +16,7 @@ import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Condition;
 import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Delete;
+import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.StatementBuilder;
 import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.util.Pair;
@@ -229,12 +230,12 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	}
 	
 	private static Condition createCriteriaOnIds(RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests, SqlQuery<Delete> query, Table table) {
-		List<Object> ids = new ArrayList<>(requests.size());
+		List<Expression> ids = new ArrayList<>(requests.size());
 		for (DeleteRequest request : requests) {
 			Object id = entityType.getPropertyAccessor(request.instance).getProperty(entityType.getRequiredIdProperty());
-			ids.add(id);
+			ids.add(query.marker(id));
 		}
-		return Conditions.in(Column.create(entityType.getRequiredIdProperty().getColumnName(), table), query.marker(ids));
+		return Conditions.in(Column.create(entityType.getRequiredIdProperty().getColumnName(), table), ids);
 	}
 	
 	private static Condition createCriteriaOnProperties(RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests, SqlQuery<Delete> query, Table table) {
@@ -288,7 +289,8 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 			Condition condition = null;
 			do {
 				Pair<RelationalPersistentProperty, Object> p = it.next();
-				Condition c = Conditions.isEqual(Column.create(p.getFirst().getColumnName(), table), query.marker(p.getSecond()));
+				Column col = Column.create(p.getFirst().getColumnName(), table);
+				Condition c = p.getSecond() != null ? Conditions.isEqual(col, query.marker(p.getSecond())) : Conditions.isNull(col);
 				condition = condition != null ? condition.or(c) : c;
 			} while (it.hasNext());
 			query.setQuery(Delete.builder().from(table).where(condition).build());

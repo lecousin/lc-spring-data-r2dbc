@@ -60,27 +60,6 @@ public class ModelUtils {
 			return def.nullable();
 		return true;
 	}
-
-	/** Copy every persistent property (having the Column annotation).
-	 * 
-	 * @param <T> type of entity
-	 * @param from entity from which to copy properties
-	 * @param to target entity to copy properties
-	 * @param entityType entity type
-	 * @return the target property
-	 */
-	@SuppressWarnings("java:S3011")
-	public static <T> T copyProperties(T from, T to, RelationalPersistentEntity<?> entityType) {
-		try {
-			for (RelationalPersistentProperty property : entityType) {
-				Field f = property.getRequiredField();
-				f.set(to, f.get(from));
-			}
-			return to;
-		} catch (Exception e) {
-			throw new ModelAccessException("Error accessing entity fields", e);
-		}
-	}
 	
 	/** Set the foreign table field on the given instance to the given linkedInstance.
 	 * 

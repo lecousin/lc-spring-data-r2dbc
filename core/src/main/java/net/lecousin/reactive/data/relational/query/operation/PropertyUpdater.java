@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational.query.operation;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -12,6 +13,8 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 import org.springframework.data.relational.core.sql.AssignValue;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Conditions;
+import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.relational.core.sql.Update;
 
@@ -51,10 +54,13 @@ class PropertyUpdater {
 				Table table = Table.create(entity.getKey().getTableName());
 				for (Map.Entry<Object, Set<Object>> update : reverseMap.entrySet()) {
 					SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
+					List<Expression> values = new ArrayList<>(update.getValue().size());
+					for (Object value : update.getValue())
+						values.add(query.marker(value));
 					query.setQuery(
 						Update.builder().table(table)
-						.set(AssignValue.create(Column.create(property.getKey().getColumnName(), table), query.marker(update.getKey())))
-						.where(Conditions.in(Column.create(property.getKey().getColumnName(), table), query.marker(update.getValue())))
+						.set(AssignValue.create(Column.create(property.getKey().getColumnName(), table), update.getKey() != null ? query.marker(update.getKey()) : SQL.nullLiteral()))
+						.where(Conditions.in(Column.create(property.getKey().getColumnName(), table), values))
 						.build()
 					);
 					calls.add(query.execute().then());

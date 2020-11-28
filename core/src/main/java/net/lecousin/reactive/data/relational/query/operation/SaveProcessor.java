@@ -207,13 +207,15 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			}
 			query.setQuery(Insert.builder().into(table).columns(columns).values(values).build());
 			
-			return query.execute().map((r, meta) -> {
-				int index = 0;
-				for (RelationalPersistentProperty property : generated)
-					request.accessor.setProperty(property, r.get(index++));
-				request.state.loaded(request.instance);
-				return request.instance;
-			});
+			return query.execute()
+				.filter(statement -> statement.returnGeneratedValues())
+				.map((r, meta) -> {
+					int index = 0;
+					for (RelationalPersistentProperty property : generated)
+						request.accessor.setProperty(property, r.get(index++));
+					request.state.loaded(request.instance);
+					return request.instance;
+				});
 		}).flatMap(RowsFetchSpec::first);
 	}
 	
@@ -239,7 +241,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			if (row.isEmpty())
 				return null;
 			for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
-				assignments.add(AssignValue.create(Column.create(entry.getKey(), table), query.marker(entry.getValue().getValue())));
+				assignments.add(AssignValue.create(Column.create(entry.getKey(), table), entry.getValue().getValue() != null ? query.marker(entry.getValue().getValue()) : SQL.nullLiteral()));
 
 			RelationalPersistentProperty idProperty = request.entityType.getRequiredIdProperty();
 			Object id = request.accessor.getProperty(idProperty);

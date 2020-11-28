@@ -26,12 +26,11 @@ public interface RootEntityRepository extends LcR2dbcRepository<RootEntity, Long
 	}
 	
 	default Flux<RootEntity> findAllFull() {
-		return getLcClient().execute(
-			SelectQuery.from(RootEntity.class, "root")
+		return SelectQuery.from(RootEntity.class, "root")
 			.join("root", "list", "sub1")
 			.join("root", "list2", "sub2")
 			.join("root", "list3", "sub3")
-		);
+			.execute(getLcClient());
 	}
 
 }

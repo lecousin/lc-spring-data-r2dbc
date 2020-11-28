@@ -10,6 +10,7 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentEnti
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
+import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
@@ -72,7 +73,11 @@ public class SelectQuery<T> {
 	}
 	
 	public Flux<T> execute(LcReactiveDataRelationalClient client) {
-		return client.execute(this);
+		return client.execute(this, null);
+	}
+
+	public Flux<T> execute(LcReactiveDataRelationalClient client, LcEntityReader reader) {
+		return client.execute(this, reader);
 	}
 	
 	

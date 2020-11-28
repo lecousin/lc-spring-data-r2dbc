@@ -17,17 +17,13 @@ import org.springframework.core.CollectionFactory;
 import org.springframework.data.mapping.MappingException;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.relational.core.sql.AsteriskFromTable;
-import org.springframework.data.relational.core.sql.Column;
-import org.springframework.data.relational.core.sql.Conditions;
-import org.springframework.data.relational.core.sql.Select;
-import org.springframework.data.relational.core.sql.Table;
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
-import net.lecousin.reactive.data.relational.query.SqlQuery;
+import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -238,23 +234,22 @@ public class EntityState {
 			Object id = ModelUtils.getRequiredId(entity, entityType, null);
 			RelationalPersistentEntity<?> elementEntity = client.getMappingContext().getRequiredPersistentEntity(field.getType());
 			RelationalPersistentProperty fkProperty = elementEntity.getRequiredPersistentProperty(joinKey);
-			SqlQuery<Select> query = new SqlQuery<>(client);
-			Table table = Table.create(elementEntity.getTableName());
-			query.setQuery(Select.builder().select(AsteriskFromTable.create(table)).from(table).where(Conditions.isEqual(Column.create(fkProperty.getColumnName(), table), query.marker(id))).build());
-			Mono<T> fromDb = (Mono<T>) query.execute().fetch().one();
-			fromDb = fromDb.doOnNext(inst -> {
-				try {
-					field.setAccessible(true);
-					field.set(entity, inst);
-					savePersistedValue(field, inst);
-					Field fk = field.getType().getDeclaredField(joinKey);
-					fk.setAccessible(true);
-					fk.set(inst, entity);
-				} catch (Exception e) {
-					throw new ModelAccessException("Unable to set " + fieldName, e);
-				}
-			});
-			return fromDb;
+			return SelectQuery.from((Class<T>) field.getType(), "entity")
+				.where(Criteria.property("entity", fkProperty.getName()).is(id))
+				.execute(client)
+				.next()
+				.doOnNext(inst -> {
+					try {
+						field.setAccessible(true);
+						field.set(entity, inst);
+						savePersistedValue(field, inst);
+						Field fk = field.getType().getDeclaredField(joinKey);
+						fk.setAccessible(true);
+						fk.set(inst, entity);
+					} catch (Exception e) {
+						throw new ModelAccessException("Unable to set " + fieldName, e);
+					}
+				});
 		} catch (Exception e) {
 			return Mono.error(e);
 		}
@@ -282,10 +277,10 @@ public class EntityState {
 				throw new MappingException("Property is not a collection: " + fieldName);
 			RelationalPersistentEntity<?> elementEntity = client.getMappingContext().getRequiredPersistentEntity(elementType);
 			RelationalPersistentProperty fkProperty = elementEntity.getRequiredPersistentProperty(joinKey);
-			SqlQuery<Select> query = new SqlQuery<>(client);
-			Table table = Table.create(elementEntity.getTableName());
-			query.setQuery(Select.builder().select(AsteriskFromTable.create(table)).from(table).where(Conditions.isEqual(Column.create(fkProperty.getColumnName(), table), query.marker(id))).build());
-			Flux<T> flux = (Flux<T>) query.execute().fetch().all();
+			Flux<T> flux = SelectQuery.from((Class<T>) elementType, "element")
+				.where(Criteria.property("element", fkProperty.getName()).is(id))
+				.execute(client);
+				
 			Field fk = elementType.getDeclaredField(joinKey);
 			fk.setAccessible(true);
 			if (field.getType().isArray())

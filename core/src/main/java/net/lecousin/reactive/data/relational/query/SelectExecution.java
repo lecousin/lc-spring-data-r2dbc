@@ -21,6 +21,7 @@ import org.springframework.data.relational.core.sql.SelectBuilder.SelectJoin;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectOrdered;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectWhere;
 import org.springframework.data.relational.core.sql.Table;
+import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
@@ -45,10 +46,12 @@ public class SelectExecution<T> {
 	
 	private SelectQuery<T> query;
 	private LcReactiveDataRelationalClient client;
+	private LcEntityReader reader;
 	
-	public SelectExecution(SelectQuery<T> query, LcReactiveDataRelationalClient client) {
+	public SelectExecution(SelectQuery<T> query, LcReactiveDataRelationalClient client, @Nullable LcEntityReader reader) {
 		this.query = query;
 		this.client = client;
+		this.reader = reader != null ? reader : new LcEntityReader(null, client.getMapper());
 	}
 	
 	public Flux<T> execute() {
@@ -145,7 +148,6 @@ public class SelectExecution<T> {
 	
 	private Flux<T> executeWithPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
-		LcEntityReader reader = new LcEntityReader(null, client.getMapper());
 		return buildDistinctRootIdSql(mapping).execute().fetch().all()
 			.map(row -> row.values().iterator().next())
 			.buffer(100)
@@ -153,8 +155,8 @@ public class SelectExecution<T> {
 				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getIdProperty().getName();
 				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false).execute().fetch().all();
 				return Flux.create(sink ->
-					fromDb.doOnComplete(() -> handleRow(null, sink, mapping, reader))
-						.subscribe(row -> handleRow(row, sink, mapping, reader))
+					fromDb.doOnComplete(() -> handleRow(null, sink, mapping))
+						.subscribe(row -> handleRow(row, sink, mapping))
 				);
 			});
 	}
@@ -162,10 +164,9 @@ public class SelectExecution<T> {
 	private Flux<T> executeWithoutPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
 		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true).execute().fetch().all();
-		LcEntityReader reader = new LcEntityReader(null, client.getMapper());
 		return Flux.create(sink ->
-			fromDb.doOnComplete(() -> handleRow(null, sink, mapping, reader))
-				.subscribe(row -> handleRow(row, sink, mapping, reader))
+			fromDb.doOnComplete(() -> handleRow(null, sink, mapping))
+				.subscribe(row -> handleRow(row, sink, mapping))
 		);
 	}
 	
@@ -298,7 +299,7 @@ public class SelectExecution<T> {
 	private Object currentRootId = null;
 	
 	@SuppressWarnings("unchecked")
-	private void handleRow(Map<String, Object> row, FluxSink<T> sink, SelectMapping mapping, LcEntityReader reader) {
+	private void handleRow(Map<String, Object> row, FluxSink<T> sink, SelectMapping mapping) {
 		if (logger.isDebugEnabled())
 			logger.debug("Result row = " + row);
 		if (row == null) {

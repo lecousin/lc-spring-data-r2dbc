@@ -81,7 +81,8 @@ class EntityLoader {
 				loads.add(
 					op.lcClient.execute(
 						SelectQuery.from(entity.getKey().getType(), "e")
-						.where(net.lecousin.reactive.data.relational.query.criteria.Criteria.property("e", property.getKey().getName()).in(property.getValue().keySet()))
+						.where(net.lecousin.reactive.data.relational.query.criteria.Criteria.property("e", property.getKey().getName()).in(property.getValue().keySet())),
+						null
 					).map(e -> retrieved(e, op, property.getKey(), property.getValue()))
 				);
 			}
