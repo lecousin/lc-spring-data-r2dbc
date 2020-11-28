@@ -42,9 +42,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   
-    <spring-boot.version>2.3.4.RELEASE</spring-boot.version>
-    <spring.version>5.2.9.RELEASE</spring.version>
-    <reactor.version>3.3.9.RELEASE</reactor.version>
+    <spring-boot.version>2.3.6.RELEASE</spring-boot.version>
     <junit-jupiter.version>5.7.0</junit-jupiter.version>
     
     <maven-compiler.version>3.8.0</maven-compiler.version>
