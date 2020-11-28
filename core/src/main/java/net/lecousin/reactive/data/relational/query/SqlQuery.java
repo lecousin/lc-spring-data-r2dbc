@@ -1,7 +1,7 @@
 package net.lecousin.reactive.data.relational.query;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedList;
+import java.util.List;
 
 import org.springframework.data.relational.core.sql.Delete;
 import org.springframework.data.relational.core.sql.Expression;
@@ -10,6 +10,7 @@ import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Select;
 import org.springframework.data.relational.core.sql.Update;
 import org.springframework.data.relational.core.sql.render.SqlRenderer;
+import org.springframework.data.util.Pair;
 import org.springframework.r2dbc.core.DatabaseClient.GenericExecuteSpec;
 import org.springframework.r2dbc.core.PreparedOperation;
 import org.springframework.r2dbc.core.binding.BindMarker;
@@ -24,7 +25,7 @@ public class SqlQuery<T> {
 	private T query;
 	private LcReactiveDataRelationalClient client;
 	private BindMarkers markers;
-	private Map<BindMarker, Object> bindings = new HashMap<>();
+	private List<Pair<BindMarker, Object>> bindings = new LinkedList<>();
 	
 	public SqlQuery(LcReactiveDataRelationalClient client) {
 		this.client = client;
@@ -38,18 +39,10 @@ public class SqlQuery<T> {
 	public void setQuery(T query) {
 		this.query = query;
 	}
-
-	public BindMarkers getMarkers() {
-		return markers;
-	}
-
-	public Map<BindMarker, Object> getBindings() {
-		return bindings;
-	}
 	
 	public Expression marker(Object value) {
 		BindMarker marker = markers.next();
-		bindings.put(marker, value);
+		bindings.add(Pair.of(marker, value));
 		return SQL.bindMarker(marker.getPlaceholder());
 	}
 
@@ -62,8 +55,8 @@ public class SqlQuery<T> {
 			
 			@Override
 			public void bindTo(BindTarget target) {
-				for (Map.Entry<BindMarker, Object> binding : bindings.entrySet())
-					binding.getKey().bind(target, binding.getValue());
+				for (Pair<BindMarker, Object> binding : bindings)
+					binding.getFirst().bind(target, binding.getSecond());
 			}
 			
 			@Override

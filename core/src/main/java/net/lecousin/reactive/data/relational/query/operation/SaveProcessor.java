@@ -15,7 +15,6 @@ import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.AssignValue;
-import org.springframework.data.relational.core.sql.Assignment;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Condition;
 import org.springframework.data.relational.core.sql.Conditions;
@@ -192,7 +191,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			if (LcReactiveDataRelationalClient.logger.isDebugEnabled()) {
 				StringBuilder debug = new StringBuilder("Insert into ").append(request.entityType.getName()).append(": ");
 				for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
-					debug.append(entry.getKey()).append('=').append(entry.getValue().getValue());
+					debug.append(entry.getKey()).append('=').append(entry.getValue().getValue()).append(", ");
 				LcReactiveDataRelationalClient.logger.debug(debug.toString());
 			}
 
@@ -225,14 +224,11 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			Table table = Table.create(request.entityType.getTableName());
 			OutboundRow row = new OutboundRow();
 			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
-			List<Assignment> assignments = new LinkedList<>();
-			Condition criteria = null;
+			List<AssignValue> assignments = new LinkedList<>();
 			for (RelationalPersistentProperty property : request.entityType) {
 				if (property.isAnnotationPresent(Version.class)) {
 					Object value = request.accessor.getProperty(property);
 					long currentVersion = ((Number)value).longValue();
-					Condition c = Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion)));
-					criteria = criteria != null ? criteria.and(c) : c;
 					assignments.add(AssignValue.create(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion + 1))));
 				} else if (!property.isIdProperty() && request.state.isFieldModified(property.getField().getName()) && property.isWritable()) {
 					writer.writeProperty(row, property, request.accessor);
@@ -240,20 +236,30 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			}
 			if (row.isEmpty())
 				return null;
+			
 			for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
 				assignments.add(AssignValue.create(Column.create(entry.getKey(), table), entry.getValue().getValue() != null ? query.marker(entry.getValue().getValue()) : SQL.nullLiteral()));
 
 			RelationalPersistentProperty idProperty = request.entityType.getRequiredIdProperty();
 			Object id = request.accessor.getProperty(idProperty);
-			Condition c = Conditions.isEqual(Column.create(idProperty.getColumnName(), table), query.marker(id));
-			criteria = criteria != null ? criteria.and(c) : c;
+			Condition criteria = Conditions.isEqual(Column.create(idProperty.getColumnName(), table), query.marker(id));
+			
+			for (RelationalPersistentProperty property : request.entityType) {
+				if (property.isAnnotationPresent(Version.class)) {
+					Object value = request.accessor.getProperty(property);
+					long currentVersion = ((Number)value).longValue();
+					criteria = criteria.and(Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion))));
+				}
+			}
+			
 			if (LcReactiveDataRelationalClient.logger.isDebugEnabled()) {
 				StringBuilder debug = new StringBuilder("Update ").append(request.entityType.getName());
-				for (Assignment entry : assignments)
-					debug.append(entry).append(',');
+				for (AssignValue entry : assignments)
+					debug.append(entry).append(", ");
 				debug.append(" WHERE ").append(idProperty.getName()).append('=').append(id);
 				LcReactiveDataRelationalClient.logger.debug(debug.toString());
 			}
+			
 			query.setQuery(Update.builder().table(table).set(assignments).where(criteria).build());
 			return query.execute()
 				.fetch().rowsUpdated()

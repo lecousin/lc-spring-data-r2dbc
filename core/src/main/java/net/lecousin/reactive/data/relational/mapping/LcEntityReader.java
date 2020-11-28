@@ -178,8 +178,9 @@ public class LcEntityReader {
 			return null; // foreign key is null
 		T instance = getOrCreateInstance(entityType, source, value);
 		EntityState state = EntityState.get(instance, client, entityType);
-		if (!state.isLoaded())
+		if (!state.isLoaded()) {
 			entityType.getPropertyAccessor(instance).setProperty(entityType.getRequiredIdProperty(), value);
+		}
 		ModelUtils.setReverseLink(instance, parentInstance, property);
 		if (!state.isLoaded())
 			state.lazyLoaded();

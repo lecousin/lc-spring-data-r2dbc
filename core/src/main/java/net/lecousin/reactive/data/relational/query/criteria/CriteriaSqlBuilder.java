@@ -10,11 +10,9 @@ import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Condition;
 import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Expression;
-import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Table;
-import org.springframework.r2dbc.core.binding.BindMarker;
-import org.springframework.r2dbc.core.binding.BindMarkers;
 
+import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.And;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.Or;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.PropertyOperand;
@@ -24,14 +22,12 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 	
 	private Map<String, RelationalPersistentEntity<?>> entitiesByAlias;
 	private Map<String, Table> tablesByAlias;
-	private BindMarkers bindMarkers;
-	private Map<BindMarker, Object> bindings;
+	private SqlQuery<?> query;
 
-	public CriteriaSqlBuilder(Map<String, RelationalPersistentEntity<?>> entitiesByAlias, Map<String, Table> tablesByAlias, BindMarkers bindMarkers, Map<BindMarker, Object> bindings) {
+	public CriteriaSqlBuilder(Map<String, RelationalPersistentEntity<?>> entitiesByAlias, Map<String, Table> tablesByAlias, SqlQuery<?> query) {
 		this.entitiesByAlias = entitiesByAlias;
 		this.tablesByAlias = tablesByAlias;
-		this.bindMarkers = bindMarkers;
-		this.bindings = bindings;
+		this.query = query;
 	}
 	
 	@Override
@@ -88,10 +84,7 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 			RelationalPersistentEntity<?> rightEntity = entitiesByAlias.get(p.getEntityName());
 			return Column.create(rightEntity.getRequiredPersistentProperty(p.getPropertyName()).getColumnName(), tablesByAlias.get(p.getEntityName()));
 		}
-		
-		BindMarker marker = bindMarkers.next();
-		bindings.put(marker, value);
-		return SQL.bindMarker(marker.getPlaceholder());
+		return query.marker(value);
 	}
 
 }

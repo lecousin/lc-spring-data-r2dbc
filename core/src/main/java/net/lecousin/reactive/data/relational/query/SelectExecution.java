@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.core.CollectionFactory;
@@ -175,6 +176,12 @@ public class SelectExecution<T> {
 		private Map<String, Table> tableByAlias = new HashMap<>();
 		private Map<String, Map<String, String>> fieldAliasesByTableAlias = new HashMap<>();
 		private List<SelectField> fields = new LinkedList<>();
+		private int aliasCounter = 0;
+		
+		private String generateAlias() {
+			int num = aliasCounter++;
+			return "f" + StringUtils.leftPad(Integer.toString(num), 4, '0');
+		}
 	}
 	
 	private static class SelectField {
@@ -202,7 +209,7 @@ public class SelectExecution<T> {
 		mapping.entitiesByAlias.put(query.from.alias, entity);
 		mapping.tableByAlias.put(query.from.alias, Table.create(entity.getTableName()).as(query.from.alias));
 		for (RelationalPersistentProperty property : entity) {
-			String alias = "f" + mapping.fields.size();
+			String alias = mapping.generateAlias();
 			mapping.fields.add(new SelectField(query.from.alias, property, alias));
 			fieldAliases.put(property.getName(), alias);
 		}
@@ -213,7 +220,7 @@ public class SelectExecution<T> {
 			mapping.entitiesByAlias.put(join.alias, joinEntity);
 			mapping.tableByAlias.put(join.alias, Table.create(joinEntity.getTableName()).as(join.alias));
 			for (RelationalPersistentProperty property : joinEntity) {
-				String alias = "f" + mapping.fields.size();
+				String alias = mapping.generateAlias();
 				mapping.fields.add(new SelectField(join.alias, property, alias));
 				fieldAliases.put(property.getName(), alias);
 			}
@@ -238,7 +245,7 @@ public class SelectExecution<T> {
 
 		SqlQuery<Select> q = new SqlQuery<>(client);
 		if (criteria != null) {
-			select = ((SelectWhere)select).where(criteria.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q.getMarkers(), q.getBindings())));
+			select = ((SelectWhere)select).where(criteria.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
 		}
 		if (entity.hasIdProperty()) {
 			select = ((SelectOrdered)select).orderBy(Column.create(mapping.fieldAliasesByTableAlias.get(query.from.alias).get(entity.getRequiredIdProperty().getName()), mapping.tableByAlias.get(query.from.alias)));
@@ -265,7 +272,7 @@ public class SelectExecution<T> {
 
 		SqlQuery<Select> q = new SqlQuery<>(client);
 		if (query.where != null) {
-			select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q.getMarkers(), q.getBindings())));
+			select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
 		}
 		
 		q.setQuery(select.build());
