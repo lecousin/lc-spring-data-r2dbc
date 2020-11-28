@@ -9,10 +9,13 @@ import java.util.Set;
 
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.relational.core.query.Criteria;
-import org.springframework.data.relational.core.query.Update;
-import org.springframework.data.relational.core.sql.SqlIdentifier;
+import org.springframework.data.relational.core.sql.AssignValue;
+import org.springframework.data.relational.core.sql.Column;
+import org.springframework.data.relational.core.sql.Conditions;
+import org.springframework.data.relational.core.sql.Table;
+import org.springframework.data.relational.core.sql.Update;
 
+import net.lecousin.reactive.data.relational.query.SqlQuery;
 import reactor.core.publisher.Mono;
 
 class PropertyUpdater {
@@ -45,16 +48,16 @@ class PropertyUpdater {
 					}
 					set.add(entry.getKey());
 				}
+				Table table = Table.create(entity.getKey().getTableName());
 				for (Map.Entry<Object, Set<Object>> update : reverseMap.entrySet()) {
-					Map<SqlIdentifier, Object> assignments = new HashMap<>();
-					assignments.put(property.getKey().getColumnName(), update.getKey());
-					calls.add(
-						op.lcClient.getSpringClient().update()
-						.table(entity.getKey().getTableName())
-						.using(Update.from(assignments))
-						.matching(Criteria.where(op.lcClient.getDataAccess().toSql(property.getKey().getColumnName())).in(update.getValue()))
-						.then()
+					SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
+					query.setQuery(
+						Update.builder().table(table)
+						.set(AssignValue.create(Column.create(property.getKey().getColumnName(), table), query.marker(update.getKey())))
+						.where(Conditions.in(Column.create(property.getKey().getColumnName(), table), query.marker(update.getValue())))
+						.build()
 					);
+					calls.add(query.execute().then());
 				}
 			}
 		}

@@ -5,8 +5,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.data.r2dbc.dialect.BindMarker;
-import org.springframework.data.r2dbc.dialect.BindMarkers;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Condition;
@@ -14,6 +12,8 @@ import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Table;
+import org.springframework.r2dbc.core.binding.BindMarker;
+import org.springframework.r2dbc.core.binding.BindMarkers;
 
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.And;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.Or;

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
+import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 
@@ -96,8 +97,8 @@ public class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalT
 		subEntity = entity.lazyGetSubEntity().block();
 		Assertions.assertEquals("sub test 2", subEntity.getSubValue());
 		Assertions.assertEquals("sub test 2", entity.getSubEntity().getSubValue());
-		Assertions.assertEquals(1, repo1.getLcClient().getSpringClient().select().from(MyEntity1.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(1, repo1.getLcClient().getSpringClient().select().from(MySubEntity1.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MyEntity1.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MySubEntity1.class, "entity").execute(lcClient).collectList().block().size());
 		
 		// change sub entity
 		subEntity = new MySubEntity1();
@@ -111,13 +112,13 @@ public class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalT
 		subEntity = entity.lazyGetSubEntity().block();
 		Assertions.assertEquals("new one", subEntity.getSubValue());
 		Assertions.assertEquals("new one", entity.getSubEntity().getSubValue());
-		Assertions.assertEquals(1, repo1.getLcClient().getSpringClient().select().from(MyEntity1.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MyEntity1.class, "entity").execute(lcClient).collectList().block().size());
 		// the old one must be removed
-		Assertions.assertEquals(1, repo1.getLcClient().getSpringClient().select().from(MySubEntity1.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MySubEntity1.class, "entity").execute(lcClient).collectList().block().size());
 		
 		repo1.delete(entity).block();
-		Assertions.assertEquals(0, repo1.getLcClient().getSpringClient().select().from(MyEntity1.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(0, repo1.getLcClient().getSpringClient().select().from(MySubEntity1.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(MyEntity1.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(MySubEntity1.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -202,8 +203,8 @@ public class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalT
 		Assertions.assertFalse(entity.getSubEntity().entityLoaded());
 		entity.getSubEntity().loadEntity().block();
 		Assertions.assertEquals("sub test 2", entity.getSubEntity().getSubValue());
-		Assertions.assertEquals(1, repo2.getLcClient().getSpringClient().select().from(MyEntity2.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(1, repo2.getLcClient().getSpringClient().select().from(MySubEntity2.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MyEntity2.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MySubEntity2.class, "entity").execute(lcClient).collectList().block().size());
 		
 		// change sub entity
 		subEntity = new MySubEntity2();
@@ -219,13 +220,13 @@ public class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalT
 		Assertions.assertFalse(entity.getSubEntity().entityLoaded());
 		entity.getSubEntity().loadEntity().block();
 		Assertions.assertEquals("new one", entity.getSubEntity().getSubValue());
-		Assertions.assertEquals(1, repo2.getLcClient().getSpringClient().select().from(MyEntity2.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MyEntity2.class, "entity").execute(lcClient).collectList().block().size());
 		// the older one must be removed
-		Assertions.assertEquals(1, repo2.getLcClient().getSpringClient().select().from(MySubEntity2.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MySubEntity2.class, "entity").execute(lcClient).collectList().block().size());
 		
 		repo2.delete(entity).block();
-		Assertions.assertEquals(0, repo2.getLcClient().getSpringClient().select().from(MyEntity2.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(0, repo2.getLcClient().getSpringClient().select().from(MySubEntity2.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(MyEntity2.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(MySubEntity2.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -248,10 +249,10 @@ public class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalT
 		Assertions.assertEquals("sub test", entity.getSubEntity().getSubValue());
 		
 		repo3.delete(entity).block();
-		list = repo3.getLcClient().getSpringClient().select().from(MyEntity3.class).fetch().all().collectList().block();
+		list = SelectQuery.from(MyEntity3.class, "entity").execute(lcClient).collectList().block();
 		Assertions.assertEquals(0, list.size());
 		// sub entity should not be deleted
-		List<MySubEntity3> subList = repo3.getLcClient().getSpringClient().select().from(MySubEntity3.class).fetch().all().collectList().block();
+		List<MySubEntity3> subList = SelectQuery.from(MySubEntity3.class, "entity").execute(lcClient).collectList().block();
 		Assertions.assertEquals(1, subList.size());
 		// link must be set to null
 		Assertions.assertNull(subList.get(0).getParent());
@@ -268,7 +269,7 @@ public class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalT
 		Assertions.assertNull(list.get(0).getSubEntity());
 		Assertions.assertNotNull(list.get(0).lazyGetSubEntity().block());
 		Assertions.assertNotNull(list.get(0).getSubEntity());
-		subList = repo3.getLcClient().getSpringClient().select().from(MySubEntity3.class).fetch().all().collectList().block();
+		subList = SelectQuery.from(MySubEntity3.class, "entity").execute(lcClient).collectList().block();
 		Assertions.assertEquals(1, subList.size());
 		Assertions.assertEquals(subList.get(0).getId(), list.get(0).getSubEntity().getId());
 	}

@@ -3,6 +3,7 @@ package net.lecousin.reactive.data.relational.query.operation;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +12,12 @@ import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.relational.core.query.Criteria;
+import org.springframework.data.relational.core.sql.Column;
+import org.springframework.data.relational.core.sql.Condition;
+import org.springframework.data.relational.core.sql.Conditions;
+import org.springframework.data.relational.core.sql.Delete;
+import org.springframework.data.relational.core.sql.StatementBuilder;
+import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.util.Pair;
 import org.springframework.lang.Nullable;
 
@@ -21,12 +27,13 @@ import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
+import net.lecousin.reactive.data.relational.query.SqlQuery;
 import reactor.core.publisher.Mono;
 
 class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 
 	/** Leaf entities that can be deleted without the need to load them. */
-	private Map<RelationalPersistentEntity<?>, Criteria> toDeleteWithoutLoading = new HashMap<>();
+	private Map<RelationalPersistentEntity<?>, List<Pair<RelationalPersistentProperty, Object>>> toDeleteWithoutLoading = new HashMap<>();
 	
 	static class DeleteRequest extends AbstractProcessor.Request {
 		
@@ -164,7 +171,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 			Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
 			if (!hasOtherLinks(op, foreignEntity.getType(), foreignTableAnnotation.joinKey())) {
 				// can do delete where fk in (ids)
-				deleteWithoutLoading(foreignEntity, Criteria.where(op.lcClient.getDataAccess().toSql(fkProperty.getColumnName())).is(instId));
+				deleteWithoutLoading(foreignEntity, Pair.of(fkProperty, instId));
 			} else {
 				// need to retrieve the entity from database, then process them to be deleted
 				op.loader.retrieve(foreignEntity, fkProperty, instId, loaded -> addToProcess(op, (T) loaded, foreignEntity, null, null));
@@ -173,12 +180,9 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	}
 
 	
-	private void deleteWithoutLoading(RelationalPersistentEntity<?> entity, Criteria criteria) {
-		Criteria c = toDeleteWithoutLoading.get(entity);
-		if (c == null)
-			toDeleteWithoutLoading.put(entity, criteria);
-		else
-			toDeleteWithoutLoading.put(entity, c.or(criteria));
+	private void deleteWithoutLoading(RelationalPersistentEntity<?> entity, Pair<RelationalPersistentProperty, Object> criteria) {
+		List<Pair<RelationalPersistentProperty, Object>> list = toDeleteWithoutLoading.computeIfAbsent(entity, e -> new LinkedList<>());
+		list.add(criteria);
 	}
 	
 	private static boolean hasOtherLinks(Operation op, Class<?> entityType, String otherThanField) {
@@ -208,43 +212,55 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	
 	@Override
 	protected Mono<Void> doRequests(Operation op, RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
-		Criteria criteria = entityType.hasIdProperty() ? createCriteriaOnIds(op, entityType, requests) : createCriteriaOnProperties(op, entityType, requests);
+		SqlQuery<Delete> delete = new SqlQuery<>(op.lcClient);
+		Table table = Table.create(entityType.getTableName());
+		Condition criteria = entityType.hasIdProperty() ? createCriteriaOnIds(entityType, requests, delete, table) : createCriteriaOnProperties(entityType, requests, delete, table);
 		if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
 			LcReactiveDataRelationalClient.logger.debug("Delete " + entityType.getType().getName() + " where " + criteria);
-		return op.lcClient.getSpringClient()
-			.delete().from(entityType.getType())
-			.matching(criteria)
+		delete.setQuery(
+			StatementBuilder.delete()
+			.from(table)
+			.where(criteria)
+			.build()
+		);
+		return delete.execute()
 			.then()
 			.doOnSuccess(v -> op.toCall(() -> deleteDone(entityType, requests)));
 	}
 	
-	private static Criteria createCriteriaOnIds(Operation op, RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
+	private static Condition createCriteriaOnIds(RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests, SqlQuery<Delete> query, Table table) {
 		List<Object> ids = new ArrayList<>(requests.size());
 		for (DeleteRequest request : requests) {
 			Object id = entityType.getPropertyAccessor(request.instance).getProperty(entityType.getRequiredIdProperty());
 			ids.add(id);
 		}
-		return Criteria.where(op.lcClient.getDataAccess().toSql(entityType.getRequiredIdProperty().getColumnName())).in(ids);
+		return Conditions.in(Column.create(entityType.getRequiredIdProperty().getColumnName(), table), query.marker(ids));
 	}
 	
-	private static Criteria createCriteriaOnProperties(Operation op, RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
-		Criteria criteria = Criteria.empty();
-		for (DeleteRequest request : requests) {
-			Criteria c = Criteria.empty();
-			for (RelationalPersistentProperty property : entityType) {
+	private static Condition createCriteriaOnProperties(RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests, SqlQuery<Delete> query, Table table) {
+		Condition criteria = null;
+		Iterator<DeleteRequest> it = requests.iterator();
+		do {
+			DeleteRequest request = it.next();
+			Condition c = null;
+			Iterator<RelationalPersistentProperty> itProperty = entityType.iterator();
+			do {
+				RelationalPersistentProperty property = itProperty.next();
+				Condition propertyCondition;
 				Object value = request.accessor.getProperty(property);
 				if (value == null) {
-					c = c.and(Criteria.where(property.getName()).isNull());
+					propertyCondition = Conditions.isNull(Column.create(property.getColumnName(), table));
 				} else {
 					if (property.isAnnotationPresent(ForeignKey.class)) {
 						// get the id instead of the entity
 						value = request.getSavedForeignKeyValue(property.getName());
 					}
-					c = c.and(Criteria.where(op.lcClient.getDataAccess().toSql(property.getColumnName())).is(value));
+					propertyCondition = Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(value));
 				}
-			}
-			criteria = criteria.or(c);
-		}
+				c = c != null ? c.and(propertyCondition) : propertyCondition;
+			} while (itProperty.hasNext());
+			criteria = criteria != null ? criteria.or(c) : c;
+		} while (it.hasNext());
 		return criteria;
 	}
 	
@@ -261,15 +277,22 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 
 	private Mono<Void> doDeleteWithoutLoading(Operation op) {
 		List<Mono<Void>> calls = new LinkedList<>();
-		Map<RelationalPersistentEntity<?>, Criteria> map = toDeleteWithoutLoading;
+		Map<RelationalPersistentEntity<?>, List<Pair<RelationalPersistentProperty, Object>>> map = toDeleteWithoutLoading;
 		toDeleteWithoutLoading = new HashMap<>();
-		for (Map.Entry<RelationalPersistentEntity<?>, Criteria> entity : map.entrySet()) {
+		for (Map.Entry<RelationalPersistentEntity<?>, List<Pair<RelationalPersistentProperty, Object>>> entity : map.entrySet()) {
 			if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
 				LcReactiveDataRelationalClient.logger.debug("Delete " + entity.getKey().getType().getName() + " where " + entity.getValue());
-			calls.add(
-				op.lcClient.getSpringClient().delete().from(entity.getKey().getType()).matching(entity.getValue())
-				.then()
-			);
+			SqlQuery<Delete> query = new SqlQuery<>(op.lcClient);
+			Table table = Table.create(entity.getKey().getTableName());
+			Iterator<Pair<RelationalPersistentProperty, Object>> it = entity.getValue().iterator();
+			Condition condition = null;
+			do {
+				Pair<RelationalPersistentProperty, Object> p = it.next();
+				Condition c = Conditions.isEqual(Column.create(p.getFirst().getColumnName(), table), query.marker(p.getSecond()));
+				condition = condition != null ? condition.or(c) : c;
+			} while (it.hasNext());
+			query.setQuery(Delete.builder().from(table).where(condition).build());
+			calls.add(query.execute().then());
 		}
 		if (calls.isEmpty())
 			return null;

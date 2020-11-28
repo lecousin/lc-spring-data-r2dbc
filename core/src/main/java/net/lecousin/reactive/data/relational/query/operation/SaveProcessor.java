@@ -2,7 +2,6 @@ package net.lecousin.reactive.data.relational.query.operation;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -12,16 +11,23 @@ import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
-import org.springframework.data.r2dbc.core.DatabaseClient.GenericInsertSpec;
-import org.springframework.data.r2dbc.core.RowsFetchSpec;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
-import org.springframework.data.r2dbc.mapping.SettableValue;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.relational.core.query.Criteria;
-import org.springframework.data.relational.core.query.Update;
+import org.springframework.data.relational.core.sql.AssignValue;
+import org.springframework.data.relational.core.sql.Assignment;
+import org.springframework.data.relational.core.sql.Column;
+import org.springframework.data.relational.core.sql.Condition;
+import org.springframework.data.relational.core.sql.Conditions;
+import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.Insert;
+import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.SqlIdentifier;
+import org.springframework.data.relational.core.sql.Table;
+import org.springframework.data.relational.core.sql.Update;
 import org.springframework.lang.Nullable;
+import org.springframework.r2dbc.core.Parameter;
+import org.springframework.r2dbc.core.RowsFetchSpec;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
@@ -31,6 +37,7 @@ import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.mapping.LcEntityWriter;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
+import net.lecousin.reactive.data.relational.query.SqlQuery;
 import reactor.core.publisher.Mono;
 
 class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
@@ -165,7 +172,8 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 	
 	private static Mono<Object> doInsert(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> {
-			GenericInsertSpec<Map<String, Object>> insert = op.lcClient.getSpringClient().insert().into(request.entityType.getTableName());
+			SqlQuery<Insert> query = new SqlQuery<>(op.lcClient);
+			Table table = Table.create(request.entityType.getTableName());
 			final List<RelationalPersistentProperty> generated = new LinkedList<>();
 			OutboundRow row = new OutboundRow();
 			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
@@ -183,18 +191,23 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			
 			if (LcReactiveDataRelationalClient.logger.isDebugEnabled()) {
 				StringBuilder debug = new StringBuilder("Insert into ").append(request.entityType.getName()).append(": ");
-				for (Map.Entry<SqlIdentifier, SettableValue> entry : row.entrySet())
+				for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
 					debug.append(entry.getKey()).append('=').append(entry.getValue().getValue());
 				LcReactiveDataRelationalClient.logger.debug(debug.toString());
 			}
 
-			for (Map.Entry<SqlIdentifier, SettableValue> entry : row.entrySet())
+			List<Column> columns = new ArrayList<>(row.size());
+			List<Expression> values = new ArrayList<>(row.size());
+			for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet()) {
+				columns.add(Column.create(entry.getKey(), table));
 				if (entry.getValue().getValue() == null)
-					insert = insert.nullValue(entry.getKey(), entry.getValue().getType());
+					values.add(SQL.nullLiteral());
 				else
-					insert = insert.value(entry.getKey(), entry.getValue().getValue());
+					values.add(query.marker(entry.getValue().getValue()));
+			}
+			query.setQuery(Insert.builder().into(table).columns(columns).values(values).build());
 			
-			return insert.map((r, meta) -> {
+			return query.execute().map((r, meta) -> {
 				int index = 0;
 				for (RelationalPersistentProperty property : generated)
 					request.accessor.setProperty(property, r.get(index++));
@@ -206,38 +219,41 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 	
 	private static Mono<Object> doUpdate(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> {
+			SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
+			Table table = Table.create(request.entityType.getTableName());
 			OutboundRow row = new OutboundRow();
 			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
-			Map<SqlIdentifier, Object> assignments = new HashMap<>();
-			Criteria criteria = Criteria.empty();
+			List<Assignment> assignments = new LinkedList<>();
+			Condition criteria = null;
 			for (RelationalPersistentProperty property : request.entityType) {
 				if (property.isAnnotationPresent(Version.class)) {
 					Object value = request.accessor.getProperty(property);
 					long currentVersion = ((Number)value).longValue();
-					criteria = criteria.and(Criteria.where(op.lcClient.getDataAccess().toSql(property.getColumnName())).is(Long.valueOf(currentVersion)));
-					assignments.put(property.getColumnName(), Long.valueOf(currentVersion + 1));
+					Condition c = Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion)));
+					criteria = criteria != null ? criteria.and(c) : c;
+					assignments.add(AssignValue.create(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion + 1))));
 				} else if (!property.isIdProperty() && request.state.isFieldModified(property.getField().getName()) && property.isWritable()) {
 					writer.writeProperty(row, property, request.accessor);
 				}
 			}
 			if (row.isEmpty())
 				return null;
-			for (Map.Entry<SqlIdentifier, SettableValue> entry : row.entrySet())
-				assignments.put(entry.getKey(), entry.getValue().getValue());
+			for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
+				assignments.add(AssignValue.create(Column.create(entry.getKey(), table), query.marker(entry.getValue().getValue())));
+
 			RelationalPersistentProperty idProperty = request.entityType.getRequiredIdProperty();
 			Object id = request.accessor.getProperty(idProperty);
-			criteria = criteria.and(Criteria.where(op.lcClient.getDataAccess().toSql(idProperty.getColumnName())).is(id));
+			Condition c = Conditions.isEqual(Column.create(idProperty.getColumnName(), table), query.marker(id));
+			criteria = criteria != null ? criteria.and(c) : c;
 			if (LcReactiveDataRelationalClient.logger.isDebugEnabled()) {
 				StringBuilder debug = new StringBuilder("Update ").append(request.entityType.getName());
-				for (Map.Entry<SqlIdentifier, Object> entry : assignments.entrySet())
-					debug.append(entry.getKey()).append('=').append(entry.getValue());
+				for (Assignment entry : assignments)
+					debug.append(entry).append(',');
 				debug.append(" WHERE ").append(idProperty.getName()).append('=').append(id);
 				LcReactiveDataRelationalClient.logger.debug(debug.toString());
 			}
-			return op.lcClient.getSpringClient()
-				.update().table(request.entityType.getTableName())
-				.using(Update.from(assignments))
-				.matching(criteria)
+			query.setQuery(Update.builder().table(table).set(assignments).where(criteria).build());
+			return query.execute()
 				.fetch().rowsUpdated()
 				.flatMap(updatedRows -> {
 					if (updatedRows.intValue() == 0)

@@ -8,8 +8,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
-import org.springframework.data.relational.core.query.Criteria;
 
+import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 
@@ -55,12 +56,12 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		
 		repoCompany.saveAll(Arrays.asList(google, apple, microsoft)).collectList().block();
 		
-		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	private static Person createPerson(String firstName, String lastName, PostalAddress address) {
@@ -127,12 +128,12 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		// delete employee
 		lcClient.delete(employee).block();
 
-		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 1, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 
 		// Jessica has no more job
 		List<Person> persons = repoPerson.findByFirstName("Jessica").collectList().block();
@@ -151,12 +152,12 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Company google = repoCompany.findByName("Google").block();
 		repoCompany.delete(google).block();
 
-		Assertions.assertEquals(3 - 1, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4 - 2, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4 - 2, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7 - 1, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5 - 1, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3 - 1, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 2, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 2, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7 - 1, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5 - 1, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -166,15 +167,16 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Company microsoft = repoCompany.findByName("Microsoft").block();
 		List<PointOfContact> pocs = microsoft.lazyGetProviders().collectList().block();
 		Assertions.assertEquals(1, pocs.size());
-		PointOfContact lazyPoc = lcClient.getSpringClient().select().from(PointOfContact.class).matching(Criteria.where("id").is(pocs.get(0).getId())).fetch().one().block();
+		PointOfContact lazyPoc = SelectQuery.from(PointOfContact.class, "entity").where(Criteria.property("entity", "id").is(pocs.get(0).getId())).execute(lcClient).blockFirst();
+		Assertions.assertNotNull(lazyPoc);
 		lcClient.delete(lazyPoc).block();
 
-		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 1, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -188,12 +190,12 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		
 		Assertions.assertEquals(0, microsoft.getProviders().length);
 
-		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 1, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -209,12 +211,12 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		
 		Assertions.assertEquals(0, microsoft.getSites().size());
 
-		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7 - 2, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5 - 2, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7 - 2, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5 - 2, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -226,12 +228,12 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Person jessica = persons.get(0);
 		repoPerson.delete(jessica).block();
 		
-		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6 - 1, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7 - 1, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 1, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6 - 1, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7 - 1, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -242,12 +244,12 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Person jessica = microsoft.lazyGetEmployees().collectList().block().get(0).getPerson();
 		repoPerson.delete(jessica).block();
 		
-		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4 - 1, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6 - 1, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7 - 1, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 1, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6 - 1, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7 - 1, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -353,12 +355,12 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		company.setProviders(null);
 		repoCompany.save(company).block();
 
-		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(4 - 2, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(7, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 2, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test

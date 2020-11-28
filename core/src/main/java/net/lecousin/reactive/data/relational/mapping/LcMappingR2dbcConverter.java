@@ -1,8 +1,5 @@
 package net.lecousin.reactive.data.relational.mapping;
 
-import java.util.Collection;
-import java.util.Collections;
-
 import org.springframework.data.convert.CustomConversions;
 import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.r2dbc.convert.MappingR2dbcConverter;
@@ -12,7 +9,6 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentEnti
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.util.TypeInformation;
 import org.springframework.lang.Nullable;
-import org.springframework.util.CollectionUtils;
 
 import io.r2dbc.spi.Row;
 import io.r2dbc.spi.RowMetadata;
@@ -61,24 +57,6 @@ public class LcMappingR2dbcConverter extends MappingR2dbcConverter implements R2
 	@Override
 	public void write(Object source, OutboundRow sink) {
 		new LcEntityWriter(this).write(source, sink);
-	}
-
-	/**
-	 * Returns given object as {@link Collection}. Will return the {@link Collection} as is if the source is a
-	 * {@link Collection} already, will convert an array into a {@link Collection} or simply create a single element
-	 * collection for everything else.
-	 *
-	 * @param source
-	 * @return
-	 */
-	@SuppressWarnings("unchecked")
-	public static <T> Collection<T> asCollection(Object source) {
-
-		if (source instanceof Collection) {
-			return (Collection<T>) source;
-		}
-
-		return source.getClass().isArray() ? CollectionUtils.arrayToList(source) : Collections.singleton((T) source);
 	}
 
 }

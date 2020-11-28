@@ -1,11 +1,11 @@
 package net.lecousin.reactive.data.relational.repository;
 
-import org.springframework.data.r2dbc.core.DatabaseClient;
 import org.springframework.data.r2dbc.core.R2dbcEntityOperations;
 import org.springframework.data.r2dbc.core.ReactiveDataAccessStrategy;
 import org.springframework.data.r2dbc.repository.support.R2dbcRepositoryFactory;
 import org.springframework.data.repository.core.RepositoryInformation;
 import org.springframework.data.repository.core.RepositoryMetadata;
+import org.springframework.r2dbc.core.DatabaseClient;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 

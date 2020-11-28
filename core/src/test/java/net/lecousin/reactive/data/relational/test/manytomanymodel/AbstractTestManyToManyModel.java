@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
+import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 
@@ -122,9 +123,9 @@ public class AbstractTestManyToManyModel extends AbstractLcReactiveDataRelationa
 		list1 = repo1.findByLinkedEntity1Value("1.1").collectList().block();
 		Assertions.assertEquals(4, list1.size());
 		
-		Assertions.assertEquals(5, repo1.getLcClient().getSpringClient().select().from(Entity1.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(3, repo1.getLcClient().getSpringClient().select().from(Entity2.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, repo1.getLcClient().getSpringClient().select().from(JoinEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Entity1.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Entity2.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(JoinEntity.class, "entity").execute(lcClient).collectList().block().size());
 		
 		list1 = repo1.findWithLinks().collectList().block();
 		Assertions.assertEquals(5, list1.size());
@@ -135,10 +136,10 @@ public class AbstractTestManyToManyModel extends AbstractLcReactiveDataRelationa
 		e1_3.getLinks().remove(link);
 		repo1.save(e1_3).block();
 		
-		Assertions.assertEquals(5, repo1.getLcClient().getSpringClient().select().from(Entity1.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(3, repo1.getLcClient().getSpringClient().select().from(Entity2.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(Entity1.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Entity2.class, "entity").execute(lcClient).collectList().block().size());
 		// one link removed
-		Assertions.assertEquals(5, repo1.getLcClient().getSpringClient().select().from(JoinEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(JoinEntity.class, "entity").execute(lcClient).collectList().block().size());
 	}
 
 }

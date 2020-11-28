@@ -3,12 +3,12 @@ package net.lecousin.reactive.data.relational.repository;
 import java.io.Serializable;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.r2dbc.core.DatabaseClient;
 import org.springframework.data.r2dbc.core.R2dbcEntityOperations;
 import org.springframework.data.r2dbc.core.ReactiveDataAccessStrategy;
 import org.springframework.data.r2dbc.repository.support.R2dbcRepositoryFactoryBean;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.core.support.RepositoryFactorySupport;
+import org.springframework.r2dbc.core.DatabaseClient;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 

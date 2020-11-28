@@ -5,8 +5,9 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.r2dbc.config.AbstractR2dbcConfiguration;
+import org.springframework.data.r2dbc.convert.MappingR2dbcConverter;
+import org.springframework.data.r2dbc.convert.R2dbcConverter;
 import org.springframework.data.r2dbc.convert.R2dbcCustomConversions;
-import org.springframework.data.r2dbc.core.ReactiveDataAccessStrategy;
 import org.springframework.data.r2dbc.mapping.R2dbcMappingContext;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -42,13 +43,13 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 	
 	@Bean
 	@Override
-	public ReactiveDataAccessStrategy reactiveDataAccessStrategy(R2dbcMappingContext mappingContext, R2dbcCustomConversions r2dbcCustomConversions) {
-
-		Assert.notNull(mappingContext, "MappingContext must not be null!");
-
-		LcMappingR2dbcConverter converter = new LcMappingR2dbcConverter(mappingContext, r2dbcCustomConversions, getClient());
-
-		return new LcReactiveDataAccessStrategy(getDialect(getConnectionFactory()), converter);
+	public LcReactiveDataAccessStrategy reactiveDataAccessStrategy(R2dbcConverter converter) {
+		return new LcReactiveDataAccessStrategy(getDialect(getConnectionFactory()), (LcMappingR2dbcConverter) converter);
+	}
+	
+	@Override
+	public MappingR2dbcConverter r2dbcConverter(R2dbcMappingContext mappingContext, R2dbcCustomConversions r2dbcCustomConversions) {
+		return new LcMappingR2dbcConverter(mappingContext, r2dbcCustomConversions, getClient());
 	}
 	
 	private ConnectionFactory getConnectionFactory() {

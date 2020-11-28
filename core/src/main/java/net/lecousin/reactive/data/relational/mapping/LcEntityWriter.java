@@ -8,10 +8,10 @@ import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.convert.CustomConversions;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
-import org.springframework.data.r2dbc.mapping.SettableValue;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.lang.Nullable;
+import org.springframework.r2dbc.core.Parameter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -69,7 +69,7 @@ public class LcEntityWriter {
 				value = fe.getPropertyAccessor(value).getProperty(idProperty);
 			}
 			if (value == null) {
-				sink.put(property.getColumnName(), SettableValue.empty(getPotentiallyConvertedSimpleNullType(idProperty.getType())));
+				sink.put(property.getColumnName(), Parameter.empty(getPotentiallyConvertedSimpleNullType(idProperty.getType())));
 				return;
 			}
 		}
@@ -89,7 +89,7 @@ public class LcEntityWriter {
 	}
 	
 	protected void writeNull(OutboundRow sink, RelationalPersistentProperty property) {
-		sink.put(property.getColumnName(), SettableValue.empty(getPotentiallyConvertedSimpleNullType(property.getType())));
+		sink.put(property.getColumnName(), Parameter.empty(getPotentiallyConvertedSimpleNullType(property.getType())));
 	}
 	
 	protected Class<?> getPotentiallyConvertedSimpleNullType(Class<?> type) {
@@ -111,7 +111,7 @@ public class LcEntityWriter {
 	protected void writeSimple(OutboundRow sink, Object value, RelationalPersistentProperty property) {
 		Object converted = getPotentiallyConvertedSimpleWrite(value);
 		Assert.notNull(converted, "Converted value must not be null");
-		sink.put(property.getColumnName(), SettableValue.from(converted));
+		sink.put(property.getColumnName(), Parameter.from(converted));
 	}
 	
 	/**

@@ -12,10 +12,15 @@ import org.apache.commons.logging.LogFactory;
 import org.reactivestreams.Publisher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mapping.context.MappingContext;
-import org.springframework.data.r2dbc.core.DatabaseClient;
+import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.relational.core.query.Criteria;
+import org.springframework.data.relational.core.sql.AsteriskFromTable;
+import org.springframework.data.relational.core.sql.Column;
+import org.springframework.data.relational.core.sql.Conditions;
+import org.springframework.data.relational.core.sql.Select;
+import org.springframework.data.relational.core.sql.Table;
+import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
 
 import net.lecousin.reactive.data.relational.dialect.SchemaGenerationDialect;
@@ -26,6 +31,7 @@ import net.lecousin.reactive.data.relational.mapping.LcReactiveDataAccessStrateg
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectExecution;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.operation.Operation;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -80,6 +86,10 @@ public class LcReactiveDataRelationalClient {
 	public SchemaGenerationDialect getSchemaDialect() {
 		return lcDialect;
 	}
+	
+	public R2dbcDialect getDialect() {
+		return dataAccess.getDialect();
+	}
 
 	public Mono<Void> dropTables() {
 		try {
@@ -87,7 +97,7 @@ public class LcReactiveDataRelationalClient {
 			for (RelationalPersistentEntity<?> entity : mappingContext.getPersistentEntities()) {
 				StringBuilder sql = new StringBuilder();
 				lcDialect.dropTable(entity, true, sql);
-				requests.add(client.execute(sql.toString()).fetch().rowsUpdated());
+				requests.add(client.sql(sql.toString()).fetch().rowsUpdated());
 			}
 			return Flux.merge(requests).then();
 		} catch (Exception e) {
@@ -101,7 +111,7 @@ public class LcReactiveDataRelationalClient {
 			for (RelationalPersistentEntity<?> entity : mappingContext.getPersistentEntities()) {
 				StringBuilder sql = new StringBuilder();
 				lcDialect.createTable(entity, sql);
-				requests.add(client.execute(sql.toString()).fetch().rowsUpdated());
+				requests.add(client.sql(sql.toString()).fetch().rowsUpdated());
 			}
 			return Flux.merge(requests).then();
 		} catch (Exception e) {
@@ -173,7 +183,10 @@ public class LcReactiveDataRelationalClient {
 	private <T> Mono<T> doLoading(T entity, RelationalPersistentEntity<?> entityType) {
 		RelationalPersistentProperty idProperty = entityType.getRequiredIdProperty();
 		Object id = ModelUtils.getRequiredId(entity, entityType, null);
-		return client.select().from(entity.getClass()).matching(Criteria.where(dataAccess.toSql(idProperty.getColumnName())).is(id)).fetch().first()
+		SqlQuery<Select> query = new SqlQuery<>(this);
+		Table table = Table.create(entityType.getTableName());
+		query.setQuery(Select.builder().select(AsteriskFromTable.create(table)).from(table).where(Conditions.isEqual(Column.create(idProperty.getColumnName(), table), query.marker(id))).build());
+		return query.execute().fetch().first()
 			.map(read -> ModelUtils.copyProperties((T)read, entity, entityType));
 	}
 	
@@ -218,4 +231,5 @@ public class LcReactiveDataRelationalClient {
 			.then(Mono.fromCallable(op::execute))
 			.flatMap(m -> m);
 	}
+	
 }

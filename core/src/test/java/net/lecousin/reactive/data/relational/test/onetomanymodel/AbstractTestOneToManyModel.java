@@ -102,8 +102,8 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals(root, root.getList().get(0).getParent());
 		
 		repo.deleteAll(repo.findAll().collectList().block()).block();
-		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -307,24 +307,24 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals(0, list.size());
 		
 		
-		Assertions.assertEquals(4, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(8, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(8, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 		
 		repo.deleteAll(repo.findByValueWithSubEntity("two").collectList().block()).block();
-		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 		
 		repo.deleteAll(repo.findByValueWithSubEntity("zero").collectList().block()).block();
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(6, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 		
 		repo.deleteAll(repo.findByValueWithSubEntity("five").collectList().block()).block();
-		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 		
 		repo.deleteAll(repo.findByValueWithSubEntity("one").collectList().block()).block();
-		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -398,16 +398,16 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		} else
 			throw new AssertionError("Unexpected value " + r1.getValue());
 		
-		Assertions.assertEquals(5, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(9, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(9, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 		
 		repo.deleteAll(repo.findBySubValue("two")).block();
-		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 		
 		repo.deleteAll().block();
-		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test
@@ -483,10 +483,10 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals(1, root1.getList3().stream().filter(s -> "3.1".equals(s.getSubValue())).findFirst().get().getVersion());
 		Assertions.assertEquals(1, root1.getList3().stream().filter(s -> "3.2".equals(s.getSubValue())).findFirst().get().getVersion());
 		Assertions.assertEquals(1, root2.getList3().stream().filter(s -> "3.3".equals(s.getSubValue())).findFirst().get().getVersion());
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(SubEntity2.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(SubEntity3.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(SubEntity2.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(SubEntity3.class, "entity").execute(lcClient).collectList().block().size());
 		
 		list = repo.findAllFull().collectList().block();
 		Assertions.assertEquals(2, list.size());
@@ -645,10 +645,10 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 			Assertions.assertEquals(root1, s.getParent());
 		for (SubEntity3 s : root2.getList3())
 			Assertions.assertEquals(root2, s.getParent());
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(SubEntity2.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(3, repo.getLcClient().getSpringClient().select().from(SubEntity3.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(SubEntity2.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(SubEntity3.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(1, root1.getList3().stream().filter(s -> "3.1".equals(s.getSubValue())).findFirst().get().getVersion());
 		Assertions.assertEquals(3, root1.getList3().stream().filter(s -> "3.2".equals(s.getSubValue())).findFirst().get().getVersion());
 		Assertions.assertEquals(3, root1.getList3().stream().filter(s -> "3.3".equals(s.getSubValue())).findFirst().get().getVersion());
@@ -685,13 +685,13 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertEquals(1, root2.getList().size());
 		Assertions.assertEquals(1, root2.getList2().size());
 		Assertions.assertEquals(0, root2.getList3().size());
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
 		// not optional => only 1 SubEntity must remain
-		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
 		// delete => only 1 SubEntity2 must remain
-		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(SubEntity2.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(SubEntity2.class, "entity").execute(lcClient).collectList().block().size());
 		// set to null => the 3 SubEntity3 must remain
-		List<SubEntity3> list3 = repo.getLcClient().getSpringClient().select().from(SubEntity3.class).fetch().all().collectList().block();
+		List<SubEntity3> list3 = SelectQuery.from(SubEntity3.class, "entity").execute(lcClient).collectList().block();
 		Assertions.assertEquals(3, list3.size());
 		Assertions.assertEquals(2, list3.stream().filter(s -> "3.1".equals(s.getSubValue())).findFirst().get().getVersion());
 		Assertions.assertEquals(3, list3.stream().filter(s -> "3.2".equals(s.getSubValue())).findFirst().get().getVersion());
@@ -729,19 +729,19 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		
 		repo.saveAll(Arrays.asList(root1, root2)).collectList().block();
 
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity2.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity3.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(SubEntity2.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(SubEntity3.class, "entity").execute(lcClient).collectList().block().size());
 		
 		root1 = repo.findByValue("one").blockFirst();
 		Assertions.assertNull(root1.getList());
 		repo.delete(root1).block();
 		// root1 and its links must be removed, sub3_1 should remain with a null parent
-		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(RootEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(0, repo.getLcClient().getSpringClient().select().from(SubEntity.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(1, repo.getLcClient().getSpringClient().select().from(SubEntity2.class).fetch().all().collectList().block().size());
-		Assertions.assertEquals(2, repo.getLcClient().getSpringClient().select().from(SubEntity3.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(RootEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(SubEntity.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(SubEntity2.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(2, SelectQuery.from(SubEntity3.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test

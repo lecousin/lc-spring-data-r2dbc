@@ -11,13 +11,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.core.CollectionFactory;
 import org.springframework.data.mapping.MappingException;
-import org.springframework.data.r2dbc.core.DatabaseClient;
-import org.springframework.data.r2dbc.core.DatabaseClient.GenericExecuteSpec;
-import org.springframework.data.r2dbc.core.PreparedOperation;
-import org.springframework.data.r2dbc.dialect.BindMarker;
-import org.springframework.data.r2dbc.dialect.BindMarkers;
-import org.springframework.data.r2dbc.dialect.BindTarget;
-import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Column;
@@ -28,8 +21,6 @@ import org.springframework.data.relational.core.sql.SelectBuilder.SelectJoin;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectOrdered;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectWhere;
 import org.springframework.data.relational.core.sql.Table;
-import org.springframework.data.relational.core.sql.render.RenderContext;
-import org.springframework.data.relational.core.sql.render.SqlRenderer;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
@@ -54,14 +45,10 @@ public class SelectExecution<T> {
 	
 	private SelectQuery<T> query;
 	private LcReactiveDataRelationalClient client;
-	private R2dbcDialect dialect;
-	private RenderContext renderContext;
 	
 	public SelectExecution(SelectQuery<T> query, LcReactiveDataRelationalClient client) {
 		this.query = query;
 		this.client = client;
-		this.dialect = client.getDataAccess().getDialect();
-		this.renderContext = client.getDataAccess().getStatementMapper().getRenderContext();
 	}
 	
 	public Flux<T> execute() {
@@ -159,12 +146,12 @@ public class SelectExecution<T> {
 	private Flux<T> executeWithPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
 		LcEntityReader reader = new LcEntityReader(null, client.getMapper());
-		return buildDistinctRootIdSql(mapping).execute(client.getSpringClient(), renderContext).fetch().all()
+		return buildDistinctRootIdSql(mapping).execute().fetch().all()
 			.map(row -> row.values().iterator().next())
 			.buffer(100)
 			.flatMap(ids -> {
 				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getIdProperty().getName();
-				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false).execute(client.getSpringClient(), renderContext).fetch().all();
+				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false).execute().fetch().all();
 				return Flux.create(sink ->
 					fromDb.doOnComplete(() -> handleRow(null, sink, mapping, reader))
 						.subscribe(row -> handleRow(row, sink, mapping, reader))
@@ -174,7 +161,7 @@ public class SelectExecution<T> {
 	
 	private Flux<T> executeWithoutPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
-		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true).execute(client.getSpringClient(), renderContext).fetch().all();
+		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true).execute().fetch().all();
 		LcEntityReader reader = new LcEntityReader(null, client.getMapper());
 		return Flux.create(sink ->
 			fromDb.doOnComplete(() -> handleRow(null, sink, mapping, reader))
@@ -233,35 +220,7 @@ public class SelectExecution<T> {
 		return mapping;
 	}
 	
-	private static class SqlQuery {
-		private Select query;
-		private BindMarkers markers;
-		private Map<BindMarker, Object> bindings = new HashMap<>();
-		
-		private GenericExecuteSpec execute(DatabaseClient client, RenderContext renderContext) {
-			PreparedOperation<Select> operation = new PreparedOperation<Select>() {
-				@Override
-				public Select getSource() {
-					return query;
-				}
-				
-				@Override
-				public void bindTo(BindTarget target) {
-					for (Map.Entry<BindMarker, Object> binding : bindings.entrySet())
-						binding.getKey().bind(target, binding.getValue());
-				}
-				
-				@Override
-				public String toQuery() {
-					return SqlRenderer.create(renderContext).render(query);
-				}
-			};
-			return client.execute(operation);
-		}
-		
-	}
-	
-	private SqlQuery buildFinalSql(SelectMapping mapping, Criteria criteria, boolean applyLimit) {
+	private SqlQuery<Select> buildFinalSql(SelectMapping mapping, Criteria criteria, boolean applyLimit) {
 		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
 		List<Column> selectFields = new ArrayList<>(mapping.fields.size());
@@ -276,21 +235,20 @@ public class SelectExecution<T> {
 			select = join(select, join, mapping);
 		}
 
-		SqlQuery q = new SqlQuery();
-		q.markers = dialect.getBindMarkersFactory().create();
+		SqlQuery<Select> q = new SqlQuery<>(client);
 		if (criteria != null) {
-			select = ((SelectWhere)select).where(criteria.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q.markers, q.bindings)));
+			select = ((SelectWhere)select).where(criteria.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q.getMarkers(), q.getBindings())));
 		}
 		if (entity.hasIdProperty()) {
 			select = ((SelectOrdered)select).orderBy(Column.create(mapping.fieldAliasesByTableAlias.get(query.from.alias).get(entity.getRequiredIdProperty().getName()), mapping.tableByAlias.get(query.from.alias)));
 		}
 		
-		q.query = select.build();
+		q.setQuery(select.build());
 		return q;
 	}
 
 	
-	private SqlQuery buildDistinctRootIdSql(SelectMapping mapping) {
+	private SqlQuery<Select> buildDistinctRootIdSql(SelectMapping mapping) {
 		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
 		BuildSelect select = Select.builder().select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias))).distinct().from(mapping.tableByAlias.get(query.from.alias));
@@ -304,13 +262,12 @@ public class SelectExecution<T> {
 			select = join(select, join, mapping);
 		}
 
-		SqlQuery q = new SqlQuery();
-		q.markers = dialect.getBindMarkersFactory().create();
+		SqlQuery<Select> q = new SqlQuery<>(client);
 		if (query.where != null) {
-			select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q.markers, q.bindings)));
+			select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q.getMarkers(), q.getBindings())));
 		}
 		
-		q.query = select.build();
+		q.setQuery(select.build());
 		return q;
 	}
 	
