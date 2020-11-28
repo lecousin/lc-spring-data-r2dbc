@@ -276,6 +276,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 		}
 	}
 
+	@SuppressWarnings("java:S2583") // false positive
 	private Mono<Void> doDeleteWithoutLoading(Operation op) {
 		List<Mono<Void>> calls = new LinkedList<>();
 		Map<RelationalPersistentEntity<?>, List<Pair<RelationalPersistentProperty, Object>>> map = toDeleteWithoutLoading;

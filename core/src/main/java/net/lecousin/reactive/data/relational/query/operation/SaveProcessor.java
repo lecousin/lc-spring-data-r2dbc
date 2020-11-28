@@ -27,8 +27,8 @@ import org.springframework.data.relational.core.sql.Update;
 import org.springframework.lang.Nullable;
 import org.springframework.r2dbc.core.Parameter;
 import org.springframework.r2dbc.core.RowsFetchSpec;
+import org.springframework.util.Assert;
 
-import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
@@ -70,18 +70,8 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 		if (!Objects.equals(originalValue, value) && originalValue != null) {
 			// link changed, we need to delete/null the previous one
 			// remove the link
-			if (foreignTableAnnotation != null) {
-				try {
-					if (ModelUtils.isCollection(foreignTableField)) {
-						ModelUtils.removeFromCollectionField(foreignTableField, originalValue, request.instance);
-					} else {
-						EntityState foreignState = EntityState.get(originalValue, op.lcClient);
-						foreignState.setForeignTableField(originalValue, foreignTableField, null, false);
-					}
-				} catch (Exception e) {
-					throw new ModelAccessException("Unable to remove link for removed entity", e);
-				}
-			}
+			if (foreignTableAnnotation != null)
+				removeForeignTableLink(op, request, foreignTableField, originalValue);
 			if ((foreignTableAnnotation != null && !foreignTableAnnotation.optional()) || fkAnnotation.cascadeDelete()) {
 				// not optional specified on ForeignTable, or cascadeDelete -> this is a delete
 				op.addToDelete(originalValue, null, null, null);
@@ -96,7 +86,19 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 		}
 	}
 	
-	@SuppressWarnings("unchecked")
+	private static void removeForeignTableLink(Operation op, SaveRequest request, Field foreignTableField, Object originalValue) {
+		try {
+			if (ModelUtils.isCollection(foreignTableField)) {
+				ModelUtils.removeFromCollectionField(foreignTableField, originalValue, request.instance);
+			} else {
+				EntityState foreignState = EntityState.get(originalValue, op.lcClient);
+				foreignState.setForeignTableField(originalValue, foreignTableField, null, false);
+			}
+		} catch (Exception e) {
+			throw new ModelAccessException("Unable to remove link for removed entity", e);
+		}
+	}
+	
 	@Override
 	protected <T> void processForeignTableField(
 		Operation op, SaveRequest request,
@@ -105,55 +107,74 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 	) {
 		if (foreignFieldValue == null)
 			return; // not loaded -> not saved
+		if (ModelUtils.isCollection(foreignTableField))
+			processForeignTableFieldCollection(op, request, foreignTableField, foreignFieldValue, foreignEntity, fkProperty, fkAnnotation);
+		else
+			processForeignTableFieldSimple(op, request, foreignTableField, foreignFieldValue, foreignEntity, fkProperty, fkAnnotation);
+	}
+	
+	@SuppressWarnings("unchecked")
+	private static <T> void processForeignTableFieldCollection(
+		Operation op, SaveRequest request,
+		Field foreignTableField, MutableObject<?> foreignFieldValue,
+		RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
+	) {
 		Object value = foreignFieldValue.getValue();
-		if (ModelUtils.isCollection(foreignTableField)) {
-			Object originalValue = request.state.getPersistedValue(foreignTableField.getName());
-			if (value == null) {
-				if (originalValue == null)
-					return; // was already empty
-				value = new ArrayList<>(0);
-			}
-			List<Object> deletedElements = new LinkedList<>();
-			if (originalValue != null)
-				deletedElements.addAll(ModelUtils.getAsCollection(originalValue));
-			for (Object element : ModelUtils.getAsCollection(value)) {
-				deletedElements.remove(element);
-			}
-			if (!deletedElements.isEmpty()) {
-				if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
-					// delete
-					for (Object element : deletedElements)
-						op.addToDelete((T) element, foreignEntity, null, null);
-				} else {
-					// update to null
-					for (Object element : deletedElements) {
-						SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
-						save.state.setPersistedField(element, fkProperty.getField(), null, false);
-					}
+		Object originalValue = request.state.getPersistedValue(foreignTableField.getName());
+		if (value == null) {
+			if (originalValue == null)
+				return; // was already empty
+			value = new ArrayList<>(0);
+		}
+		List<Object> deletedElements = new LinkedList<>();
+		if (originalValue != null)
+			deletedElements.addAll(ModelUtils.getAsCollection(originalValue));
+		deletedElements.removeAll(ModelUtils.getAsCollection(value));
+
+		if (!deletedElements.isEmpty()) {
+			if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
+				// delete
+				for (Object element : deletedElements)
+					op.addToDelete((T) element, foreignEntity, null, null);
+			} else {
+				// update to null
+				for (Object element : deletedElements) {
+					SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
+					save.state.setPersistedField(element, fkProperty.getField(), null, false);
 				}
 			}
-			for (Object element : ModelUtils.getAsCollection(value)) {
-				SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
-				save.state.setPersistedField(element, fkProperty.getField(), request.instance, false);
+		}
+		
+		for (Object element : ModelUtils.getAsCollection(value)) {
+			SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
+			save.state.setPersistedField(element, fkProperty.getField(), request.instance, false);
+		}
+	}
+	
+	private static <T> void processForeignTableFieldSimple(
+		Operation op, SaveRequest request,
+		Field foreignTableField, MutableObject<?> foreignFieldValue,
+		RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
+	) {
+		Object value = foreignFieldValue.getValue();
+		@SuppressWarnings("unchecked")
+		T originalValue = (T) request.state.getPersistedValue(foreignTableField.getName());
+		if (!Objects.equals(originalValue, value) && originalValue != null) {
+			// it has been changed, we need to update/delete the previous one
+			if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
+				// delete
+				op.addToDelete(originalValue, foreignEntity, null, null);
+			} else {
+				// update to null
+				SaveRequest save = op.addToSave(originalValue, foreignEntity, null, null);
+				save.state.setPersistedField(originalValue, fkProperty.getField(), null, false);
 			}
-		} else {
-			T originalValue = (T) request.state.getPersistedValue(foreignTableField.getName());
-			if (!Objects.equals(originalValue, value) && originalValue != null) {
-				// it has been changed, we need to update/delete the previous one
-				if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
-					// delete
-					op.addToDelete(originalValue, foreignEntity, null, null);
-				} else {
-					// update to null
-					SaveRequest save = op.addToSave(originalValue, foreignEntity, null, null);
-					save.state.setPersistedField(originalValue, fkProperty.getField(), null, false);
-				}
-			}
-			if (value != null) {
-				// save value
-				SaveRequest save = op.addToSave((T) value, foreignEntity, null, null);
-				save.state.setPersistedField(value, fkProperty.getField(), request.instance, false);
-			}
+		}
+		if (value != null) {
+			// save value
+			@SuppressWarnings("unchecked")
+			SaveRequest save = op.addToSave((T) value, foreignEntity, null, null);
+			save.state.setPersistedField(value, fkProperty.getField(), request.instance, false);
 		}
 	}
 	
@@ -169,10 +190,10 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 		return Mono.when(statements);
 	}
 	
+	@SuppressWarnings("java:S1612") // cannot do it
 	private static Mono<Object> doInsert(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> {
 			SqlQuery<Insert> query = new SqlQuery<>(op.lcClient);
-			Table table = Table.create(request.entityType.getTableName());
 			final List<RelationalPersistentProperty> generated = new LinkedList<>();
 			OutboundRow row = new OutboundRow();
 			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
@@ -188,23 +209,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 				}
 			}
 			
-			if (LcReactiveDataRelationalClient.logger.isDebugEnabled()) {
-				StringBuilder debug = new StringBuilder("Insert into ").append(request.entityType.getName()).append(": ");
-				for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
-					debug.append(entry.getKey()).append('=').append(entry.getValue().getValue()).append(", ");
-				LcReactiveDataRelationalClient.logger.debug(debug.toString());
-			}
-
-			List<Column> columns = new ArrayList<>(row.size());
-			List<Expression> values = new ArrayList<>(row.size());
-			for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet()) {
-				columns.add(Column.create(entry.getKey(), table));
-				if (entry.getValue().getValue() == null)
-					values.add(SQL.nullLiteral());
-				else
-					values.add(query.marker(entry.getValue().getValue()));
-			}
-			query.setQuery(Insert.builder().into(table).columns(columns).values(values).build());
+			query.setQuery(createInsertQuery(query, row, request.entityType.getTableName()));
 			
 			return query.execute()
 				.filter(statement -> statement.returnGeneratedValues())
@@ -218,6 +223,20 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 		}).flatMap(RowsFetchSpec::first);
 	}
 	
+	private static Insert createInsertQuery(SqlQuery<Insert> query, OutboundRow row, SqlIdentifier tableName) {
+		Table table = Table.create(tableName);
+		List<Column> columns = new ArrayList<>(row.size());
+		List<Expression> values = new ArrayList<>(row.size());
+		for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet()) {
+			columns.add(Column.create(entry.getKey(), table));
+			if (entry.getValue().getValue() == null)
+				values.add(SQL.nullLiteral());
+			else
+				values.add(query.marker(entry.getValue().getValue()));
+		}
+		return Insert.builder().into(table).columns(columns).values(values).build();
+	}
+	
 	private static Mono<Object> doUpdate(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> {
 			SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
@@ -225,15 +244,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			OutboundRow row = new OutboundRow();
 			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
 			List<AssignValue> assignments = new LinkedList<>();
-			for (RelationalPersistentProperty property : request.entityType) {
-				if (property.isAnnotationPresent(Version.class)) {
-					Object value = request.accessor.getProperty(property);
-					long currentVersion = ((Number)value).longValue();
-					assignments.add(AssignValue.create(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion + 1))));
-				} else if (!property.isIdProperty() && request.state.isFieldModified(property.getField().getName()) && property.isWritable()) {
-					writer.writeProperty(row, property, request.accessor);
-				}
-			}
+			prepareUpdate(request, table, assignments, row, writer, query);
 			if (row.isEmpty())
 				return null;
 			
@@ -244,20 +255,10 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			Object id = request.accessor.getProperty(idProperty);
 			Condition criteria = Conditions.isEqual(Column.create(idProperty.getColumnName(), table), query.marker(id));
 			
-			for (RelationalPersistentProperty property : request.entityType) {
-				if (property.isAnnotationPresent(Version.class)) {
-					Object value = request.accessor.getProperty(property);
-					long currentVersion = ((Number)value).longValue();
-					criteria = criteria.and(Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion))));
-				}
-			}
-			
-			if (LcReactiveDataRelationalClient.logger.isDebugEnabled()) {
-				StringBuilder debug = new StringBuilder("Update ").append(request.entityType.getName());
-				for (AssignValue entry : assignments)
-					debug.append(entry).append(", ");
-				debug.append(" WHERE ").append(idProperty.getName()).append('=').append(id);
-				LcReactiveDataRelationalClient.logger.debug(debug.toString());
+			for (RelationalPersistentProperty property : request.entityType.getPersistentProperties(Version.class)) {
+				Object value = request.accessor.getProperty(property);
+				long currentVersion = ((Number)value).longValue();
+				criteria = criteria.and(Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion))));
 			}
 			
 			query.setQuery(Update.builder().table(table).set(assignments).where(criteria).build());
@@ -269,6 +270,19 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 					return Mono.just(updatedRows);
 				});
 		}).flatMap(updatedRows -> updatedRows != null ? updatedRows.thenReturn(request.instance).doOnSuccess(e -> entityUpdated(request)) : Mono.just(request.instance));
+	}
+	
+	private static void prepareUpdate(SaveRequest request, Table table, List<AssignValue> assignments, OutboundRow row, LcEntityWriter writer, SqlQuery<Update> query) {
+		for (RelationalPersistentProperty property : request.entityType) {
+			if (property.isAnnotationPresent(Version.class)) {
+				Object value = request.accessor.getProperty(property);
+				Assert.notNull(value, "Version must not be null");
+				long currentVersion = ((Number)value).longValue();
+				assignments.add(AssignValue.create(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion + 1))));
+			} else if (!property.isIdProperty() && request.state.isFieldModified(property.getName()) && property.isWritable()) {
+				writer.writeProperty(row, property, request.accessor);
+			}
+		}
 	}
 	
 	private static void entityUpdated(SaveRequest request) {

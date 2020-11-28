@@ -9,6 +9,7 @@ import org.springframework.data.relational.core.sql.Insert;
 import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Select;
 import org.springframework.data.relational.core.sql.Update;
+import org.springframework.data.relational.core.sql.render.RenderContext;
 import org.springframework.data.relational.core.sql.render.SqlRenderer;
 import org.springframework.data.util.Pair;
 import org.springframework.r2dbc.core.DatabaseClient.GenericExecuteSpec;
@@ -62,14 +63,16 @@ public class SqlQuery<T> {
 			@Override
 			public String toQuery() {
 				Assert.notNull(query, "Query must be set");
+				RenderContext renderContext = client.getDataAccess().getStatementMapper().getRenderContext();
+				SqlRenderer renderer = renderContext != null ? SqlRenderer.create(renderContext) : SqlRenderer.create();
 				if (query instanceof Select)
-					return SqlRenderer.create(client.getDataAccess().getStatementMapper().getRenderContext()).render((Select)query);
+					return renderer.render((Select)query);
 				if (query instanceof Insert)
-					return SqlRenderer.create(client.getDataAccess().getStatementMapper().getRenderContext()).render((Insert)query);
+					return renderer.render((Insert)query);
 				if (query instanceof Update)
-					return SqlRenderer.create(client.getDataAccess().getStatementMapper().getRenderContext()).render((Update)query);
+					return renderer.render((Update)query);
 				if (query instanceof Delete)
-					return SqlRenderer.create(client.getDataAccess().getStatementMapper().getRenderContext()).render((Delete)query);
+					return renderer.render((Delete)query);
 				throw new IllegalArgumentException("Unexpected query type: " + query.getClass().getName());
 			}
 		};
