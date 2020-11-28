@@ -3,7 +3,7 @@
   <parent>
     <groupId>net.lecousin.reactive-data-relational</groupId>
     <artifactId>parent</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
   </parent>
   <artifactId>mysql</artifactId>
   
@@ -21,7 +21,7 @@
     <dependency>
       <groupId>dev.miku</groupId>
       <artifactId>r2dbc-mysql</artifactId>
-      <version>0.8.2.RELEASE</version>
+      <version>${r2dbc-mysql.version}</version>
     </dependency>
     
     <dependency>

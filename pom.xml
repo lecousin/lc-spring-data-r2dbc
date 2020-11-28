@@ -2,8 +2,12 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>parent</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.1.0</version>
   <packaging>pom</packaging>
+  
+  <name>net.lecousin.reactive-data-relational aka lc-spring-data-r2dbc</name>
+  <description>Provide basic ORM features not covered by Spring Data R2DBC, such as joins, lazy loading, cascade</description>
+  <url>https://github.com/lecousin/lc-spring-data-r2dbc</url>
 
   <licenses>
     <license>
@@ -44,6 +48,10 @@
   
     <spring-boot.version>2.3.6.RELEASE</spring-boot.version>
     <junit-jupiter.version>5.7.0</junit-jupiter.version>
+    
+    <r2dbc-h2.version>0.8.4.RELEASE</r2dbc-h2.version>
+    <r2dbc-postgres.version>0.8.6.RELEASE</r2dbc-postgres.version>
+    <r2dbc-mysql.version>0.8.2.RELEASE</r2dbc-mysql.version>
     
     <maven-compiler.version>3.8.0</maven-compiler.version>
     <maven-source.version>3.2.0</maven-source.version>
@@ -134,6 +142,36 @@
         </plugin>
       </plugins>
     </pluginManagement>
+    
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.0.1</version>
+        <executions>
+          <execution>
+            <id>readme-md</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.basedir}</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${project.basedir}/src</directory>
+                  <includes>
+                    <include>README.md</include>
+                  </includes>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+              <encoding>UTF-8</encoding>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 
   <profiles>
