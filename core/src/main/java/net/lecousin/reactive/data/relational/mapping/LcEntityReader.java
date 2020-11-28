@@ -18,7 +18,6 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import io.r2dbc.spi.Row;
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
@@ -79,14 +78,6 @@ public class LcEntityReader {
 			return conversionService.convert(source.getSource(), rawType);
 		}
 		
-		if (Row.class.isAssignableFrom(rawType)) {
-			return type.cast(source.asRow());
-		}
-
-		if (conversions.hasCustomReadTarget(Row.class, rawType) && conversionService.canConvert(Row.class, rawType)) {
-			return conversionService.convert(source.asRow(), rawType);
-		}
-
 		return read((RelationalPersistentEntity<T>) client.getMappingContext().getRequiredPersistentEntity(type), source);
 	}
 	

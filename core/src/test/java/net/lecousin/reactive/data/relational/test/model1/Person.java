@@ -26,6 +26,9 @@ public class Person {
 
 	@ForeignKey(optional = true, cascadeDelete = true)
 	private PostalAddress address;
+	
+	@ForeignTable(joinKey = "owner", optional = true)
+	private Company owningCompany;
 
 	public Long getId() {
 		return id;
@@ -73,6 +76,14 @@ public class Person {
 	
 	public Mono<Employee> lazyGetJob() {
 		return null;
+	}
+
+	public Company getOwningCompany() {
+		return owningCompany;
+	}
+
+	public void setOwningCompany(Company owningCompany) {
+		this.owningCompany = owningCompany;
 	}
 
 }

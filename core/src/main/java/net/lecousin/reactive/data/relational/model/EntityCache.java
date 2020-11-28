@@ -34,8 +34,6 @@ public class EntityCache {
 			return accessor.getBean(); // if not persisted, we cannot use id, only instance
 		Map<Object, Object> map = cache.computeIfAbsent(entity.getType(), e -> new HashMap<>());
 		Object id = ModelUtils.getId(entity, accessor, mappingContext);
-		if (id == null)
-			return accessor.getBean();
 		@SuppressWarnings("unchecked")
 		T known = (T) map.get(id);
 		if (known == null) {

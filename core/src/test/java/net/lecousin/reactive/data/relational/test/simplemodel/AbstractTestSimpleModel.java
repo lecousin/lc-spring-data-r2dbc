@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
+import io.r2dbc.spi.Row;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
@@ -58,6 +59,17 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		}
 		Assertions.assertNotNull(e1.getId());
 		Assertions.assertNotNull(e2.getId());
+		
+		list = repoBool.page(0, 3).collectList().block();
+		Assertions.assertEquals(2, list.size());
+		list = repoBool.page(1, 3).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		list = repoBool.page(2, 3).collectList().block();
+		Assertions.assertEquals(0, list.size());
+		list = repoBool.page(3, 3).collectList().block();
+		Assertions.assertEquals(0, list.size());
+		list = repoBool.page(4, 3).collectList().block();
+		Assertions.assertEquals(0, list.size());
 		
 		e1.setB2(false);
 		e2.setB1(null);
@@ -242,6 +254,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 				Assertions.assertNull(e.getBigDec());
 			}
 		}
+		
+		List<Row> rows = repoNum.findByLong1(-7L).collectList().block();
+		Assertions.assertEquals(1,  rows.size());
 		
 		repoNum.deleteAll(list).block();
 		Assertions.assertEquals(0, repoNum.findAll().collectList().block().size());

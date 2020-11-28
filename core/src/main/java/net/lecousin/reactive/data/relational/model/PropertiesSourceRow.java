@@ -31,8 +31,4 @@ public class PropertiesSourceRow implements PropertiesSource {
 		return row.get(property.getColumnName().toString());
 	}
 	
-	@Override
-	public Row asRow() {
-		return row;
-	}
 }

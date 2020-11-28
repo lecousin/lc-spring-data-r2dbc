@@ -215,6 +215,19 @@ public class ModelUtils {
 		return p.getSecond();
 	}
 	
+	/** Return true if the given field is associated to a @ForeignTable annotation.
+	 * 
+	 * @param field field
+	 * @return true if it is a foreign table
+	 */
+	public static boolean isForeignTableField(Field field) {
+		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(field.getDeclaringClass());
+		for (Pair<Field, ForeignTable> p : map.values())
+			if (p.getFirst().equals(field))
+				return true;
+		return false;
+	}
+	
 	/** Return the list of foreign tables declared in the given entity type.
 	 * 
 	 * @param entity entity type
@@ -357,7 +370,7 @@ public class ModelUtils {
 			Object[] newArray = (Object[]) Array.newInstance(field.getType().getComponentType(), array.length + 1);
 			System.arraycopy(array, 0, newArray, 0, array.length);
 			newArray[array.length] = elementToAdd;
-			field.set(collectionOwnerInstance, array);
+			field.set(collectionOwnerInstance, newArray);
 			return;
 		}
 		Collection<Object> collectionInstance = (Collection<Object>) field.get(collectionOwnerInstance);

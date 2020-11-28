@@ -6,6 +6,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
+import net.lecousin.reactive.data.relational.annotations.ForeignKey;
+import net.lecousin.reactive.data.relational.annotations.ForeignKey.OnForeignDeleted;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 import reactor.core.publisher.Flux;
@@ -27,6 +29,9 @@ public class Company {
 	
 	@ForeignTable(joinKey = "owner")
 	private PointOfContact[] providers;
+	
+	@ForeignKey(optional = true, cascadeDelete = false, onForeignDeleted = OnForeignDeleted.SET_TO_NULL)
+	private Person owner;
 
 	public Long getId() {
 		return id;
@@ -78,6 +83,14 @@ public class Company {
 	
 	public Flux<Site> lazyGetSites() {
 		return null;
+	}
+
+	public Person getOwner() {
+		return owner;
+	}
+
+	public void setOwner(Person owner) {
+		this.owner = owner;
 	}
 
 }

@@ -1,9 +1,6 @@
 package net.lecousin.reactive.data.relational.mapping;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.core.convert.ConversionService;
@@ -14,7 +11,6 @@ import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.mapping.SettableValue;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.util.TypeInformation;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -168,48 +164,6 @@ public class LcEntityWriter {
 			return ((Enum<?>) value).name();
 		
 		return value;
-	}
-	
-	/**
-	 * Writes the given {@link Collection} using the given {@link RelationalPersistentProperty} information.
-	 *
-	 * @param collection must not be {@literal null}.
-	 * @param property must not be {@literal null}.
-	 * @return
-	 */
-	protected List<Object> createCollection(Collection<?> collection, RelationalPersistentProperty property) {
-		return writeCollection(collection, property.getTypeInformation(), new ArrayList<>());
-	}
-
-	/**
-	 * Populates the given {@link Collection sink} with converted values from the given {@link Collection source}.
-	 *
-	 * @param source the collection to create a {@link Collection} for, must not be {@literal null}.
-	 * @param type the {@link TypeInformation} to consider or {@literal null} if unknown.
-	 * @param sink the {@link Collection} to write to.
-	 * @return
-	 */
-	@SuppressWarnings("unchecked")
-	protected List<Object> writeCollection(Collection<?> source, @Nullable TypeInformation<?> type, Collection<?> sink) {
-		TypeInformation<?> componentType = null;
-		List<Object> collection = sink instanceof List ? (List<Object>) sink : new ArrayList<>(sink);
-
-		if (type != null)
-			componentType = type.getComponentType();
-
-		for (Object element : source) {
-			Class<?> elementType = element == null ? null : element.getClass();
-
-			if (elementType == null || conversions.isSimpleType(elementType)) {
-				collection.add(getPotentiallyConvertedSimpleWrite(element, componentType != null ? componentType.getType() : Object.class));
-			} else if (element instanceof Collection || elementType.isArray()) {
-				collection.add(writeCollection(LcMappingR2dbcConverter.asCollection(element), componentType, new ArrayList<>()));
-			} else {
-				throw new InvalidDataAccessApiUsageException("Nested entities are not supported");
-			}
-		}
-
-		return collection;
 	}
 	
 }

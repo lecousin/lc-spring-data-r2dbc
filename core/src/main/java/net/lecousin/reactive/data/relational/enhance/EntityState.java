@@ -137,7 +137,6 @@ public class EntityState {
 		} else {
 			persistedValues.put(field.getName(), value);
 		}
-
 	}
 	
 	public <T> Mono<T> load(T entity) {
@@ -218,7 +217,7 @@ public class EntityState {
 		Object instance = field.get(entity);
 		if (instance != null)
 			return new MutableObject<>((T) instance);
-		if (foreignTablesLoaded.contains(field.getName()))
+		if (foreignTablesLoaded.contains(field.getName()) || (persistedValues.containsKey(field.getName()) && persistedValues.get(field.getName()) != null))
 			return new MutableObject<>(null);
 		return null;
 	}

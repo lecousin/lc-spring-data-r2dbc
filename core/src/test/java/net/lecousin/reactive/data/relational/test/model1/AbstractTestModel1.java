@@ -49,6 +49,10 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		apple.setProviders(new PointOfContact[] { createPOC(apple, microsoft, jamesMiller) });
 		microsoft.setProviders(new PointOfContact[] { createPOC(microsoft, apple, jamesMiller) });
 		
+		google.setOwner(meganDavis);
+		apple.setOwner(jamesMiller);
+		microsoft.setOwner(emilyTaylor);
+		
 		repoCompany.saveAll(Arrays.asList(google, apple, microsoft)).collectList().block();
 		
 		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
@@ -244,6 +248,136 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(7 - 1, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
 		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+	}
+	
+	@Test
+	public void testFindAllWithJoins() {
+		createModel();
+		
+		List<Company> companies = repoCompany.findAllWithJoins().collectList().block();
+		Assertions.assertEquals(3, companies.size());
+		
+		Company company;
+		Person person;
+		Site site;
+		PointOfContact poc;
+		
+		// Google
+		company = companies.stream().filter(e -> "Google".equals(e.getName())).findFirst().get();
+		Assertions.assertEquals(2, company.getEmployees().size());
+		// John is an employee
+		person = company.getEmployees().stream().filter(e -> "John".equals(e.getPerson().getFirstName())).findFirst().get().getPerson();
+		Assertions.assertNull(person.getAddress());
+		Assertions.assertTrue(person.getJob().getCompany() == company);
+		// Joe is an employee
+		person = company.getEmployees().stream().filter(e -> "Joe".equals(e.getPerson().getFirstName())).findFirst().get().getPerson();
+		Assertions.assertNotNull(person.getAddress());
+		Assertions.assertEquals("Madrid", person.getAddress().getCity());
+		Assertions.assertTrue(person.getJob().getCompany() == company);
+		// 1 Site
+		Assertions.assertEquals(1, company.getSites().size());
+		site = company.getSites().get(0);
+		Assertions.assertEquals("Google Spain", site.getName());
+		Assertions.assertEquals("Madrid", site.getAddress().getCity());
+		// 2 providers
+		Assertions.assertEquals(2, company.getProviders().length);
+		// Jessica is POC for Microsoft
+		poc = Arrays.asList(company.getProviders()).stream().filter(e -> "Microsoft".equals(e.getProvider().getName())).findFirst().get();
+		Assertions.assertTrue(poc.getOwner() == company);
+		Assertions.assertEquals("Jessica", poc.getPerson().getFirstName());
+		// Megan is POC for Apple
+		poc = Arrays.asList(company.getProviders()).stream().filter(e -> "Apple".equals(e.getProvider().getName())).findFirst().get();
+		Assertions.assertTrue(poc.getOwner() == company);
+		Assertions.assertEquals("Megan", poc.getPerson().getFirstName());
+		
+		// Microsoft
+		company = companies.stream().filter(e -> "Microsoft".equals(e.getName())).findFirst().get();
+		Assertions.assertEquals(1, company.getEmployees().size());
+		// Jessica is an employee
+		person = company.getEmployees().stream().filter(e -> "Jessica".equals(e.getPerson().getFirstName())).findFirst().get().getPerson();
+		Assertions.assertNotNull(person.getAddress());
+		Assertions.assertEquals("Paris", person.getAddress().getCity());
+		Assertions.assertTrue(person.getJob().getCompany() == company);
+		// 2 Sites
+		Assertions.assertEquals(2, company.getSites().size());
+		site = company.getSites().stream().filter(e -> "Madrid".equals(e.getAddress().getCity())).findFirst().get();
+		Assertions.assertEquals("Microsoft Spain", site.getName());
+		site = company.getSites().stream().filter(e -> "Marseille".equals(e.getAddress().getCity())).findFirst().get();
+		Assertions.assertEquals("Microsoft France", site.getName());
+		// 1 providers
+		Assertions.assertEquals(1, company.getProviders().length);
+		// James is POC for Apple
+		poc = Arrays.asList(company.getProviders()).stream().filter(e -> "Apple".equals(e.getProvider().getName())).findFirst().get();
+		Assertions.assertTrue(poc.getOwner() == company);
+		Assertions.assertEquals("James", poc.getPerson().getFirstName());
+		
+		// Apple
+		company = companies.stream().filter(e -> "Apple".equals(e.getName())).findFirst().get();
+		Assertions.assertEquals(1, company.getEmployees().size());
+		// Emily is an employee
+		person = company.getEmployees().stream().filter(e -> "Emily".equals(e.getPerson().getFirstName())).findFirst().get().getPerson();
+		Assertions.assertNull(person.getAddress());
+		Assertions.assertTrue(person.getJob().getCompany() == company);
+		// 2 Sites
+		Assertions.assertEquals(2, company.getSites().size());
+		site = company.getSites().stream().filter(e -> "London".equals(e.getAddress().getCity())).findFirst().get();
+		Assertions.assertEquals("Apple UK", site.getName());
+		site = company.getSites().stream().filter(e -> "Paris".equals(e.getAddress().getCity())).findFirst().get();
+		Assertions.assertEquals("Apple FR", site.getName());
+		// 1 providers
+		Assertions.assertEquals(1, company.getProviders().length);
+		// James is POC for Microsoft
+		poc = Arrays.asList(company.getProviders()).stream().filter(e -> "Microsoft".equals(e.getProvider().getName())).findFirst().get();
+		Assertions.assertTrue(poc.getOwner() == company);
+		Assertions.assertEquals("James", poc.getPerson().getFirstName());
+		
+		// with paging
+		companies = repoCompany.findAllWithJoins(0, 2).collectList().block();
+		Assertions.assertEquals(2, companies.size());
+		companies = repoCompany.findAllWithJoins(1, 2).collectList().block();
+		Assertions.assertEquals(2, companies.size());
+		companies = repoCompany.findAllWithJoins(2, 2).collectList().block();
+		Assertions.assertEquals(1, companies.size());
+		companies = repoCompany.findAllWithJoins(3, 2).collectList().block();
+		Assertions.assertEquals(0, companies.size());
+		companies = repoCompany.findAllWithJoins(4, 2).collectList().block();
+		Assertions.assertEquals(0, companies.size());
+	}
+	
+	@Test
+	public void testDeletePointOfContactFromLoadedEntities() {
+		createModel();
+		
+		List<Company> companies = repoCompany.findAllWithJoins().collectList().block();
+		Company company = companies.stream().filter(e -> "Google".equals(e.getName())).findFirst().get();
+		company.setProviders(null);
+		repoCompany.save(company).block();
+
+		Assertions.assertEquals(3, lcClient.getSpringClient().select().from(Company.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4, lcClient.getSpringClient().select().from(Employee.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(6, lcClient.getSpringClient().select().from(Person.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(4 - 2, lcClient.getSpringClient().select().from(PointOfContact.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(7, lcClient.getSpringClient().select().from(PostalAddress.class).fetch().all().collectList().block().size());
+		Assertions.assertEquals(5, lcClient.getSpringClient().select().from(Site.class).fetch().all().collectList().block().size());
+	}
+	
+	@Test
+	public void testRemoveOwningCompanyFromPerson() {
+		createModel();
+		
+		List<Company> companies = repoCompany.findAllWithJoins().collectList().block();
+		Company company = companies.stream().filter(e -> "Google".equals(e.getName())).findFirst().get();
+		Person owner = company.getOwner();
+		Assertions.assertNotNull(owner);
+		Assertions.assertNotNull(owner.getOwningCompany());
+		Assertions.assertTrue(company == owner.getOwningCompany());
+		owner.setOwningCompany(null);
+		repoPerson.save(owner).block();
+		
+		Assertions.assertNull(company.getOwner());
+		companies = repoCompany.findAllWithJoins().collectList().block();
+		company = companies.stream().filter(e -> "Google".equals(e.getName())).findFirst().get();
+		Assertions.assertNull(company.getOwner());
 	}
 
 }
