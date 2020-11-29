@@ -7,9 +7,16 @@ import org.springframework.data.relational.core.mapping.Table;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
+import net.lecousin.reactive.data.relational.annotations.Index;
+import net.lecousin.reactive.data.relational.annotations.Indexes;
 import reactor.core.publisher.Mono;
 
 @Table
+@Indexes({
+	@Index(name = "indexFirstName", properties = { "firstName" }, unique = false),
+	@Index(name = "indexLastName", properties = { "lastName" }, unique = false),
+	@Index(name = "indexName", properties = { "firstName", "lastName" }, unique = true)
+})
 public class Person {
 
 	@Id @GeneratedValue

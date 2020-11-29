@@ -1,6 +1,8 @@
 package net.lecousin.reactive.data.relational.schema;
 
 import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
@@ -43,6 +45,23 @@ public class SchemaBuilderFromEntities {
 			Index index = new Index(compositeId.indexName());
 			index.setUnique(true);
 			for (String propertyName : compositeId.properties()) {
+				RelationalPersistentProperty property = entityType.getRequiredPersistentProperty(propertyName);
+				index.addColumn(property.getColumnName().toSql(client.getDialect().getIdentifierProcessing()));
+			}
+			table.add(index);
+		}
+		List<net.lecousin.reactive.data.relational.annotations.Index> indexes = new LinkedList<>();
+		net.lecousin.reactive.data.relational.annotations.Index indexAnnotation = entityType.findAnnotation(net.lecousin.reactive.data.relational.annotations.Index.class);
+		if (indexAnnotation != null)
+			indexes.add(indexAnnotation);
+		net.lecousin.reactive.data.relational.annotations.Indexes indexesAnnotation = entityType.findAnnotation(net.lecousin.reactive.data.relational.annotations.Indexes.class);
+		if (indexesAnnotation != null)
+			for (net.lecousin.reactive.data.relational.annotations.Index i : indexesAnnotation.value())
+				indexes.add(i);
+		for (net.lecousin.reactive.data.relational.annotations.Index i : indexes) {
+			Index index = new Index(i.name());
+			index.setUnique(i.unique());
+			for (String propertyName : i.properties()) {
 				RelationalPersistentProperty property = entityType.getRequiredPersistentProperty(propertyName);
 				index.addColumn(property.getColumnName().toSql(client.getDialect().getIdentifierProcessing()));
 			}

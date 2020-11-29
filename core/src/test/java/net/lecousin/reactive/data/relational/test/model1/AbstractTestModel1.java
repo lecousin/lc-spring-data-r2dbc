@@ -381,5 +381,36 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		company = companies.stream().filter(e -> "Google".equals(e.getName())).findFirst().get();
 		Assertions.assertNull(company.getOwner());
 	}
+	
+	@Test
+	public void testUniqueIndexes() {
+		createModel();
+		
+		// try to create an already existing company
+		Company google = createCompany("Google");
+		try {
+			repoCompany.save(google).block();
+			throw new AssertionError("Error expected when creating a company with the same name");
+		} catch (Exception e) {
+			// expected
+		}
+		
+		// try to create a person with already existing first name
+		Person person = createPerson("John", "Smith2", null);
+		repoPerson.save(person).block();
+
+		// try to create a person with already existing last name
+		person = createPerson("John2", "Smith", null);
+		repoPerson.save(person).block();
+
+		// try to create a person with already existing first name and last name
+		person = createPerson("John", "Smith", null);
+		try {
+			repoPerson.save(person).block();
+			throw new AssertionError("Error expected when creating a person with the same name");
+		} catch (Exception e) {
+			// expected
+		}
+	}
 
 }

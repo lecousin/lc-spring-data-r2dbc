@@ -10,9 +10,11 @@ import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey.OnForeignDeleted;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
+import net.lecousin.reactive.data.relational.annotations.Index;
 import reactor.core.publisher.Flux;
 
 @Table
+@Index(name = "companyName", properties = { "name" }, unique = true)
 public class Company {
 
 	@Id @GeneratedValue
