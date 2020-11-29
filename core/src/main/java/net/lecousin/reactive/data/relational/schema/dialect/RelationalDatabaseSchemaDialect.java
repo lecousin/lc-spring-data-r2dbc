@@ -2,9 +2,9 @@ package net.lecousin.reactive.data.relational.schema.dialect;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
@@ -189,8 +189,8 @@ public abstract class RelationalDatabaseSchemaDialect {
 			}
 		}
 		// add foreign keys
+		SchemaStatement previousAlter = null;
 		for (Table table : schema.getTables()) {
-			SchemaStatement previousAlter = null;
 			for (Column col : table.getColumns()) {
 				if (col.getForeignKeyReferences() == null)
 					continue;
