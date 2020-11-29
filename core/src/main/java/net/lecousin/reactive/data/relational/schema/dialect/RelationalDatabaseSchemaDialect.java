@@ -1,7 +1,6 @@
 package net.lecousin.reactive.data.relational.schema.dialect;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;

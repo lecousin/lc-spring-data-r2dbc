@@ -13,9 +13,7 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 	
 	@Override
 	protected String getColumnTypeByte(Column col, Class<?> type, ColumnDefinition def) {
-		if (col.isAutoIncrement())
-			return "SMALLSERIAL";
-		return "SMALLINT";
+		return getColumnTypeShort(col, type, def);
 	}
 	
 	@Override

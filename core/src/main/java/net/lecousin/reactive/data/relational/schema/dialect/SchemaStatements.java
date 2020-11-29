@@ -46,8 +46,8 @@ public class SchemaStatements {
 	private Flux<String> execute(LcReactiveDataRelationalClient client, List<SchemaStatement> statements) {
 		return Flux.fromIterable(statements)
 			.flatMap(s -> client.getSpringClient().sql(s.getSql()).fetch().rowsUpdated().thenReturn(s))
-			.doOnNext(s -> done(s))
-			.map(s -> s.getSql());
+			.doOnNext(this::done)
+			.map(SchemaStatement::getSql);
 	}
 	
 }
