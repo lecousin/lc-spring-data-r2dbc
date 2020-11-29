@@ -23,7 +23,7 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	
 	@BeforeEach
 	public void initDatabase() {
-		lcClient.dropCreateTables().block();
+		lcClient.dropCreateSchemaContent(lcClient.buildSchemaFromEntities()).block();
 	}
 	
 }

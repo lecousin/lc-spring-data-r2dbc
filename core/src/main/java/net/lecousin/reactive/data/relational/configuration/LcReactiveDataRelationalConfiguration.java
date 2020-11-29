@@ -14,9 +14,9 @@ import org.springframework.util.Assert;
 
 import io.r2dbc.spi.ConnectionFactory;
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
-import net.lecousin.reactive.data.relational.dialect.SchemaGenerationDialect;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
 import net.lecousin.reactive.data.relational.mapping.LcReactiveDataAccessStrategy;
+import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 
 /**
  * Configure R2DBC spring data extended by lc-reactive-spring-data-relational.
@@ -39,7 +39,8 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 		return new LcReactiveDataRelationalClient();
 	}
 	
-	public abstract SchemaGenerationDialect lcSchemaGenerationDialect(LcReactiveDataAccessStrategy dataAccess);
+	@Bean
+	public abstract RelationalDatabaseSchemaDialect schemaDialect();
 	
 	@Bean
 	@Override

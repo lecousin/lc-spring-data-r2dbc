@@ -1,6 +1,5 @@
 package net.lecousin.reactive.data.relational;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -19,7 +18,6 @@ import org.springframework.lang.Nullable;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
 
-import net.lecousin.reactive.data.relational.dialect.SchemaGenerationDialect;
 import net.lecousin.reactive.data.relational.enhance.Enhancer;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
@@ -31,6 +29,10 @@ import net.lecousin.reactive.data.relational.query.SelectExecution;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.query.operation.Operation;
+import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
+import net.lecousin.reactive.data.relational.schema.SchemaBuilderFromEntities;
+import net.lecousin.reactive.data.relational.schema.Table;
+import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -46,7 +48,7 @@ public class LcReactiveDataRelationalClient {
 	private DatabaseClient client;
 	
 	@Autowired
-	private SchemaGenerationDialect lcDialect;
+	private RelationalDatabaseSchemaDialect schemaDialect;
 	
 	@Autowired
 	private LcReactiveDataAccessStrategy dataAccess;
@@ -81,21 +83,19 @@ public class LcReactiveDataRelationalClient {
 		return dataAccess;
 	}
 	
-	public SchemaGenerationDialect getSchemaDialect() {
-		return lcDialect;
+	public RelationalDatabaseSchemaDialect getSchemaDialect() {
+		return schemaDialect;
 	}
 	
 	public R2dbcDialect getDialect() {
 		return dataAccess.getDialect();
 	}
 
-	public Mono<Void> dropTables() {
+	public Mono<Void> dropSchemaContent(RelationalDatabaseSchema schema) {
 		try {
-			List<Mono<Integer>> requests = new ArrayList<>(mappingContext.getPersistentEntities().size());
-			for (RelationalPersistentEntity<?> entity : mappingContext.getPersistentEntities()) {
-				StringBuilder sql = new StringBuilder();
-				lcDialect.dropTable(entity, true, sql);
-				requests.add(client.sql(sql.toString()).fetch().rowsUpdated());
+			List<Mono<Integer>> requests = new LinkedList<>();
+			for (Table table : schema.getTables()) {
+				requests.add(client.sql(schemaDialect.dropTable(table, true)).fetch().rowsUpdated());
 			}
 			return Flux.merge(requests).then();
 		} catch (Exception e) {
@@ -103,13 +103,11 @@ public class LcReactiveDataRelationalClient {
 		}
 	}
 	
-	public Mono<Void> createTables() {
+	public Mono<Void> createSchemaContent(RelationalDatabaseSchema schema) {
 		try {
-			List<Mono<Integer>> requests = new ArrayList<>(mappingContext.getPersistentEntities().size());
-			for (RelationalPersistentEntity<?> entity : mappingContext.getPersistentEntities()) {
-				StringBuilder sql = new StringBuilder();
-				lcDialect.createTable(entity, sql);
-				requests.add(client.sql(sql.toString()).fetch().rowsUpdated());
+			List<Mono<Integer>> requests = new LinkedList<>();
+			for (Table table : schema.getTables()) {
+				requests.add(client.sql(schemaDialect.createTable(table)).fetch().rowsUpdated());
 			}
 			return Flux.merge(requests).then();
 		} catch (Exception e) {
@@ -117,8 +115,12 @@ public class LcReactiveDataRelationalClient {
 		}
 	}
 	
-	public Mono<Void> dropCreateTables() {
-		return dropTables().then(createTables());
+	public Mono<Void> dropCreateSchemaContent(RelationalDatabaseSchema schema) {
+		return dropSchemaContent(schema).then(createSchemaContent(schema));
+	}
+	
+	public RelationalDatabaseSchema buildSchemaFromEntities() {
+		return new SchemaBuilderFromEntities(this).build(Enhancer.getEntities());
 	}
 	
 	public <T> Mono<T> save(T entity) {

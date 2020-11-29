@@ -15,7 +15,7 @@ public class MyService {
 	private LcReactiveDataRelationalClient client;
 	
 	public boolean doSomething() {
-		client.createTables().block();
+		client.createSchemaContent(client.buildSchemaFromEntities()).block();
 		MyEntity entity = new MyEntity();
 		entity.setValue("Hello World !");
 		repo.save(entity).block();
