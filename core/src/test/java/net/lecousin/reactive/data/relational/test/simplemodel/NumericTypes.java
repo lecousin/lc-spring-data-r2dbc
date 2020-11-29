@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 
-@Table
+@Table("NUMTYPES")
 public class NumericTypes {
 
 	@Id @GeneratedValue

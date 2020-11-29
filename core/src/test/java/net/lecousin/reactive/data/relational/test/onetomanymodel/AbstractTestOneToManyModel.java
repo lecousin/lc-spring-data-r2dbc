@@ -76,6 +76,8 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		Assertions.assertNotNull(children);
 		Assertions.assertEquals(1, children.size());
 		Assertions.assertEquals("sub1", children.get(0).getSubValue());
+		// test call lazyGet on an already loaded list
+		root.lazyGetList().collectList().block();
 		
 		list = repo.findByValueWithSubEntity("abcd").collectList().block();
 		Assertions.assertEquals(0, list.size());
@@ -424,12 +426,9 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		SubEntity sub1_3 = new SubEntity();
 		sub1_3.setSubValue("1.3");
 		
-		SubEntity2 sub2_1 = new SubEntity2();
-		sub2_1.setSubValue("2.1");
-		SubEntity2 sub2_2 = new SubEntity2();
-		sub2_2.setSubValue("2.2");
-		SubEntity2 sub2_3 = new SubEntity2();
-		sub2_3.setSubValue("2.3");
+		SubEntity2 sub2_1 = new SubEntity2("2.1");
+		SubEntity2 sub2_2 = new SubEntity2("2.2");
+		SubEntity2 sub2_3 = new SubEntity2("2.3");
 		
 		SubEntity3 sub3_1 = new SubEntity3();
 		sub3_1.setSubValue("3.1");
@@ -710,10 +709,8 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		SubEntity sub1_2 = new SubEntity();
 		sub1_2.setSubValue("1.2");
 		
-		SubEntity2 sub2_1 = new SubEntity2();
-		sub2_1.setSubValue("2.1");
-		SubEntity2 sub2_2 = new SubEntity2();
-		sub2_2.setSubValue("2.2");
+		SubEntity2 sub2_1 = new SubEntity2("2.1");
+		SubEntity2 sub2_2 = new SubEntity2("2.2");
 		
 		SubEntity3 sub3_1 = new SubEntity3();
 		sub3_1.setSubValue("3.1");
@@ -761,10 +758,8 @@ public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelational
 		SubEntity sub1_3 = new SubEntity();
 		sub1_3.setSubValue("1.3");
 		
-		SubEntity2 sub2_1 = new SubEntity2();
-		sub2_1.setSubValue("2.1");
-		SubEntity2 sub2_2 = new SubEntity2();
-		sub2_2.setSubValue("2.2");
+		SubEntity2 sub2_1 = new SubEntity2("2.1");
+		SubEntity2 sub2_2 = new SubEntity2("2.2");
 		
 		SubEntity3 sub3_1 = new SubEntity3();
 		sub3_1.setSubValue("3.1");

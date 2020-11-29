@@ -42,6 +42,8 @@ public class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalT
 		entity = list.get(0);
 		Assertions.assertEquals("modified", entity.getValue());
 		Assertions.assertNull(entity.getSubEntity());
+		Assertions.assertNull(entity.lazyGetSubEntity().block());
+		Assertions.assertNull(entity.lazyGetSubEntity().block());
 		
 		repo1.deleteAll(list).block();
 		Assertions.assertEquals(0, repo1.findAll().collectList().block().size());
@@ -65,6 +67,7 @@ public class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalT
 		subEntity = entity.lazyGetSubEntity().block();
 		Assertions.assertEquals("sub test", subEntity.getSubValue());
 		Assertions.assertEquals("sub test", entity.getSubEntity().getSubValue());
+		Assertions.assertTrue(subEntity == entity.lazyGetSubEntity().block());
 		
 		list = repo1.findByValue("abcd").collectList().block();
 		Assertions.assertEquals(0, list.size());

@@ -210,7 +210,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		e2.setShort2(null);
 		e2.setInt_1(0);
 		e2.setInt_2(null);
-		e2.setLong1(0L);
+		e2.setLong1(-1L);
 		e2.setLong2(null);
 		e2.setFloat1(0f);
 		e2.setFloat2(null);
@@ -245,7 +245,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 				Assertions.assertNull(e.getShort2());
 				Assertions.assertEquals(0, e.getInt_1());
 				Assertions.assertNull(e.getInt_2());
-				Assertions.assertEquals(0L, e.getLong1());
+				Assertions.assertEquals(-1L, e.getLong1());
 				Assertions.assertNull(e.getLong2());
 				Assertions.assertEquals(0f, e.getFloat1());
 				Assertions.assertNull(e.getFloat2());
@@ -257,6 +257,18 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		
 		List<Row> rows = repoNum.findByLong1(-7L).collectList().block();
 		Assertions.assertEquals(1,  rows.size());
+		
+		list = repoNum.getAllOnlyWithIdAndLong1().collectList().block();
+		Assertions.assertEquals(2, list.size());
+		Assertions.assertNull(list.get(0).getBigDec());
+		Assertions.assertNull(list.get(1).getBigDec());
+		Assertions.assertNotEquals(0L, list.get(0).getLong1());
+		Assertions.assertNotEquals(0L, list.get(1).getLong1());
+		
+		List<Long> long1List = repoNum.getAllLong1().collectList().block();
+		Assertions.assertEquals(2, long1List.size());
+		Assertions.assertTrue(long1List.contains(Long.valueOf(-7L)));
+		Assertions.assertTrue(long1List.contains(Long.valueOf(-1L)));
 		
 		repoNum.deleteAll(list).block();
 		Assertions.assertEquals(0, repoNum.findAll().collectList().block().size());
