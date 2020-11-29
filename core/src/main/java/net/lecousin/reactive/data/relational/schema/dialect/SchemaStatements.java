@@ -4,13 +4,16 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.springframework.transaction.annotation.Transactional;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class SchemaStatements {
+	
+	private static final Log LOGGER = LogFactory.getLog(SchemaStatements.class);
 
 	private List<SchemaStatement> statements = new LinkedList<>();
 
@@ -45,12 +48,20 @@ public class SchemaStatements {
 			.then();
 	}
 	
-	@Transactional
 	private Flux<String> execute(LcReactiveDataRelationalClient client, List<SchemaStatement> statements) {
 		return Flux.fromIterable(statements)
-			.flatMap(s -> client.getSpringClient().sql(s.getSql()).fetch().rowsUpdated().thenReturn(s))
+			.flatMap(s -> client.getSpringClient().sql(log(s.getSql())).fetch().rowsUpdated().doOnError(e -> log(s, e)).thenReturn(s))
 			.doOnNext(this::done)
 			.map(SchemaStatement::getSql);
 	}
+
+	private static String log(String sql) {
+		if (LOGGER.isDebugEnabled())
+			LOGGER.debug(sql);
+		return sql;
+	}
 	
+	private static void log(SchemaStatement s, Throwable error) {
+		LOGGER.error("Error executing " + s.getSql(), error);
+	}
 }
