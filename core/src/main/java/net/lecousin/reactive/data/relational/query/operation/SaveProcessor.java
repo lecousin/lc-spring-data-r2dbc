@@ -9,7 +9,6 @@ import java.util.Objects;
 
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.data.annotation.Version;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
@@ -201,7 +200,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 				if (property.isAnnotationPresent(GeneratedValue.class)) {
 					generated.add(property);
 				} else if (property.isWritable()) { 
-					if (property.isAnnotationPresent(Version.class)) {
+					if (request.entityType.isVersionProperty(property)) {
 						// Version 1 for an insert
 						request.accessor.setProperty(property, 1L);
 					}
@@ -255,26 +254,28 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 			Object id = request.accessor.getProperty(idProperty);
 			Condition criteria = Conditions.isEqual(Column.create(idProperty.getColumnName(), table), query.marker(id));
 			
-			for (RelationalPersistentProperty property : request.entityType.getPersistentProperties(Version.class)) {
+			if (request.entityType.hasVersionProperty()) {
+				RelationalPersistentProperty property = request.entityType.getRequiredVersionProperty();
 				Object value = request.accessor.getProperty(property);
 				long currentVersion = ((Number)value).longValue();
 				criteria = criteria.and(Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion))));
 			}
 			
 			query.setQuery(Update.builder().table(table).set(assignments).where(criteria).build());
-			return query.execute()
-				.fetch().rowsUpdated()
-				.flatMap(updatedRows -> {
+			Mono<Integer> rowsUpdated = query.execute().fetch().rowsUpdated();
+			if (request.entityType.hasVersionProperty())
+				rowsUpdated = rowsUpdated.flatMap(updatedRows -> {
 					if (updatedRows.intValue() == 0)
 						return Mono.error(new OptimisticLockingFailureException("Version does not match"));
 					return Mono.just(updatedRows);
 				});
+			return rowsUpdated;
 		}).flatMap(updatedRows -> updatedRows != null ? updatedRows.thenReturn(request.instance).doOnSuccess(e -> entityUpdated(request)) : Mono.just(request.instance));
 	}
 	
 	private static void prepareUpdate(SaveRequest request, Table table, List<AssignValue> assignments, OutboundRow row, LcEntityWriter writer, SqlQuery<Update> query) {
 		for (RelationalPersistentProperty property : request.entityType) {
-			if (property.isAnnotationPresent(Version.class)) {
+			if (request.entityType.isVersionProperty(property)) {
 				Object value = request.accessor.getProperty(property);
 				Assert.notNull(value, "Version must not be null");
 				long currentVersion = ((Number)value).longValue();
@@ -287,10 +288,9 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 	
 	private static void entityUpdated(SaveRequest request) {
 		request.state.load(request.instance);
-		for (RelationalPersistentProperty property : request.entityType) {
-			if (property.isAnnotationPresent(Version.class)) {
-				request.accessor.setProperty(property, ((Long)request.accessor.getProperty(property)) + 1);
-			}
+		if (request.entityType.hasVersionProperty()) {
+			RelationalPersistentProperty property = request.entityType.getRequiredVersionProperty();
+			request.accessor.setProperty(property, ((Long)request.accessor.getProperty(property)) + 1);
 		}
 	}
 	
