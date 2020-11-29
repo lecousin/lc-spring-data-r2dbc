@@ -2,7 +2,7 @@
 
 net.lecousin.reactive-data-relational
 [![Maven Central](https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22reactive-data-relational%22%20AND%20a%3A%22core%22)
-[![Javadoc](https://img.shields.io/badge/javadoc-0.1.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.1.0)
+[![Javadoc](https://img.shields.io/badge/javadoc-0.2.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.2.0)
 ![build status](https://travis-ci.org/lecousin/lc-spring-data-r2dbc.svg?branch=master "Build Status")
 [![Codecov](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg)](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master)
 
@@ -25,7 +25,8 @@ this library aims at providing the most useful features that are really missing 
  - Select statement with joins
  - Save (insert/update) with cascade
  - Delete with cascade
- - Schema generation
+ - Schema generation, with indexes and foreign key constraints
+ - Composite Id
 
 ## Supported databases
 
@@ -35,7 +36,7 @@ this library aims at providing the most useful features that are really missing 
  
 ## Dependencies
 
- - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.3.6.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
+ - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.4.0, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
  - H2 (io.r2dbc:r2dbc-h2) version 0.8.4.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-h2.svg)
  - MySql (dev.miku:r2dbc-mysql) version 0.8.2.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/dev.miku/r2dbc-mysql.svg)
  - Postgres (io.r2dbc:r2dbc-postgresql) version 0.8.6.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-postgresql.svg)
@@ -52,7 +53,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>h2</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -62,7 +63,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>postgres</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -72,7 +73,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>mysql</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -131,7 +132,7 @@ In addition, in order to make sure the initializer is launched before any test c
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>test-junit-5</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <scope>test</scope>
 </dependency>
 ```
