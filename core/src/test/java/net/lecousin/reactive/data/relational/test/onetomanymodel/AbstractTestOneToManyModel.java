@@ -15,7 +15,7 @@ import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactory
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 
 @EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)
-public class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelationalTest {
+public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataRelationalTest {
 
 	@Autowired
 	private RootEntityRepository repo;

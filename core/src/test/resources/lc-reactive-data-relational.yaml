@@ -1,6 +1,6 @@
 entities:
   - net.lecousin.reactive.data.relational.test:
-    - TestEntity
+    - Entity
     - simplemodel:
       - BooleanTypes
       - CharacterTypes
