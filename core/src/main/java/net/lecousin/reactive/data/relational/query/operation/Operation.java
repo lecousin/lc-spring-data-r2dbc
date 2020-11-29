@@ -18,10 +18,11 @@ public class Operation {
 	
 	LcReactiveDataRelationalClient lcClient;
 	EntityCache cache = new EntityCache();
-	SaveProcessor save = new SaveProcessor();
-	DeleteProcessor delete = new DeleteProcessor();
 	EntityLoader loader = new EntityLoader();
 	PropertyUpdater updater = new PropertyUpdater();
+	SaveProcessor save = new SaveProcessor();
+	DeleteProcessor delete = new DeleteProcessor();
+	DeleteWithoutLoading deleteWithoutLoading = new DeleteWithoutLoading();
 
 	/** List of functions to call in sequence. */
 	private List<Runnable> toCall = new LinkedList<>();
@@ -87,7 +88,13 @@ public class Operation {
 		if (op != null)
 			return op;
 		
-		return delete.doOperations(Operation.this);
+		op = delete.doOperations(Operation.this);
+		Mono<Void> op2 = deleteWithoutLoading.doOperations(Operation.this);
+		if (op == null)
+			return op2;
+		if (op2 == null)
+			return op;
+		return Mono.when(op, op2);
 	}
 	
 }

@@ -2,6 +2,7 @@ package net.lecousin.reactive.data.relational.schema;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 public class Table {
 
@@ -33,4 +34,10 @@ public class Table {
 		return indexes;
 	}
 
+	public Column getColumn(String name) {
+		for (Column col : columns)
+			if (col.getName().equals(name))
+				return col;
+		throw new NoSuchElementException("Column " + name);
+	}
 }

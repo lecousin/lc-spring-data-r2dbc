@@ -21,36 +21,45 @@ import org.springframework.data.relational.core.sql.Update;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import reactor.core.publisher.Mono;
 
-class PropertyUpdater {
+class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
 	
-	private Map<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, Object>>> toUpdate = new HashMap<>();
-
-	Mono<Void> doOperations(Operation op) {
-		return doUpdate(op);
+	private Map<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, Request>>> requests = new HashMap<>();
+	
+	static class Request extends AbstractProcessor.Request {
+		RelationalPersistentProperty property;
+		Object whereValueIs;
+		Object newValue;
+		
+		Request(RelationalPersistentEntity<?> entityType, RelationalPersistentProperty property, Object whereValueIs, Object newValue) {
+			super(entityType);
+			this.property = property;
+			this.whereValueIs = whereValueIs;
+			this.newValue = newValue;
+		}
 	}
 	
-	void update(RelationalPersistentEntity<?> entityType, RelationalPersistentProperty property, Object whereValueIs, Object newValue) {
-		Map<RelationalPersistentProperty, Map<Object, Object>> map = toUpdate.computeIfAbsent(entityType, e -> new HashMap<>());
-		Map<Object, Object> map2 = map.computeIfAbsent(property, p -> new HashMap<>());
-		map2.put(whereValueIs, newValue);
+	Request update(RelationalPersistentEntity<?> entityType, RelationalPersistentProperty property, Object whereValueIs, Object newValue) {
+		Map<RelationalPersistentProperty, Map<Object, Request>> map = requests.computeIfAbsent(entityType, e -> new HashMap<>());
+		Map<Object, Request> map2 = map.computeIfAbsent(property, p -> new HashMap<>());
+		return map2.computeIfAbsent(whereValueIs, e -> new Request(entityType, property, whereValueIs, newValue));
 	}
 
-
-	private Mono<Void> doUpdate(Operation op) {
+	@Override
+	protected Mono<Void> executeRequests(Operation op) {
 		List<Mono<Void>> calls = new LinkedList<>();
-		Map<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, Object>>> todo = toUpdate;
-		toUpdate = new HashMap<>();
-		for (Map.Entry<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, Object>>> entity : todo.entrySet()) {
-			for (Map.Entry<RelationalPersistentProperty, Map<Object, Object>> property : entity.getValue().entrySet()) {
+		for (Map.Entry<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, Request>>> entity : requests.entrySet()) {
+			for (Map.Entry<RelationalPersistentProperty, Map<Object, Request>> property : entity.getValue().entrySet()) {
 				Map<Object, Set<Object>> reverseMap = new HashMap<>();
-				for (Map.Entry<Object, Object> entry : property.getValue().entrySet()) {
-					Set<Object> set = reverseMap.get(entry.getValue());
-					if (set == null) {
-						set = new HashSet<>();
-						reverseMap.put(entry.getValue(), set);
-					}
+				List<Request> ready = new LinkedList<>();
+				for (Map.Entry<Object, Request> entry : property.getValue().entrySet()) {
+					if (!canExecuteRequest(entry.getValue()))
+						continue;
+					Set<Object> set = reverseMap.computeIfAbsent(entry.getValue().newValue, e -> new HashSet<>());
 					set.add(entry.getKey());
+					ready.add(entry.getValue());
 				}
+				if (reverseMap.isEmpty())
+					continue;
 				Table table = Table.create(entity.getKey().getTableName());
 				for (Map.Entry<Object, Set<Object>> update : reverseMap.entrySet()) {
 					SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
@@ -63,7 +72,7 @@ class PropertyUpdater {
 						.where(Conditions.in(Column.create(property.getKey().getColumnName(), table), values))
 						.build()
 					);
-					calls.add(query.execute().then());
+					calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
 				}
 			}
 		}

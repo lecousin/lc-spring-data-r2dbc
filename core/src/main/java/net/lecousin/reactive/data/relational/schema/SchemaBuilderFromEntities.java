@@ -1,12 +1,14 @@
 package net.lecousin.reactive.data.relational.schema;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
+import org.springframework.data.util.Pair;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -17,8 +19,8 @@ import net.lecousin.reactive.data.relational.model.ModelUtils;
 
 public class SchemaBuilderFromEntities {
 	
-	private LcReactiveDataRelationalClient client;
-	private RelationalDatabaseSchema schema = new RelationalDatabaseSchema();
+	protected LcReactiveDataRelationalClient client;
+	protected RelationalDatabaseSchema schema = new RelationalDatabaseSchema();
 	
 	public SchemaBuilderFromEntities(LcReactiveDataRelationalClient client) {
 		this.client = client;
@@ -32,12 +34,23 @@ public class SchemaBuilderFromEntities {
 		for (Class<?> entity : entities) {
 			schema.add(buildTable(entity));
 		}
+		for (Class<?> entity : entities) {
+			addForeignKeys(entity);
+		}
 		return schema;
+	}
+	
+	protected String getTableName(RelationalPersistentEntity<?> entityType) {
+		return entityType.getTableName().toSql(client.getDialect().getIdentifierProcessing());
+	}
+	
+	protected String getColumnName(RelationalPersistentProperty property) {
+		return property.getColumnName().toSql(client.getDialect().getIdentifierProcessing());
 	}
 	
 	protected Table buildTable(Class<?> entity) {
 		RelationalPersistentEntity<?> entityType = client.getMappingContext().getRequiredPersistentEntity(entity);
-		Table table = new Table(entityType.getTableName().toSql(client.getDialect().getIdentifierProcessing()));
+		Table table = new Table(getTableName(entityType));
 		for (RelationalPersistentProperty property : entityType)
 			table.add(buildColumn(property));
 		CompositeId compositeId = entityType.findAnnotation(CompositeId.class);
@@ -63,7 +76,7 @@ public class SchemaBuilderFromEntities {
 			index.setUnique(i.unique());
 			for (String propertyName : i.properties()) {
 				RelationalPersistentProperty property = entityType.getRequiredPersistentProperty(propertyName);
-				index.addColumn(property.getColumnName().toSql(client.getDialect().getIdentifierProcessing()));
+				index.addColumn(getColumnName(property));
 			}
 			table.add(index);
 		}
@@ -88,6 +101,23 @@ public class SchemaBuilderFromEntities {
 		ColumnDefinition def = property.findAnnotation(ColumnDefinition.class);
 		col.setType(client.getSchemaDialect().getColumnType(col, type, def));
 		return col;
+	}
+	
+	protected void addForeignKeys(Class<?> entity) {
+		RelationalPersistentEntity<?> entityType = client.getMappingContext().getRequiredPersistentEntity(entity);
+		Iterator<RelationalPersistentProperty> keys = entityType.getPersistentProperties(ForeignKey.class).iterator();
+		if (!keys.hasNext())
+			return;
+		Table table = schema.getTable(getTableName(entityType));
+		do {
+			RelationalPersistentProperty fkProperty = keys.next();
+			Column fkColumn = table.getColumn(getColumnName(fkProperty));
+			RelationalPersistentEntity<?> foreignType = client.getMappingContext().getRequiredPersistentEntity(fkProperty.getType());
+			RelationalPersistentProperty foreignId = foreignType.getRequiredIdProperty();
+			Table foreignTable = schema.getTable(getTableName(foreignType));
+			Column foreignColumn = foreignTable.getColumn(getColumnName(foreignId));
+			fkColumn.setForeignKeyReferences(Pair.of(foreignTable, foreignColumn));
+		} while (keys.hasNext());
 	}
 
 }

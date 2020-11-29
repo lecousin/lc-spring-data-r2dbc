@@ -56,5 +56,5 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
 		return "TIMESTAMP WITH TIME ZONE";
 	}
-	
+
 }

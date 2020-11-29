@@ -25,7 +25,7 @@ this library aims at providing the most useful features that are really missing 
  - Select statement with joins
  - Save (insert/update) with cascade
  - Delete with cascade
- - Schema generation, with indexes
+ - Schema generation, with indexes and foreign key constraints
  - Composite Id
 
 ## Supported databases

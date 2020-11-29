@@ -1,12 +1,12 @@
 package net.lecousin.reactive.data.relational.schema.dialect;
 
-import java.util.LinkedList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class SchemaStatement {
 
 	private String sql;
-	private List<SchemaStatement> dependencies = new LinkedList<>();
+	private Set<SchemaStatement> dependencies = new HashSet<>();
 
 	public SchemaStatement(String sql) {
 		this.sql = sql;

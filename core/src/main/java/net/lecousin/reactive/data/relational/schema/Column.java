@@ -1,5 +1,7 @@
 package net.lecousin.reactive.data.relational.schema;
 
+import org.springframework.data.util.Pair;
+
 public class Column {
 
 	private String name;
@@ -7,6 +9,7 @@ public class Column {
 	private boolean primaryKey;
 	private boolean nullable;
 	private boolean autoIncrement;
+	private Pair<Table, Column> foreignKeyReferences;
 	
 	public Column(String name) {
 		this.name = name;
@@ -46,6 +49,14 @@ public class Column {
 
 	public void setType(String type) {
 		this.type = type;
+	}
+
+	public Pair<Table, Column> getForeignKeyReferences() {
+		return foreignKeyReferences;
+	}
+
+	public void setForeignKeyReferences(Pair<Table, Column> foreignKeyReferences) {
+		this.foreignKeyReferences = foreignKeyReferences;
 	}
 
 }

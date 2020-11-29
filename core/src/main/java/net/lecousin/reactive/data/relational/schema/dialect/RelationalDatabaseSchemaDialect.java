@@ -1,6 +1,10 @@
 package net.lecousin.reactive.data.relational.schema.dialect;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
@@ -142,9 +146,21 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public SchemaStatements dropSchemaContent(RelationalDatabaseSchema schema) {
 		SchemaStatements toExecute = new SchemaStatements();
+		// drop tables
+		Map<Table, SchemaStatement> dropTableMap = new HashMap<>();
 		for (Table table : schema.getTables()) {
-			String sql = dropTable(table);
-			toExecute.add(new SchemaStatement(sql));
+			SchemaStatement dropTable = new SchemaStatement(dropTable(table));
+			toExecute.add(dropTable);
+			dropTableMap.put(table, dropTable);
+		}
+		// add dependencies for foreign keys
+		for (Table table : schema.getTables()) {
+			for (Column col : table.getColumns()) {
+				if (col.getForeignKeyReferences() == null)
+					continue;
+				if (col.getForeignKeyReferences().getFirst() != table)
+					dropTableMap.get(col.getForeignKeyReferences().getFirst()).addDependency(dropTableMap.get(table));
+			}
 		}
 		return toExecute;
 	}
@@ -158,8 +174,11 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public SchemaStatements createSchemaContent(RelationalDatabaseSchema schema) {
 		SchemaStatements toExecute = new SchemaStatements();
+		// create tables
+		Map<Table, SchemaStatement> createTableMap = new HashMap<>();
 		for (Table table : schema.getTables()) {
 			SchemaStatement createTable = new SchemaStatement(createTable(table));
+			createTableMap.put(table, createTable);
 			toExecute.add(createTable);
 			for (Index index : table.getIndexes()) {
 				if (canCreateIndexInTableDefinition(index))
@@ -167,6 +186,21 @@ public abstract class RelationalDatabaseSchemaDialect {
 				SchemaStatement createIndex = new SchemaStatement(createIndex(table, index));
 				createIndex.addDependency(createTable);
 				toExecute.add(createIndex);
+			}
+		}
+		// add foreign keys
+		for (Table table : schema.getTables()) {
+			SchemaStatement previousAlter = null;
+			for (Column col : table.getColumns()) {
+				if (col.getForeignKeyReferences() == null)
+					continue;
+				SchemaStatement alterTable = new SchemaStatement(alterTableForeignKey(table, col));
+				alterTable.addDependency(createTableMap.get(table));
+				alterTable.addDependency(createTableMap.get(col.getForeignKeyReferences().getFirst()));
+				if (previousAlter != null)
+					alterTable.addDependency(previousAlter);
+				previousAlter = alterTable;
+				toExecute.add(alterTable);
 			}
 		}
 		return toExecute;
@@ -191,10 +225,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 		for (Index index : table.getIndexes()) {
 			if (!canCreateIndexInTableDefinition(index))
 				continue;
-			if (first)
-				first = false;
-			else
-				sql.append(", ");
+			sql.append(", ");
 			addIndexDefinitionInTable(table, index, sql);
 		}
 		sql.append(')');
@@ -249,5 +280,19 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	protected void addPrimaryKey(Column col, StringBuilder sql) {
 		sql.append(" PRIMARY KEY");
+	}
+	
+	protected String alterTableForeignKey(Table table, Column col) {
+		StringBuilder sql = new StringBuilder();
+		sql.append("ALTER TABLE ");
+		sql.append(table.getName());
+		sql.append(" ADD FOREIGN KEY (");
+		sql.append(col.getName());
+		sql.append(") REFERENCES ");
+		sql.append(col.getForeignKeyReferences().getFirst().getName());
+		sql.append('(');
+		sql.append(col.getForeignKeyReferences().getSecond().getName());
+		sql.append(')');
+		return sql.toString();
 	}
 }

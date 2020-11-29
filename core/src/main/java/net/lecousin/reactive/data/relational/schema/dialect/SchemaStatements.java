@@ -4,6 +4,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -43,6 +45,7 @@ public class SchemaStatements {
 			.then();
 	}
 	
+	@Transactional
 	private Flux<String> execute(LcReactiveDataRelationalClient client, List<SchemaStatement> statements) {
 		return Flux.fromIterable(statements)
 			.flatMap(s -> client.getSpringClient().sql(s.getSql()).fetch().rowsUpdated().thenReturn(s))

@@ -38,9 +38,9 @@ import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import reactor.core.publisher.Mono;
 
-class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
+class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest> {
 
-	static class SaveRequest extends AbstractProcessor.Request {
+	static class SaveRequest extends AbstractInstanceProcessor.Request {
 
 		<T> SaveRequest(RelationalPersistentEntity<T> entityType, T instance, EntityState state, PersistentPropertyAccessor<T> accessor) {
 			super(entityType, instance, state, accessor);
@@ -54,7 +54,7 @@ class SaveProcessor extends AbstractProcessor<SaveProcessor.SaveRequest> {
 	}
 	
 	@Override
-	protected boolean checkRequest(Operation op, SaveRequest request) {
+	protected boolean doProcess(Operation op, SaveRequest request) {
 		return true;
 	}
 	

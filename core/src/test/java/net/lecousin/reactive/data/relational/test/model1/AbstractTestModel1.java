@@ -231,7 +231,7 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(4 - 1, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(6 - 1, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 1, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(7 - 1, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -247,7 +247,7 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(4 - 1, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(6 - 1, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(4 - 1, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(7 - 1, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}

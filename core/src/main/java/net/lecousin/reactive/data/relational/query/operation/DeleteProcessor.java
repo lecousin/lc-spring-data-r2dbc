@@ -4,7 +4,6 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -31,12 +30,9 @@ import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import reactor.core.publisher.Mono;
 
-class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
+class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRequest> {
 
-	/** Leaf entities that can be deleted without the need to load them. */
-	private Map<RelationalPersistentEntity<?>, List<Pair<RelationalPersistentProperty, Object>>> toDeleteWithoutLoading = new HashMap<>();
-	
-	static class DeleteRequest extends AbstractProcessor.Request {
+	static class DeleteRequest extends AbstractInstanceProcessor.Request {
 		
 		private Map<String, Object> savedForeignKeys = new HashMap<>();
 
@@ -60,8 +56,39 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 	}
 	
 	@Override
-	protected boolean checkRequest(Operation op, DeleteRequest request) {
-		return request.state.isPersisted();
+	protected boolean doProcess(Operation op, DeleteRequest request) {
+		if (!request.state.isPersisted())
+			return false;
+		// check entities having a foreign key, but where we don't have a foreign table link
+		for (RelationalPersistentEntity<?> entity : op.lcClient.getMappingContext().getPersistentEntities()) {
+			if (entity.equals(request.entityType))
+				continue;
+			
+			for (RelationalPersistentProperty fkProperty : entity.getPersistentProperties(ForeignKey.class)) {
+				if (!fkProperty.getType().equals(request.entityType.getType()))
+					continue;
+				
+				Field ftField = ModelUtils.getForeignTableFieldForJoinKey(request.entityType.getType(), fkProperty.getName(), entity.getType());
+				if (ftField != null)
+					continue;
+				
+				processForeignNotLinked(op, request, entity, fkProperty);
+			}
+		}
+		return true;
+	}
+	
+	@SuppressWarnings("unchecked")
+	private <T> void processForeignNotLinked(Operation op, DeleteRequest request, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty) {
+		Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
+		if (!hasOtherLinks(op, foreignEntity.getType(), fkProperty.getName())) {
+			// can do delete where fk in (ids)
+			request.dependsOn(op.deleteWithoutLoading.addRequest(foreignEntity, fkProperty, instId));
+		} else {
+			// need to retrieve the entity from database, then process them to be deleted
+			op.loader.retrieve(foreignEntity, fkProperty, instId, loaded -> request.dependsOn(addToProcess(op, (T) loaded, foreignEntity, null, null)));
+		}
+
 	}
 
 	@Override
@@ -132,7 +159,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 		if (foreignInstance == null)
 			return;
 		DeleteRequest deleteForeign = addToProcess(op, foreignInstance, null, null, null);
-		request.dependsOn(deleteForeign);
+		deleteForeign.dependsOn(request);
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -145,7 +172,7 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 		if (fkAnnotation.optional() && fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.SET_TO_NULL)) {
 			// update to null
 			Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
-			op.updater.update(foreignEntity, fkProperty, instId, null);
+			request.dependsOn(op.updater.update(foreignEntity, fkProperty, instId, null));
 			if (foreignFieldValue != null) {
 				Object foreignInstance = foreignFieldValue.getValue();
 				if (foreignInstance != null) {
@@ -163,28 +190,23 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 				return; // no link
 			if (ModelUtils.isCollection(foreignTableField)) {
 				for (Object o : ModelUtils.getAsCollection(foreignFieldValue.getValue()))
-					addToProcess(op, (T) o, foreignEntity, null, null);
+					request.dependsOn(addToProcess(op, (T) o, foreignEntity, null, null));
 			} else {
-				addToProcess(op, (T) foreignFieldValue.getValue(), foreignEntity, null, null);
+				request.dependsOn(addToProcess(op, (T) foreignFieldValue.getValue(), foreignEntity, null, null));
 			}
 		} else {
 			// foreign not loaded
 			Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
 			if (!hasOtherLinks(op, foreignEntity.getType(), foreignTableAnnotation.joinKey())) {
 				// can do delete where fk in (ids)
-				deleteWithoutLoading(foreignEntity, Pair.of(fkProperty, instId));
+				request.dependsOn(op.deleteWithoutLoading.addRequest(foreignEntity, fkProperty, instId));
 			} else {
 				// need to retrieve the entity from database, then process them to be deleted
-				op.loader.retrieve(foreignEntity, fkProperty, instId, loaded -> addToProcess(op, (T) loaded, foreignEntity, null, null));
+				op.loader.retrieve(foreignEntity, fkProperty, instId, loaded -> request.dependsOn(addToProcess(op, (T) loaded, foreignEntity, null, null)));
 			}
 		}
 	}
 
-	
-	private void deleteWithoutLoading(RelationalPersistentEntity<?> entity, Pair<RelationalPersistentProperty, Object> criteria) {
-		List<Pair<RelationalPersistentProperty, Object>> list = toDeleteWithoutLoading.computeIfAbsent(entity, e -> new LinkedList<>());
-		list.add(criteria);
-	}
 	
 	private static boolean hasOtherLinks(Operation op, Class<?> entityType, String otherThanField) {
 		for (Pair<Field, ForeignTable> p : ModelUtils.getForeignTables(entityType)) {
@@ -197,18 +219,6 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 				return true;
 		}
 		return false;
-	}
-	
-	@Override
-	protected Mono<Void> doOperations(Operation op) {
-		Mono<Void> executeRequests = super.doOperations(op);
-		Mono<Void> deleteWithoutLoading = doDeleteWithoutLoading(op);
-		if (executeRequests != null) {
-			if (deleteWithoutLoading != null)
-				return Mono.when(executeRequests, deleteWithoutLoading);
-			return executeRequests;
-		}
-		return deleteWithoutLoading;
 	}
 	
 	@Override
@@ -276,30 +286,4 @@ class DeleteProcessor extends AbstractProcessor<DeleteProcessor.DeleteRequest> {
 		}
 	}
 
-	@SuppressWarnings("java:S2583") // false positive
-	private Mono<Void> doDeleteWithoutLoading(Operation op) {
-		List<Mono<Void>> calls = new LinkedList<>();
-		Map<RelationalPersistentEntity<?>, List<Pair<RelationalPersistentProperty, Object>>> map = toDeleteWithoutLoading;
-		toDeleteWithoutLoading = new HashMap<>();
-		for (Map.Entry<RelationalPersistentEntity<?>, List<Pair<RelationalPersistentProperty, Object>>> entity : map.entrySet()) {
-			if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
-				LcReactiveDataRelationalClient.logger.debug("Delete " + entity.getKey().getType().getName() + " where " + entity.getValue());
-			SqlQuery<Delete> query = new SqlQuery<>(op.lcClient);
-			Table table = Table.create(entity.getKey().getTableName());
-			Iterator<Pair<RelationalPersistentProperty, Object>> it = entity.getValue().iterator();
-			Condition condition = null;
-			do {
-				Pair<RelationalPersistentProperty, Object> p = it.next();
-				Column col = Column.create(p.getFirst().getColumnName(), table);
-				Condition c = p.getSecond() != null ? Conditions.isEqual(col, query.marker(p.getSecond())) : Conditions.isNull(col);
-				condition = condition != null ? condition.or(c) : c;
-			} while (it.hasNext());
-			query.setQuery(Delete.builder().from(table).where(condition).build());
-			calls.add(query.execute().then());
-		}
-		if (calls.isEmpty())
-			return null;
-		return Mono.when(calls);
-	}
-	
 }
