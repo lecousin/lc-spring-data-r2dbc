@@ -420,7 +420,7 @@ public class ModelUtils {
 		if (entityType.hasIdProperty())
 			return getIdPropertyValue(entityType, accessor);
 		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getIdFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).value()), accessor, mappingContext);
+			return getIdFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, mappingContext);
 		return getIdFromProperties(entityType, accessor, mappingContext);
 	}
 	
@@ -440,7 +440,7 @@ public class ModelUtils {
 		if (entityType.hasIdProperty())
 			return getIdPropertyValue(entityType, source);
 		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getIdFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).value()), source);
+			return getIdFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), source);
 		return getIdFromProperties(entityType, source);
 	}
 	

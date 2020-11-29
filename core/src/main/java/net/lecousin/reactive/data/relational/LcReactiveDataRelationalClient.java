@@ -31,7 +31,6 @@ import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.query.operation.Operation;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 import net.lecousin.reactive.data.relational.schema.SchemaBuilderFromEntities;
-import net.lecousin.reactive.data.relational.schema.Table;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -92,27 +91,11 @@ public class LcReactiveDataRelationalClient {
 	}
 
 	public Mono<Void> dropSchemaContent(RelationalDatabaseSchema schema) {
-		try {
-			List<Mono<Integer>> requests = new LinkedList<>();
-			for (Table table : schema.getTables()) {
-				requests.add(client.sql(schemaDialect.dropTable(table, true)).fetch().rowsUpdated());
-			}
-			return Flux.merge(requests).then();
-		} catch (Exception e) {
-			return Mono.error(e);
-		}
+		return schemaDialect.dropSchemaContent(schema).execute(this);
 	}
 	
 	public Mono<Void> createSchemaContent(RelationalDatabaseSchema schema) {
-		try {
-			List<Mono<Integer>> requests = new LinkedList<>();
-			for (Table table : schema.getTables()) {
-				requests.add(client.sql(schemaDialect.createTable(table)).fetch().rowsUpdated());
-			}
-			return Flux.merge(requests).then();
-		} catch (Exception e) {
-			return Mono.error(e);
-		}
+		return schemaDialect.createSchemaContent(schema).execute(this);
 	}
 	
 	public Mono<Void> dropCreateSchemaContent(RelationalDatabaseSchema schema) {

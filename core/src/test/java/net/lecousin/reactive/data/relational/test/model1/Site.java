@@ -8,7 +8,7 @@ import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey.OnForeignDeleted;
 
 @Table
-@CompositeId({ "company", "address" })
+@CompositeId(indexName = "siteId", properties = { "company", "address" })
 public class Site {
 
 	@ForeignKey(optional = false, onForeignDeleted = OnForeignDeleted.DELETE)

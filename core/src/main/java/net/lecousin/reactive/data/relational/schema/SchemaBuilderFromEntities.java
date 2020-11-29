@@ -8,6 +8,7 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
+import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
@@ -37,6 +38,16 @@ public class SchemaBuilderFromEntities {
 		Table table = new Table(entityType.getTableName().toSql(client.getDialect().getIdentifierProcessing()));
 		for (RelationalPersistentProperty property : entityType)
 			table.add(buildColumn(property));
+		CompositeId compositeId = entityType.findAnnotation(CompositeId.class);
+		if (compositeId != null) {
+			Index index = new Index(compositeId.indexName());
+			index.setUnique(true);
+			for (String propertyName : compositeId.properties()) {
+				RelationalPersistentProperty property = entityType.getRequiredPersistentProperty(propertyName);
+				index.addColumn(property.getColumnName().toSql(client.getDialect().getIdentifierProcessing()));
+			}
+			table.add(index);
+		}
 		return table;
 	}
 	

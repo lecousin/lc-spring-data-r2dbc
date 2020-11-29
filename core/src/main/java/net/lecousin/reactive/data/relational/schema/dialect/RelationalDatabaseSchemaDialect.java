@@ -1,9 +1,12 @@
 package net.lecousin.reactive.data.relational.schema.dialect;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
+import net.lecousin.reactive.data.relational.schema.Index;
+import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 import net.lecousin.reactive.data.relational.schema.SchemaException;
 import net.lecousin.reactive.data.relational.schema.Table;
 
@@ -19,7 +22,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public Object convertFromDataBase(Object value, Class<?> targetType) {
 		return value;
-	}	
+	}
 
 	@SuppressWarnings("java:S3776") // complexity
 	public String getColumnType(Column col, Class<?> type, ColumnDefinition def) {
@@ -138,13 +141,40 @@ public abstract class RelationalDatabaseSchemaDialect {
 		return "DATETIME WITH TIME ZONE";
 	}
 	
-	public String dropTable(Table table, boolean ifExists) {
+	public SchemaStatements dropSchemaContent(RelationalDatabaseSchema schema) {
+		SchemaStatements toExecute = new SchemaStatements();
+		for (Table table : schema.getTables()) {
+			String sql = dropTable(table);
+			toExecute.add(new SchemaStatement(sql));
+		}
+		return toExecute;
+	}
+	
+	public String dropTable(Table table) {
 		StringBuilder sql = new StringBuilder();
-		sql.append("DROP TABLE ");
-		if (ifExists)
-			sql.append("IF EXISTS ");
+		sql.append("DROP TABLE IF EXISTS ");
 		sql.append(table.getName());
 		return sql.toString();
+	}
+	
+	public SchemaStatements createSchemaContent(RelationalDatabaseSchema schema) {
+		SchemaStatements toExecute = new SchemaStatements();
+		for (Table table : schema.getTables()) {
+			SchemaStatement createTable = new SchemaStatement(createTable(table));
+			toExecute.add(createTable);
+			for (Index index : table.getIndexes()) {
+				if (canCreateIndexInTableDefinition(index))
+					continue;
+				SchemaStatement createIndex = new SchemaStatement(createIndex(table, index));
+				createIndex.addDependency(createTable);
+				toExecute.add(createIndex);
+			}
+		}
+		return toExecute;
+	}
+	
+	protected boolean canCreateIndexInTableDefinition(Index index) {
+		return false;
 	}
 	
 	public String createTable(Table table) {
@@ -158,6 +188,37 @@ public abstract class RelationalDatabaseSchemaDialect {
 			else
 				sql.append(", ");
 			addColumnDefinition(col, sql);
+		}
+		for (Index index : table.getIndexes()) {
+			if (!canCreateIndexInTableDefinition(index))
+				continue;
+			if (first)
+				first = false;
+			else
+				sql.append(", ");
+			addIndexDefinitionInTable(table, index, sql);
+		}
+		sql.append(')');
+		return sql.toString();
+	}
+	
+	public String createIndex(Table table, Index index) {
+		StringBuilder sql = new StringBuilder();
+		sql.append("CREATE ");
+		if (index.isUnique())
+			sql.append("UNIQUE ");
+		sql.append("INDEX ");
+		sql.append(index.getName());
+		sql.append(" ON ");
+		sql.append(table.getName());
+		sql.append('(');
+		boolean first = true;
+		for (String col : index.getColumns()) {
+			if (first)
+				first = false;
+			else
+				sql.append(',');
+			sql.append(col);
 		}
 		sql.append(')');
 		return sql.toString();
@@ -173,6 +234,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 			addAutoIncrement(col, sql);
 		if (col.isPrimaryKey())
 			addPrimaryKey(col, sql);
+	}
+	
+	protected void addIndexDefinitionInTable(Table table, Index index, StringBuilder sql) {
+		// to be overriden if supported
 	}
 	
 	protected void addNotNull(Column col, StringBuilder sql) {

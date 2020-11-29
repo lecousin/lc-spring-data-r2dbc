@@ -2,6 +2,8 @@ package net.lecousin.reactive.data.relational.mysql;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
+import net.lecousin.reactive.data.relational.schema.Index;
+import net.lecousin.reactive.data.relational.schema.Table;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 
 public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
@@ -49,5 +51,29 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	@Override
 	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
 		return "VARCHAR(100)";
+	}
+	
+	@Override
+	protected boolean canCreateIndexInTableDefinition(Index index) {
+		return true;
+	}
+	
+	@Override
+	protected void addIndexDefinitionInTable(Table table, Index index, StringBuilder sql) {
+		if (index.isUnique())
+			sql.append("CONSTRAINT UNIQUE INDEX ");
+		else
+			sql.append("INDEX ");
+		sql.append(index.getName());
+		sql.append('(');
+		boolean first = true;
+		for (String col : index.getColumns()) {
+			if (first)
+				first = false;
+			else
+				sql.append(',');
+			sql.append(col);
+		}
+		sql.append(')');
 	}
 }
