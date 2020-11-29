@@ -5,6 +5,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
+import reactor.core.publisher.Mono;
 
 @Table
 public class BooleanTypes {
@@ -23,10 +24,6 @@ public class BooleanTypes {
 		return id;
 	}
 
-	public void setId(Long id) {
-		this.id = id;
-	}
-
 	public Boolean getB1() {
 		return b1;
 	}
@@ -43,4 +40,19 @@ public class BooleanTypes {
 		this.b2 = b2;
 	}
 	
+	public String entityLoaded() {
+		return "Not eligible";
+	}
+	
+	public boolean entityLoaded(boolean test) {
+		return test;
+	}
+	
+	public Mono<BooleanTypes> loadEntity(boolean test) {
+		return null;
+	}
+	
+	public boolean loadEntity() {
+		return false;
+	}
 }

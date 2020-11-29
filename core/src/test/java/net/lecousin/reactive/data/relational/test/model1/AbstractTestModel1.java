@@ -115,6 +115,23 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 	}
 	
 	@Test
+	public void testLazyGetArray() {
+		createModel();
+		
+		Company microsoft = repoCompany.findByName("Microsoft").block();
+		Assertions.assertNull(microsoft.getProviders());
+		Assertions.assertEquals(1, microsoft.lazyGetProviders().collectList().block().size());
+		Assertions.assertEquals(1, microsoft.getProviders().length);
+		Assertions.assertEquals(1, microsoft.lazyGetProviders().collectList().block().size());
+		
+		Company google = repoCompany.findByName("Google").block();
+		Assertions.assertNull(google.getProviders());
+		Assertions.assertEquals(2, google.lazyGetProviders().collectList().block().size());
+		Assertions.assertEquals(2, google.getProviders().length);
+		Assertions.assertEquals(2, google.lazyGetProviders().collectList().block().size());
+	}
+	
+	@Test
 	public void testDeleteEmployeeWithLazyLoadedPerson() {
 		createModel();
 

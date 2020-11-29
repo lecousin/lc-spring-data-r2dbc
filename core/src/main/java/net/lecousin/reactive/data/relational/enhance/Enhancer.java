@@ -1,7 +1,6 @@
 package net.lecousin.reactive.data.relational.enhance;
 
 import java.lang.reflect.Field;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -12,6 +11,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
 import javassist.CannotCompileException;
 import javassist.ClassPool;
@@ -26,6 +26,7 @@ import javassist.bytecode.annotation.Annotation;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
+import net.lecousin.reactive.data.relational.model.ModelException;
 import reactor.core.publisher.Mono;
 
 @SuppressWarnings({"squid:S3011"})
@@ -45,10 +46,6 @@ public final class Enhancer {
 		return entities.keySet();
 	}
 
-	public static void enhance(String... entityClasses) {
-		enhance(Arrays.asList(entityClasses));
-	}
-	
 	public static void enhance(Collection<String> entityClasses) {
 		ClassPool classPool = ClassPool.getDefault();
 		
@@ -70,9 +67,14 @@ public final class Enhancer {
 		logger.info("Enhancing entity " + className);
 		try {
 			CtClass cl = classPool.get(className);
-			if (cl.getAttribute(STATE_FIELD_NAME) != null) {
+			if (!cl.hasAnnotation(Table.class))
+				throw new ModelException("Class is not an entity (no @Table annotation): " + className);
+			try {
+				cl.getDeclaredField(STATE_FIELD_NAME);
 				logger.warn("Entity already enhanced: " + className);
 				return;
+			} catch (NotFoundException e) {
+				// ok
 			}
 			cl.defrost();
 

@@ -20,6 +20,10 @@ public class SubEntity2 {
 	
 	@ForeignKey(optional = true, onForeignDeleted = OnForeignDeleted.DELETE)
 	private RootEntity parent;
+	
+	public SubEntity2(String subValue) {
+		this.subValue = subValue;
+	}
 
 	public Long getId() {
 		return id;
@@ -31,10 +35,6 @@ public class SubEntity2 {
 
 	public String getSubValue() {
 		return subValue;
-	}
-
-	public void setSubValue(String subValue) {
-		this.subValue = subValue;
 	}
 
 	public RootEntity getParent() {
