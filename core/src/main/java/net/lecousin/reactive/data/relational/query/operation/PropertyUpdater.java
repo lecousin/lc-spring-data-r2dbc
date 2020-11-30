@@ -19,6 +19,7 @@ import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.relational.core.sql.Update;
 
 import net.lecousin.reactive.data.relational.query.SqlQuery;
+import net.lecousin.reactive.data.relational.sql.ColumnIncrement;
 import reactor.core.publisher.Mono;
 
 class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
@@ -48,6 +49,7 @@ class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
 	protected Mono<Void> executeRequests(Operation op) {
 		List<Mono<Void>> calls = new LinkedList<>();
 		for (Map.Entry<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, Request>>> entity : requests.entrySet()) {
+			RelationalPersistentProperty versionProperty = entity.getKey().getVersionProperty();
 			for (Map.Entry<RelationalPersistentProperty, Map<Object, Request>> property : entity.getValue().entrySet()) {
 				Map<Object, Set<Object>> reverseMap = new HashMap<>();
 				List<Request> ready = new LinkedList<>();
@@ -66,9 +68,13 @@ class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
 					List<Expression> values = new ArrayList<>(update.getValue().size());
 					for (Object value : update.getValue())
 						values.add(query.marker(value));
+					List<AssignValue> assignments = new LinkedList<>();
+					assignments.add(AssignValue.create(Column.create(property.getKey().getColumnName(), table), update.getKey() != null ? query.marker(update.getKey()) : SQL.nullLiteral()));
+					if (versionProperty != null)
+						assignments.add(AssignValue.create(Column.create(versionProperty.getColumnName(), table), SQL.literalOf(new ColumnIncrement(Column.create(versionProperty.getColumnName(), table), op.lcClient))));
 					query.setQuery(
 						Update.builder().table(table)
-						.set(AssignValue.create(Column.create(property.getKey().getColumnName(), table), update.getKey() != null ? query.marker(update.getKey()) : SQL.nullLiteral()))
+						.set(assignments)
 						.where(Conditions.in(Column.create(property.getKey().getColumnName(), table), values))
 						.build()
 					);

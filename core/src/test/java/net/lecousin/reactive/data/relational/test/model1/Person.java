@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.test.model1;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -21,6 +22,9 @@ public class Person {
 
 	@Id @GeneratedValue
 	private Long id;
+	
+	@Version
+	private int version;
 
 	@Column
 	private String firstName;
@@ -43,6 +47,14 @@ public class Person {
 
 	public void setId(Long id) {
 		this.id = id;
+	}
+
+	public int getVersion() {
+		return version;
+	}
+
+	public void setVersion(int version) {
+		this.version = version;
 	}
 
 	public String getFirstName() {
@@ -79,6 +91,10 @@ public class Person {
 	
 	public boolean entityLoaded() {
 		return false;
+	}
+	
+	public Mono<Person> loadEntity() {
+		return null;
 	}
 	
 	public Mono<Employee> lazyGetJob() {

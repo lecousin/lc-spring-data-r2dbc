@@ -1,8 +1,13 @@
 package net.lecousin.reactive.data.relational.test.model1;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -46,9 +51,9 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		addSite(microsoft, createAddress("Street 2", 12345, "Madrid", "ES"), "Microsoft Spain");
 		addSite(microsoft, createAddress("Street 3", 963852, "Marseille", "FR"), "Microsoft France");
 		
-		google.setProviders(new PointOfContact[] { createPOC(google, apple, meganDavis) , createPOC(google, microsoft, jessicaTaylor)});
-		apple.setProviders(new PointOfContact[] { createPOC(apple, microsoft, jamesMiller) });
-		microsoft.setProviders(new PointOfContact[] { createPOC(microsoft, apple, jamesMiller) });
+		google.setProviders(new PointOfContact[] { createPOC(google, apple, meganDavis, "poc1") , createPOC(google, microsoft, jessicaTaylor, "poc2")});
+		apple.setProviders(new PointOfContact[] { createPOC(apple, microsoft, jamesMiller, "poc3") });
+		microsoft.setProviders(new PointOfContact[] { createPOC(microsoft, apple, jamesMiller, "poc4") });
 		
 		google.setOwner(meganDavis);
 		apple.setOwner(jamesMiller);
@@ -56,10 +61,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		
 		repoCompany.saveAll(Arrays.asList(google, apple, microsoft)).collectList().block();
 		
-		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -106,12 +136,74 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		c.getSites().add(s);
 	}
 	
-	private static PointOfContact createPOC(Company owner, Company provider, Person person) {
+	private static PointOfContact createPOC(Company owner, Company provider, Person person, String description) {
 		PointOfContact poc = new PointOfContact();
 		poc.setOwner(owner);
 		poc.setPerson(person);
 		poc.setProvider(provider);
+		poc.setDescription(description);
 		return poc;
+	}
+	
+	private static class ExpectedEntity<T> {
+		private ExpectedValue<T, ?>[] expectedValues;
+		
+		@SafeVarargs
+		public ExpectedEntity(ExpectedValue<T, ?>... expectedValues) {
+			this.expectedValues = expectedValues;
+		}
+	}
+	
+	private static class ExpectedValue<S, T> {
+		private Function<S, T> supplier;
+		private T expected;
+		
+		public ExpectedValue(Function<S, T> supplier, T expected) {
+			this.supplier = supplier;
+			this.expected = expected;
+		}
+	}
+	
+	@SafeVarargs
+	private <T> void expectEntities(Class<T> type, ExpectedEntity<T>... expected) {
+		List<T> found =  SelectQuery.from(type, "entity").execute(lcClient).collectList().block();
+		Assertions.assertEquals(expected.length, found.size());
+		ArrayList<ExpectedEntity<T>> expectedEntities = new ArrayList<>(expected.length);
+		Collections.addAll(expectedEntities, expected);
+		for (T entity : found) {
+			boolean matchFound = false;
+			StringBuilder valuesFound = new StringBuilder();
+			boolean first = true;
+			for (Iterator<ExpectedEntity<T>> it = expectedEntities.iterator(); it.hasNext(); ) {
+				ExpectedEntity<T> expectedEntity = it.next();
+				boolean match = true;
+				for (ExpectedValue<T, ?> expectedValue : expectedEntity.expectedValues) {
+					Object value = expectedValue.supplier.apply(entity);
+					if (first)
+						valuesFound.append('<').append(value).append('>');
+					if (!Objects.equals(value, expectedValue.expected))
+						match = false;
+				}
+				first = false;
+				if (match) {
+					it.remove();
+					matchFound = true;
+					break;
+				}
+			}
+			if (!matchFound) {
+				StringBuilder error = new StringBuilder();
+				error.append("Unexpected ").append(type.getSimpleName()).append(" with values ").append(valuesFound);
+				for (ExpectedEntity<T> expectedEntity : expectedEntities) {
+					error.append("\n - ");
+					for (ExpectedValue<T, ?> expectedValue : expectedEntity.expectedValues)
+						error.append('<').append(expectedValue.expected).append('>');
+				}
+				throw new AssertionError(error.toString());
+			}
+		}
+		if (!expectedEntities.isEmpty())
+			throw new AssertionError();
 	}
 	
 	@Test
@@ -145,10 +237,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		// delete employee
 		lcClient.delete(employee).block();
 
-		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4 - 1, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily"))
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 
@@ -169,10 +286,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Company google = repoCompany.findByName("Google").block();
 		repoCompany.delete(google).block();
 
-		Assertions.assertEquals(3 - 1, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4 - 2, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4 - 2, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			//new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7 - 1, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5 - 1, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -188,10 +330,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Assertions.assertNotNull(lazyPoc);
 		lcClient.delete(lazyPoc).block();
 
-		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4 - 1, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -207,10 +374,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		
 		Assertions.assertEquals(0, microsoft.getProviders().length);
 
-		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4 - 1, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -228,10 +420,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		
 		Assertions.assertEquals(0, microsoft.getSites().size());
 
-		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7 - 2, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5 - 2, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -245,10 +462,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Person jessica = persons.get(0);
 		repoPerson.delete(jessica).block();
 		
-		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4 - 1, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6 - 1, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily"))
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			//new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, null), new ExpectedValue<>(PointOfContact::getVersion, 2)), // version 2
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7 - 1, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -261,10 +503,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Person jessica = microsoft.lazyGetEmployees().collectList().block().get(0).getPerson();
 		repoPerson.delete(jessica).block();
 		
-		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4 - 1, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6 - 1, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily"))
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			//new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, null), new ExpectedValue<>(PointOfContact::getVersion, 2)), // version 2
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7 - 1, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -372,10 +639,35 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		company.setProviders(null);
 		repoCompany.save(company).block();
 
-		Assertions.assertEquals(3, SelectQuery.from(Company.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4, SelectQuery.from(Employee.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(6, SelectQuery.from(Person.class, "entity").execute(lcClient).collectList().block().size());
-		Assertions.assertEquals(4 - 2, SelectQuery.from(PointOfContact.class, "entity").execute(lcClient).collectList().block().size());
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
 	}
@@ -390,6 +682,7 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Assertions.assertNotNull(owner);
 		Assertions.assertNotNull(owner.getOwningCompany());
 		Assertions.assertTrue(company == owner.getOwningCompany());
+		Assertions.assertEquals("Megan", owner.getFirstName());
 		owner.setOwningCompany(null);
 		repoPerson.save(owner).block();
 		
@@ -397,6 +690,36 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		companies = repoCompany.findAllWithJoins().collectList().block();
 		company = companies.stream().filter(e -> "Google".equals(e.getName())).findFirst().get();
 		Assertions.assertNull(company.getOwner());
+
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L + 1)), // version 2
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 	}
 	
 	@Test

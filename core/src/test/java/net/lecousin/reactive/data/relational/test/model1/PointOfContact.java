@@ -1,6 +1,8 @@
 package net.lecousin.reactive.data.relational.test.model1;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
@@ -13,6 +15,9 @@ public class PointOfContact {
 	@Id @GeneratedValue
 	private Long id;
 	
+	@Version
+	private Integer version;
+	
 	@ForeignKey(optional = false, onForeignDeleted = OnForeignDeleted.DELETE)
 	private Company owner;
 	
@@ -21,6 +26,9 @@ public class PointOfContact {
 	
 	@ForeignKey(optional = true, onForeignDeleted = OnForeignDeleted.SET_TO_NULL)
 	private Person person;
+	
+	@Column
+	private String description;
 
 	public Long getId() {
 		return id;
@@ -28,6 +36,14 @@ public class PointOfContact {
 
 	public void setId(Long id) {
 		this.id = id;
+	}
+
+	public Integer getVersion() {
+		return version;
+	}
+
+	public void setVersion(Integer version) {
+		this.version = version;
 	}
 
 	public Company getOwner() {
@@ -52,6 +68,14 @@ public class PointOfContact {
 
 	public void setPerson(Person person) {
 		this.person = person;
+	}
+
+	public String getDescription() {
+		return description;
+	}
+
+	public void setDescription(String description) {
+		this.description = description;
 	}
 
 }

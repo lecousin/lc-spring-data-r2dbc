@@ -3,6 +3,7 @@ package net.lecousin.reactive.data.relational.test.model1;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Table;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -12,6 +13,7 @@ import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 import net.lecousin.reactive.data.relational.annotations.Index;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Table
 @Index(name = "companyName", properties = { "name" }, unique = true)
@@ -22,6 +24,9 @@ public class Company {
 	
 	@ColumnDefinition(min = 1, max = 100, nullable = false)
 	private String name;
+	
+	@Version
+	private Long version;
 	
 	@ForeignTable(joinKey = "company")
 	private List<Employee> employees;
@@ -51,6 +56,14 @@ public class Company {
 		this.name = name;
 	}
 
+	public Long getVersion() {
+		return version;
+	}
+
+	public void setVersion(Long version) {
+		this.version = version;
+	}
+
 	public List<Employee> getEmployees() {
 		return employees;
 	}
@@ -73,6 +86,10 @@ public class Company {
 
 	public void setProviders(PointOfContact[] providers) {
 		this.providers = providers;
+	}
+	
+	public Mono<Company> loadEntity() {
+		return null;
 	}
 	
 	public Flux<Employee> lazyGetEmployees() {

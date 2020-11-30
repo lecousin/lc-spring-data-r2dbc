@@ -202,7 +202,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 				} else if (property.isWritable()) { 
 					if (request.entityType.isVersionProperty(property)) {
 						// Version 1 for an insert
-						request.accessor.setProperty(property, 1L);
+						request.accessor.setProperty(property, op.lcClient.getMapper().getConversionService().convert(1L, property.getType()));
 					}
 					writer.writeProperty(row, property, request.accessor);
 				}
@@ -270,7 +270,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 					return Mono.just(updatedRows);
 				});
 			return rowsUpdated;
-		}).flatMap(updatedRows -> updatedRows != null ? updatedRows.thenReturn(request.instance).doOnSuccess(e -> entityUpdated(request)) : Mono.just(request.instance));
+		}).flatMap(updatedRows -> updatedRows != null ? updatedRows.thenReturn(request.instance).doOnSuccess(e -> entityUpdated(op, request)) : Mono.just(request.instance));
 	}
 	
 	private static void prepareUpdate(SaveRequest request, Table table, List<AssignValue> assignments, OutboundRow row, LcEntityWriter writer, SqlQuery<Update> query) {
@@ -286,11 +286,11 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		}
 	}
 	
-	private static void entityUpdated(SaveRequest request) {
+	private static void entityUpdated(Operation op, SaveRequest request) {
 		request.state.load(request.instance);
 		if (request.entityType.hasVersionProperty()) {
 			RelationalPersistentProperty property = request.entityType.getRequiredVersionProperty();
-			request.accessor.setProperty(property, ((Long)request.accessor.getProperty(property)) + 1);
+			request.accessor.setProperty(property, op.lcClient.getMapper().getConversionService().convert(((Number)request.accessor.getProperty(property)).longValue() + 1, property.getType()));
 		}
 	}
 	
