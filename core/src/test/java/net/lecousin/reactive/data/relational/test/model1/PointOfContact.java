@@ -19,7 +19,7 @@ public class PointOfContact {
 	@ForeignKey(optional = false, onForeignDeleted = OnForeignDeleted.DELETE)
 	private Company provider;
 	
-	@ForeignKey(optional = false, onForeignDeleted = OnForeignDeleted.SET_TO_NULL)
+	@ForeignKey(optional = true, onForeignDeleted = OnForeignDeleted.SET_TO_NULL)
 	private Person person;
 
 	public Long getId() {

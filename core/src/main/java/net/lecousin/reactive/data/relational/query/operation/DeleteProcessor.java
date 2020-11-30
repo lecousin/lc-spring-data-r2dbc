@@ -72,25 +72,13 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 				if (ftField != null)
 					continue;
 				
-				processForeignNotLinked(op, request, entity, fkProperty);
+				ForeignKey fkAnnotation = fkProperty.getRequiredAnnotation(ForeignKey.class);
+				processForeignTableField(op, request, null, null, null, false, entity, fkProperty, fkAnnotation);
 			}
 		}
 		return true;
 	}
 	
-	@SuppressWarnings("unchecked")
-	private <T> void processForeignNotLinked(Operation op, DeleteRequest request, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty) {
-		Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
-		if (!hasOtherLinks(op, foreignEntity.getType(), fkProperty.getName())) {
-			// can do delete where fk in (ids)
-			request.dependsOn(op.deleteWithoutLoading.addRequest(foreignEntity, fkProperty, instId));
-		} else {
-			// need to retrieve the entity from database, then process them to be deleted
-			op.loader.retrieve(foreignEntity, fkProperty, instId, loaded -> request.dependsOn(addToProcess(op, (T) loaded, foreignEntity, null, null)));
-		}
-
-	}
-
 	@Override
 	@SuppressWarnings("java:S3011")
 	protected void processForeignKey(
@@ -166,10 +154,10 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 	@Override
 	protected <T> void processForeignTableField(
 		Operation op, DeleteRequest request,
-		Field foreignTableField, ForeignTable foreignTableAnnotation, MutableObject<?> foreignFieldValue, boolean isCollection,
+		@Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation, @Nullable MutableObject<?> foreignFieldValue, boolean isCollection,
 		RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
 	) {
-		if (fkAnnotation.optional() && fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.SET_TO_NULL)) {
+		if (fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.SET_TO_NULL)) {
 			// update to null
 			Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
 			request.dependsOn(op.updater.update(foreignEntity, fkProperty, instId, null));
@@ -197,7 +185,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 		} else {
 			// foreign not loaded
 			Object instId = ModelUtils.getRequiredId(request.instance, request.entityType, request.accessor);
-			if (!hasOtherLinks(op, foreignEntity.getType(), foreignTableAnnotation.joinKey())) {
+			if (!hasOtherLinks(op, foreignEntity.getType(), fkProperty.getName())) {
 				// can do delete where fk in (ids)
 				request.dependsOn(op.deleteWithoutLoading.addRequest(foreignEntity, fkProperty, instId));
 			} else {

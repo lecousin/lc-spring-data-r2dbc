@@ -120,7 +120,7 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 	protected abstract void processForeignKey(Operation op, R request, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation, @Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation);
 	
 	@SuppressWarnings("java:S107")
-	protected abstract <T> void processForeignTableField(Operation op, R request, Field foreignTableField, ForeignTable foreignTableAnnotation, MutableObject<?> foreignFieldValue, boolean isCollection, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation);
+	protected abstract <T> void processForeignTableField(Operation op, R request, Field foreignTableField, ForeignTable foreignTableAnnotation, @Nullable MutableObject<?> foreignFieldValue, boolean isCollection, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation);
 	
 	@SuppressWarnings({ "java:S3824", "unchecked" })
 	private <T> R addRequest(Operation op, T instance, @Nullable RelationalPersistentEntity<T> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {

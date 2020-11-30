@@ -23,7 +23,9 @@ public @interface ForeignKey {
 	
 	/**
 	 * Specifies if the link is optional or not.
-	 * In other words, an optional foreign key is nullable.
+	 * In other words, an optional foreign key is nullable.<br/>
+	 * This is almost the same as onForeignDeleted, but we may want an optional link to be deleted on forein deleted,
+	 * for example in a tree, the root is nullable, but if a parent is deleted we want the children to be deleted.
 	 */
 	boolean optional() default false;
 	
