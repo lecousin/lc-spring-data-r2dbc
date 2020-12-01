@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Table;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 
-@Table
+@Table("usr")
 public class User {
 
 	@Id @GeneratedValue
