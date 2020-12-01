@@ -170,6 +170,7 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		Assertions.assertEquals(expected.length, found.size());
 		ArrayList<ExpectedEntity<T>> expectedEntities = new ArrayList<>(expected.length);
 		Collections.addAll(expectedEntities, expected);
+		StringBuilder error = new StringBuilder();
 		for (T entity : found) {
 			boolean matchFound = false;
 			StringBuilder valuesFound = new StringBuilder();
@@ -192,18 +193,26 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 				}
 			}
 			if (!matchFound) {
-				StringBuilder error = new StringBuilder();
 				error.append("Unexpected ").append(type.getSimpleName()).append(" with values ").append(valuesFound);
 				for (ExpectedEntity<T> expectedEntity : expectedEntities) {
 					error.append("\n - ");
 					for (ExpectedValue<T, ?> expectedValue : expectedEntity.expectedValues)
 						error.append('<').append(expectedValue.expected).append('>');
 				}
-				throw new AssertionError(error.toString());
+				error.append('\n');
 			}
 		}
-		if (!expectedEntities.isEmpty())
-			throw new AssertionError();
+		if (!expectedEntities.isEmpty()) {
+			error.append("Remaining expected entities: ");
+			for (ExpectedEntity<T> expectedEntity : expectedEntities) {
+				error.append("\n - ");
+				for (ExpectedValue<T, ?> expectedValue : expectedEntity.expectedValues)
+					error.append('<').append(expectedValue.expected).append('>');
+			}
+			error.append('\n');
+		}
+		if (error.length() > 0)
+			throw new AssertionError(error.toString());
 	}
 	
 	@Test
@@ -751,6 +760,56 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		} catch (Exception e) {
 			// expected
 		}
+	}
+	
+	@Test
+	public void testRemovePersonFromUserAndUpdatePointOfContactInSameOperation() {
+		createModel();
+		
+		// create user
+		User user = new User();
+		user.setUsername("abcd");
+		user.setPerson(repoPerson.findByFirstName("Jessica").blockFirst());
+		user = lcClient.save(user).block();
+		
+		// this will delete the person, which imply an update to null in the point of contact
+		user.setPerson(null);
+		// we do another change in the point of contact
+		PointOfContact poc = SelectQuery.from(PointOfContact.class, "poc").where(Criteria.property("poc", "description").is("poc2")).execute(lcClient).blockFirst();
+		poc.setDescription("poc2.2");
+		poc.setPerson(null);
+		
+		lcClient.saveAll(user, poc).block();
+		
+		expectEntities(
+			Company.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Google"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Microsoft"), new ExpectedValue<>(Company::getVersion, 1L)),
+			new ExpectedEntity<>(new ExpectedValue<>(Company::getName, "Apple"), new ExpectedValue<>(Company::getVersion, 1L))
+		);
+		expectEntities(
+			Employee.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "John")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Joe")),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Emily"))
+			//new ExpectedEntity<>(new ExpectedValue<>(e -> e.getCompany().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson().loadEntity().block().getFirstName(), "Jessica"))
+		);
+		expectEntities(
+			Person.class,
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "John"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Joe"), new ExpectedValue<>(Person::getLastName, "Smith"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Emily"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			//new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Jessica"), new ExpectedValue<>(Person::getLastName, "Taylor"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "Megan"), new ExpectedValue<>(Person::getLastName, "Davis"), new ExpectedValue<>(Person::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(Person::getFirstName, "James"), new ExpectedValue<>(Person::getLastName, "Miller"), new ExpectedValue<>(Person::getVersion, 1))
+		);
+		expectEntities(
+			PointOfContact.class,
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "Megan"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Google"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, null), new ExpectedValue<>(PointOfContact::getVersion, 2), new ExpectedValue<>(PointOfContact::getDescription, "poc2.2")), // version 2
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "James"), new ExpectedValue<>(PointOfContact::getVersion, 1)),
+			new ExpectedEntity<>(new ExpectedValue<>(e -> e.getOwner().loadEntity().block().getName(), "Microsoft"), new ExpectedValue<>(e -> e.getProvider().loadEntity().block().getName(), "Apple"), new ExpectedValue<>(e -> e.getPerson() != null ? e.getPerson().loadEntity().block().getFirstName() : null, "James"), new ExpectedValue<>(PointOfContact::getVersion, 1))
+		);
 	}
 
 }

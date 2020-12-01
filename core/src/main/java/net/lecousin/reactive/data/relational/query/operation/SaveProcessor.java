@@ -44,6 +44,8 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 
 		<T> SaveRequest(RelationalPersistentEntity<T> entityType, T instance, EntityState state, PersistentPropertyAccessor<T> accessor) {
 			super(entityType, instance, state, accessor);
+			if (!this.state.isLoaded() && this.state.isPersisted())
+				this.toProcess = false;
 		}
 		
 	}
@@ -74,8 +76,6 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			if ((foreignTableAnnotation != null && !foreignTableAnnotation.optional()) || fkAnnotation.cascadeDelete()) {
 				// not optional specified on ForeignTable, or cascadeDelete -> this is a delete
 				op.addToDelete(originalValue, null, null, null);
-			} else {
-				op.addToSave(originalValue, null, null, null);
 			}
 		}
 		if (value != null) {
@@ -250,9 +250,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
 				assignments.add(AssignValue.create(Column.create(entry.getKey(), table), entry.getValue().getValue() != null ? query.marker(entry.getValue().getValue()) : SQL.nullLiteral()));
 
-			RelationalPersistentProperty idProperty = request.entityType.getRequiredIdProperty();
-			Object id = request.accessor.getProperty(idProperty);
-			Condition criteria = Conditions.isEqual(Column.create(idProperty.getColumnName(), table), query.marker(id));
+			Condition criteria = ModelUtils.getConditionOnId(query, request.entityType, request.accessor, op.lcClient.getMappingContext());
 			
 			if (request.entityType.hasVersionProperty()) {
 				RelationalPersistentProperty property = request.entityType.getRequiredVersionProperty();
@@ -277,7 +275,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		for (RelationalPersistentProperty property : request.entityType) {
 			if (request.entityType.isVersionProperty(property)) {
 				Object value = request.accessor.getProperty(property);
-				Assert.notNull(value, "Version must not be null");
+				Assert.notNull(value, "Version must not be null (property " + property.getName() + " on " + request.entityType.getType().getSimpleName() + ")");
 				long currentVersion = ((Number)value).longValue();
 				assignments.add(AssignValue.create(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion + 1))));
 			} else if (!property.isIdProperty() && request.state.isFieldModified(property.getName()) && property.isWritable()) {

@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,11 @@ import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
+import org.springframework.data.relational.core.sql.Column;
+import org.springframework.data.relational.core.sql.Condition;
+import org.springframework.data.relational.core.sql.Conditions;
+import org.springframework.data.relational.core.sql.SQL;
+import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.util.Pair;
 import org.springframework.lang.Nullable;
 
@@ -27,6 +33,8 @@ import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
+import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.query.SqlQuery;
 
 public class ModelUtils {
 	
@@ -409,6 +417,17 @@ public class ModelUtils {
 		return value;
 	}
 	
+	public static Object getPersistedDatabaseValue(EntityState state, RelationalPersistentProperty property, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+		Object value = state.getPersistedValue(property.getName());
+		if (value == null)
+			return null;
+		if (property.isAnnotationPresent(ForeignKey.class)) {
+			RelationalPersistentEntity<?> e = mappingContext.getRequiredPersistentEntity(value.getClass());
+			value = e.getPropertyAccessor(value).getProperty(e.getRequiredIdProperty());
+		}
+		return value;
+	}
+	
 	public static List<RelationalPersistentProperty> getProperties(RelationalPersistentEntity<?> entityType, String... names) {
 		ArrayList<RelationalPersistentProperty> list = new ArrayList<>(names.length);
 		for (String name : names)
@@ -454,6 +473,27 @@ public class ModelUtils {
 			id.add(property.getName(), source.getPropertyValue(property));
 		}
 		return id;
+	}
+	
+	public static Condition getConditionOnId(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+		if (entityType.hasIdProperty())
+			return getConditionOnProperties(query, entityType, Arrays.asList(entityType.getRequiredIdProperty()), accessor, mappingContext);
+		if (entityType.isAnnotationPresent(CompositeId.class))
+			return getConditionOnProperties(query, entityType, getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, mappingContext);
+		return getConditionOnProperties(query, entityType, entityType, accessor, mappingContext);
+	}
+	
+	public static Condition getConditionOnProperties(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+		Iterator<RelationalPersistentProperty> it = properties.iterator();
+		Condition condition = null;
+		Table table = Table.create(entityType.getTableName());
+		do {
+			RelationalPersistentProperty property = it.next();
+			Object value = getDatabaseValue(accessor.getBean(), property, mappingContext);
+			Condition propertyCondition = Conditions.isEqual(Column.create(property.getColumnName(), table), value != null ? query.marker(value) : SQL.nullLiteral());
+			condition = condition != null ? condition.and(propertyCondition) : propertyCondition;
+		} while (it.hasNext());
+		return condition;
 	}
 	
 }

@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -148,6 +149,21 @@ public class LcReactiveDataRelationalClient {
 			.flatMap(m -> m)
 			.thenReturn(list)
 			.flatMapMany(Flux::fromIterable);
+	}
+	
+	public Mono<Void> saveAll(Iterable<Object> entities) {
+		Iterator<Object> it = entities.iterator();
+		if (!it.hasNext())
+			return Mono.empty();
+		Operation op = new Operation(this);
+		do {
+			op.addToSave(it.next(), null, null, null);
+		} while (it.hasNext());
+		return op.execute();
+	}
+	
+	public Mono<Void> saveAll(Object... entities) {
+		return saveAll(Arrays.asList(entities));
 	}
 	
 	public <T> Mono<T> lazyLoad(T entity) {

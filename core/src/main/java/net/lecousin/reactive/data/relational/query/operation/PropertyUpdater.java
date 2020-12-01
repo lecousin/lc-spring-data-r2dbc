@@ -12,13 +12,16 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentEnti
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.AssignValue;
 import org.springframework.data.relational.core.sql.Column;
+import org.springframework.data.relational.core.sql.Condition;
 import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.relational.core.sql.Update;
 
+import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
+import net.lecousin.reactive.data.relational.query.operation.SaveProcessor.SaveRequest;
 import net.lecousin.reactive.data.relational.sql.ColumnIncrement;
 import reactor.core.publisher.Mono;
 
@@ -72,10 +75,16 @@ class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
 					assignments.add(AssignValue.create(Column.create(property.getKey().getColumnName(), table), update.getKey() != null ? query.marker(update.getKey()) : SQL.nullLiteral()));
 					if (versionProperty != null)
 						assignments.add(AssignValue.create(Column.create(versionProperty.getColumnName(), table), SQL.literalOf(new ColumnIncrement(Column.create(versionProperty.getColumnName(), table), op.lcClient))));
+					Condition where = Conditions.in(Column.create(property.getKey().getColumnName(), table), values);
+					for (SaveRequest save : op.save.getPendingRequests(entity.getKey(), s -> update.getValue().contains(ModelUtils.getPersistedDatabaseValue(s.state, property.getKey(), op.lcClient.getMappingContext())))) {
+						if (save.state.isPersisted())
+							where = where.and(ModelUtils.getConditionOnId(query, save.entityType, save.accessor, op.lcClient.getMappingContext()).not());
+						save.accessor.setProperty(property.getKey(), update.getKey());
+					}
 					query.setQuery(
 						Update.builder().table(table)
 						.set(assignments)
-						.where(Conditions.in(Column.create(property.getKey().getColumnName(), table), values))
+						.where(where)
 						.build()
 					);
 					calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));

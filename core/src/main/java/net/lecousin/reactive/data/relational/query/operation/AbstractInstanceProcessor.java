@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
@@ -61,6 +62,18 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 		R request = addRequest(op, instance, entity, state, accessor);
 		request.toProcess = false;
 		return request;
+	}
+	
+	List<R> getPendingRequests(RelationalPersistentEntity<?> entity, Predicate<R> predicate) {
+		List<R> list = new LinkedList<>();
+		Map<Object, R> map = requests.get(entity);
+		if (map == null)
+			return list;
+		for (R request : map.values()) {
+			if (request.toProcess && !request.executed && request.state.isPersisted() && request.state.isLoaded() && predicate.test(request))
+				list.add(request);
+		}
+		return list;
 	}
 	
 	boolean processRequests(Operation op) {

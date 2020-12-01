@@ -30,3 +30,4 @@ entities:
       - PointOfContact
       - PostalAddress
       - Site
+      - User
