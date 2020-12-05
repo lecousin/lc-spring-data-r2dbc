@@ -2,9 +2,11 @@ package net.lecousin.reactive.data.relational.schema.dialect;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
@@ -194,25 +196,42 @@ public abstract class RelationalDatabaseSchemaDialect {
 		SchemaStatement latestAlterTable = null;
 		for (Table table : schema.getTables()) {
 			LinkedList<SchemaStatement> alterTableList = new LinkedList<>();
+			StringBuilder sql = new StringBuilder();
+			Set<Table> foreignTables = new HashSet<>();
 			for (Column col : table.getColumns()) {
 				if (col.getForeignKeyReferences() == null)
 					continue;
-				SchemaStatement alterTable = new SchemaStatement(alterTableForeignKey(table, col));
-				alterTable.addDependency(createTableMap.get(table));
-				Table foreign = col.getForeignKeyReferences().getFirst();
-				if (foreign != table)
-					alterTable.addDependency(createTableMap.get(foreign));
-				if (canDoConcurrentAlterTable()) {
-					if (!alterTableList.isEmpty())
-						alterTable.addDependency(alterTableList.getLast());
-					alterTableList.addLast(alterTable);
-					if (foreign != table)
-						foreignTable.put(alterTable, table);
+				if (canAddMultipleConstraintsInSingleAlterTable()) {
+					if (sql.length() > 0)
+						appendForeignKey(table, col, sql);
+					else
+						sql.append(alterTableForeignKey(table, col));
+					foreignTables.add(col.getForeignKeyReferences().getFirst());
 				} else {
-					if (latestAlterTable != null)
-						alterTable.addDependency(latestAlterTable);
-					latestAlterTable = alterTable;
+					SchemaStatement alterTable = new SchemaStatement(alterTableForeignKey(table, col));
+					alterTable.addDependency(createTableMap.get(table));
+					Table foreign = col.getForeignKeyReferences().getFirst();
+					if (foreign != table)
+						alterTable.addDependency(createTableMap.get(foreign));
+					if (canDoConcurrentAlterTable()) {
+						if (!alterTableList.isEmpty())
+							alterTable.addDependency(alterTableList.getLast());
+						alterTableList.addLast(alterTable);
+						if (foreign != table)
+							foreignTable.put(alterTable, table);
+					} else {
+						if (latestAlterTable != null)
+							alterTable.addDependency(latestAlterTable);
+						latestAlterTable = alterTable;
+					}
+					toExecute.add(alterTable);
 				}
+			}
+			if (canAddMultipleConstraintsInSingleAlterTable() && sql.length() > 0) {
+				SchemaStatement alterTable = new SchemaStatement(sql.toString());
+				alterTable.addDependency(createTableMap.get(table));
+				for (Table foreign : foreignTables)
+					alterTable.addDependency(createTableMap.get(foreign));
 				toExecute.add(alterTable);
 			}
 			alterTableByTable.put(table, alterTableList);
@@ -227,6 +246,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	protected boolean canDoConcurrentAlterTable() {
 		return true;
+	}
+	
+	protected boolean canAddMultipleConstraintsInSingleAlterTable() {
+		return false;
 	}
 	
 	protected boolean canCreateIndexInTableDefinition(Index index) {
@@ -309,6 +332,11 @@ public abstract class RelationalDatabaseSchemaDialect {
 		StringBuilder sql = new StringBuilder();
 		sql.append("ALTER TABLE ");
 		sql.append(table.getName());
+		addForeignKeyStatement(table, col, sql);
+		return sql.toString();
+	}
+	
+	protected void addForeignKeyStatement(Table table, Column col, StringBuilder sql) {
 		sql.append(" ADD FOREIGN KEY (");
 		sql.append(col.getName());
 		sql.append(") REFERENCES ");
@@ -316,6 +344,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 		sql.append('(');
 		sql.append(col.getForeignKeyReferences().getSecond().getName());
 		sql.append(')');
-		return sql.toString();
+	}
+	
+	protected void appendForeignKey(Table table, Column col, StringBuilder sql) {
+		sql.append(',');
+		addForeignKeyStatement(table, col, sql);
 	}
 }

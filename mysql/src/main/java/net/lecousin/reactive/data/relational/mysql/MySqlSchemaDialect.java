@@ -81,4 +81,9 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	protected boolean canDoConcurrentAlterTable() {
 		return false;
 	}
+	
+	@Override
+	protected boolean canAddMultipleConstraintsInSingleAlterTable() {
+		return true;
+	}
 }
