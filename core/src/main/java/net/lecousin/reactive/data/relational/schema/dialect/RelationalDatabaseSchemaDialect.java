@@ -189,18 +189,30 @@ public abstract class RelationalDatabaseSchemaDialect {
 			}
 		}
 		// add foreign keys
-		SchemaStatement previousAlter = null;
+		Map<Table, List<SchemaStatement>> alterTableByTable = new HashMap<>();
+		Map<SchemaStatement, Table> foreignTable = new HashMap<>();
 		for (Table table : schema.getTables()) {
+			LinkedList<SchemaStatement> alterTableList = new LinkedList<>();
 			for (Column col : table.getColumns()) {
 				if (col.getForeignKeyReferences() == null)
 					continue;
 				SchemaStatement alterTable = new SchemaStatement(alterTableForeignKey(table, col));
 				alterTable.addDependency(createTableMap.get(table));
-				alterTable.addDependency(createTableMap.get(col.getForeignKeyReferences().getFirst()));
-				if (previousAlter != null)
-					alterTable.addDependency(previousAlter);
-				previousAlter = alterTable;
+				Table foreign = col.getForeignKeyReferences().getFirst();
+				if (foreign != table)
+					alterTable.addDependency(createTableMap.get(foreign));
+				if (!alterTableList.isEmpty())
+					alterTable.addDependency(alterTableList.getLast());
+				alterTableList.addLast(alterTable);
+				if (foreign != table)
+					foreignTable.put(alterTable, table);
 				toExecute.add(alterTable);
+			}
+			alterTableByTable.put(table, alterTableList);
+		}
+		for (Map.Entry<SchemaStatement, Table> entry : foreignTable.entrySet()) {
+			for (SchemaStatement statement : alterTableByTable.get(entry.getValue())) {
+				entry.getKey().doNotExecuteTogether(statement);
 			}
 		}
 		return toExecute;

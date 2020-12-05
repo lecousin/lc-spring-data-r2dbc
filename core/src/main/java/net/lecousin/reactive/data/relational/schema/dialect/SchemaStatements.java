@@ -29,7 +29,7 @@ public class SchemaStatements {
 		List<SchemaStatement> ready = new LinkedList<>();
 		for (Iterator<SchemaStatement> it = statements.iterator(); it.hasNext(); ) {
 			SchemaStatement s = it.next();
-			if (s.hasDependency())
+			if (s.hasDependency() || !s.canExecuteWith(ready))
 				continue;
 			ready.add(s);
 			it.remove();
