@@ -198,6 +198,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 			LinkedList<SchemaStatement> alterTableList = new LinkedList<>();
 			StringBuilder sql = new StringBuilder();
 			Set<Table> foreignTables = new HashSet<>();
+			foreignTables.add(table);
 			for (Column col : table.getColumns()) {
 				if (col.getForeignKeyReferences() == null)
 					continue;
@@ -229,9 +230,13 @@ public abstract class RelationalDatabaseSchemaDialect {
 			}
 			if (canAddMultipleConstraintsInSingleAlterTable() && sql.length() > 0) {
 				SchemaStatement alterTable = new SchemaStatement(sql.toString());
-				alterTable.addDependency(createTableMap.get(table));
 				for (Table foreign : foreignTables)
 					alterTable.addDependency(createTableMap.get(foreign));
+				if (!canDoConcurrentAlterTable()) {
+					if (latestAlterTable != null)
+						alterTable.addDependency(latestAlterTable);
+					latestAlterTable = alterTable;
+				}
 				toExecute.add(alterTable);
 			}
 			alterTableByTable.put(table, alterTableList);
