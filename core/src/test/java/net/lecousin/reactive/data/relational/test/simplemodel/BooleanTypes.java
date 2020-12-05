@@ -48,7 +48,7 @@ public class BooleanTypes {
 		return test;
 	}
 	
-	public Mono<BooleanTypes> loadEntity(boolean test) {
+	public Mono<BooleanTypes> loadEntity(@SuppressWarnings("unused") boolean test) {
 		return null;
 	}
 	

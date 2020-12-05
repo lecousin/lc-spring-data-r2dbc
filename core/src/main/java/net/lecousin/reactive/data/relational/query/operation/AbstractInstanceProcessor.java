@@ -79,7 +79,7 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 	boolean processRequests(Operation op) {
 		boolean somethingProcessed = false;
 		for (Map<Object, R> map : new ArrayList<>(requests.values()))
-			for (R request : map.values()) {
+			for (R request : new ArrayList<>(map.values())) {
 				somethingProcessed |= process(op, request);
 			}
 		return somethingProcessed;

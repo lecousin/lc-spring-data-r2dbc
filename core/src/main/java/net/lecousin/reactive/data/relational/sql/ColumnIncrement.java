@@ -2,8 +2,10 @@ package net.lecousin.reactive.data.relational.sql;
 
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.SqlIdentifier;
+import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.relational.core.sql.render.RenderContext;
 import org.springframework.data.relational.core.sql.render.RenderNamingStrategy;
+import org.springframework.util.Assert;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 
@@ -23,8 +25,12 @@ public class ColumnIncrement {
 	@Override
 	public String toString() {
 		RenderContext context = client.getDataAccess().getStatementMapper().getRenderContext();
+		Assert.notNull(context, "RenderContext must not be null");
 		RenderNamingStrategy namingStrategy = context.getNamingStrategy();
-		SqlIdentifier columnIdentifier = SqlIdentifier.from(namingStrategy.getReferenceName(column.getTable()), namingStrategy.getReferenceName(column));
+		Assert.notNull(namingStrategy, "RenderNamingStrategy must not be null");
+		Table table = column.getTable();
+		Assert.notNull(table, "Table in Column must not be null");
+		SqlIdentifier columnIdentifier = SqlIdentifier.from(namingStrategy.getReferenceName(table), namingStrategy.getReferenceName(column));
 		return columnIdentifier.toSql(context.getIdentifierProcessing()) + " + 1";
 	}
 

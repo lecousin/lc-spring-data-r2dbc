@@ -32,3 +32,5 @@ entities:
       - PostalAddress
       - Site
       - User
+    - treemodel:
+      - Node

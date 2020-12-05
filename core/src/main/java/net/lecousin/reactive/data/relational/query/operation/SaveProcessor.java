@@ -292,7 +292,9 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		request.state.load(request.instance);
 		if (request.entityType.hasVersionProperty()) {
 			RelationalPersistentProperty property = request.entityType.getRequiredVersionProperty();
-			request.accessor.setProperty(property, op.lcClient.getMapper().getConversionService().convert(((Number)request.accessor.getProperty(property)).longValue() + 1, property.getType()));
+			Object version = request.accessor.getProperty(property);
+			Assert.notNull(version, "Version must not be null");
+			request.accessor.setProperty(property, op.lcClient.getMapper().getConversionService().convert(((Number)version).longValue() + 1, property.getType()));
 		}
 	}
 	

@@ -3,6 +3,8 @@ jdk:
   - oraclejdk11
   - openjdk11
 dist: trusty
+git:
+  depth: false
 
 addons:
   sonarcloud:

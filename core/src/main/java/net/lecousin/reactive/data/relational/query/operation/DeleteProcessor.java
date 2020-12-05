@@ -171,7 +171,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 		}
 		
 		//delete
-		if (foreignFieldValue != null && !request.state.isFieldModified(foreignTableField.getName())) {
+		if (foreignFieldValue != null && foreignTableField != null && !request.state.isFieldModified(foreignTableField.getName())) {
 			// foreign loaded
 			Object foreignInstance = foreignFieldValue.getValue();
 			if (foreignInstance == null)
