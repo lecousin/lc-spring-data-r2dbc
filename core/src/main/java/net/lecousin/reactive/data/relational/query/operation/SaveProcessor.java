@@ -278,8 +278,12 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 				Assert.notNull(value, "Version must not be null (property " + property.getName() + " on " + request.entityType.getType().getSimpleName() + ")");
 				long currentVersion = ((Number)value).longValue();
 				assignments.add(AssignValue.create(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion + 1))));
-			} else if (!property.isIdProperty() && request.state.isFieldModified(property.getName()) && property.isWritable()) {
-				writer.writeProperty(row, property, request.accessor);
+			} else if (request.state.isFieldModified(property.getName())) {
+				if (ModelUtils.isUpdatable(property)) {
+					writer.writeProperty(row, property, request.accessor);
+				} else {
+					request.state.restorePersistedValue(request.instance, property.getField());
+				}
 			}
 		}
 	}

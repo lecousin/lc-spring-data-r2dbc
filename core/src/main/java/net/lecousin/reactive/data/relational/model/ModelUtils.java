@@ -68,6 +68,22 @@ public class ModelUtils {
 			return def.nullable();
 		return true;
 	}
+
+	/** Check if a property may be updated.
+	 * 
+	 * @param property
+	 * @return
+	 */
+	public static boolean isUpdatable(RelationalPersistentProperty property) {
+		if (!property.isWritable())
+			return false;
+		if (property.isIdProperty())
+			return false;
+		ColumnDefinition def = property.findAnnotation(ColumnDefinition.class);
+		if (def != null)
+			return def.updatable();
+		return true;
+	}
 	
 	/** Set the foreign table field on the given instance to the given linkedInstance.
 	 * 

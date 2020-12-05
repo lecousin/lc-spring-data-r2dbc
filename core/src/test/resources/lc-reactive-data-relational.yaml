@@ -6,6 +6,7 @@ entities:
       - CharacterTypes
       - DateTypes
       - NumericTypes
+      - UpdatableProperties
       - VersionedEntity
     - onetoonemodel:
       - MyEntity1

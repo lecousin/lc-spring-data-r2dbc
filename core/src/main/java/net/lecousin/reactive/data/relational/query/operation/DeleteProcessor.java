@@ -91,7 +91,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 			Object foreignInstance = request.accessor.getProperty(fkProperty);
 			if (foreignInstance != null) {
 				RelationalPersistentEntity<?> fe = op.lcClient.getMappingContext().getRequiredPersistentEntity(foreignInstance.getClass());
-				foreignInstance = fe.getPropertyAccessor(foreignInstance).getProperty(fe.getRequiredIdProperty());
+				foreignInstance = EntityState.get(foreignInstance, op.lcClient, fe).getPersistedValue(fe.getRequiredIdProperty().getName());
 			}
 			request.saveForeignKeyValue(fkProperty.getName(), foreignInstance);
 		}
@@ -230,7 +230,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 	private static Condition createCriteriaOnIds(RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests, SqlQuery<Delete> query, Table table) {
 		List<Expression> ids = new ArrayList<>(requests.size());
 		for (DeleteRequest request : requests) {
-			Object id = entityType.getPropertyAccessor(request.instance).getProperty(entityType.getRequiredIdProperty());
+			Object id = request.state.getPersistedValue(entityType.getRequiredIdProperty().getName());
 			ids.add(query.marker(id));
 		}
 		return Conditions.in(Column.create(entityType.getRequiredIdProperty().getColumnName(), table), ids);

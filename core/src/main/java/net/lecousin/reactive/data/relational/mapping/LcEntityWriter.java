@@ -16,6 +16,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
+import net.lecousin.reactive.data.relational.enhance.EntityState;
 
 public class LcEntityWriter {
 
@@ -66,7 +67,7 @@ public class LcEntityWriter {
 			RelationalPersistentProperty idProperty = fe.getRequiredIdProperty();
 			if (value != null) {
 				// get the id instead of the entity
-				value = fe.getPropertyAccessor(value).getProperty(idProperty);
+				value = EntityState.get(value, converter.getLcClient(), fe).getPersistedValue(idProperty.getName());
 			}
 			if (value == null) {
 				sink.put(property.getColumnName(), Parameter.empty(getPotentiallyConvertedSimpleNullType(idProperty.getType())));

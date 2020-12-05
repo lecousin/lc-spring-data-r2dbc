@@ -75,6 +75,7 @@ public class EntityState {
 		return modifiedFields.contains(name);
 	}
 	
+	@Nullable
 	public Object getPersistedValue(String fieldName) {
 		return persistedValues.get(fieldName);
 	}
@@ -199,6 +200,17 @@ public class EntityState {
 		} else {
 			modifiedFields.add(field.getName());
 		}
+	}
+	
+	public void restorePersistedValue(Object instance, Field field) {
+		field.setAccessible(true);
+		Object value = persistedValues.get(field.getName());
+		try {
+			field.set(instance, value);
+		} catch (Exception e) {
+			throw new ModelAccessException("Error setting field " + field.getName() + " on " + instance, e);
+		}
+		modifiedFields.remove(field.getName());
 	}
 	
 	public void setForeignTableField(Object instance, Field field, Object value, boolean saved) {

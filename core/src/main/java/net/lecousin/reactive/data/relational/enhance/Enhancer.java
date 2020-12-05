@@ -23,6 +23,7 @@ import javassist.NotFoundException;
 import javassist.bytecode.AnnotationsAttribute;
 import javassist.bytecode.ConstPool;
 import javassist.bytecode.annotation.Annotation;
+import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
@@ -83,6 +84,7 @@ public final class Enhancer {
 	        for (CtField field : cl.getDeclaredFields()) {
 	        	if (!field.hasAnnotation(Id.class) &&
 	        		!field.hasAnnotation(Column.class) &&
+	        		!field.hasAnnotation(ColumnDefinition.class) &&
 	        		!field.hasAnnotation(Version.class) &&
 	        		!field.hasAnnotation(ForeignKey.class))
 	        		continue;

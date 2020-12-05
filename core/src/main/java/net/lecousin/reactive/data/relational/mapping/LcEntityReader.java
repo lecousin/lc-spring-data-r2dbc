@@ -179,7 +179,7 @@ public class LcEntityReader {
 		T instance = getOrCreateInstance(entityType, source, value);
 		EntityState state = EntityState.get(instance, client, entityType);
 		if (!state.isLoaded()) {
-			entityType.getPropertyAccessor(instance).setProperty(entityType.getRequiredIdProperty(), value);
+			state.setPersistedField(instance, entityType.getRequiredIdProperty().getField(), value, true);
 		}
 		ModelUtils.setReverseLink(instance, parentInstance, property);
 		if (!state.isLoaded())

@@ -503,4 +503,35 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").notIn(Arrays.asList(2, 3, 4))).execute(lcClient).blockFirst());
 		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").notIn(Arrays.asList(12, 13, 14))).execute(lcClient).blockFirst());
 	}
+	
+	@Test
+	public void testUpdatableProperties() {
+		UpdatableProperties entity = new UpdatableProperties();
+		entity.setStr1("1.1");
+		entity.setStr2("2.1");
+		entity.setStr3("3.1");
+		
+		entity = lcClient.save(entity).block();
+		Assertions.assertEquals("1.1", entity.getStr1());
+		Assertions.assertEquals("2.1", entity.getStr2());
+		Assertions.assertEquals("3.1", entity.getStr3());
+		long id = entity.getId();
+		
+		entity.setId(10L);
+		entity.setStr1("1.2");
+		entity.setStr2("2.2");
+		entity.setStr3("3.2");
+		
+		entity = lcClient.save(entity).block();
+		Assertions.assertEquals(id, entity.getId());
+		Assertions.assertEquals("1.2", entity.getStr1());
+		Assertions.assertEquals("2.2", entity.getStr2());
+		Assertions.assertEquals("3.1", entity.getStr3());
+
+		entity = SelectQuery.from(UpdatableProperties.class, "entity").execute(lcClient).blockFirst();
+		Assertions.assertEquals(id, entity.getId());
+		Assertions.assertEquals("1.2", entity.getStr1());
+		Assertions.assertEquals("2.2", entity.getStr2());
+		Assertions.assertEquals("3.1", entity.getStr3());
+	}
 }
