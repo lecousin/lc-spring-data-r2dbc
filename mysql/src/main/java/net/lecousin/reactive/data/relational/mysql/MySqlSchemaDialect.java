@@ -76,4 +76,9 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 		}
 		sql.append(')');
 	}
+	
+	@Override
+	protected boolean canDoConcurrentAlterTable() {
+		return false;
+	}
 }

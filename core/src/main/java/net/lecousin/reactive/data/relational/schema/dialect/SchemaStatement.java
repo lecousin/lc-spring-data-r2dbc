@@ -31,7 +31,7 @@ public class SchemaStatement {
 	}
 	
 	public boolean canExecuteWith(List<SchemaStatement> statements) {
-		return !doNotExecuteTogether.stream().anyMatch(statement -> statements.contains(statement));
+		return doNotExecuteTogether.stream().noneMatch(statements::contains);
 	}
 	
 	public String getSql() {

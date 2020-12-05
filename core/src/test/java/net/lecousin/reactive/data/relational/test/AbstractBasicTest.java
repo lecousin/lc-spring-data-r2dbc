@@ -13,6 +13,8 @@ import net.lecousin.reactive.data.relational.enhance.Enhancer;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
+import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
+import net.lecousin.reactive.data.relational.schema.SchemaBuilderFromEntities;
 
 @EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)
 public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelationalTest {
@@ -52,6 +54,12 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 		} catch (Exception e) {
 			// ok
 		}
+	}
+	
+	@Test
+	public void testPrintSchema() {
+		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(Enhancer.getEntities());
+		lcClient.getSchemaDialect().createSchemaContent(schema).print(System.out);
 	}
 
 }

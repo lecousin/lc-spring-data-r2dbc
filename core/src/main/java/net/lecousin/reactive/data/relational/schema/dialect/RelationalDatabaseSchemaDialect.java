@@ -191,6 +191,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 		// add foreign keys
 		Map<Table, List<SchemaStatement>> alterTableByTable = new HashMap<>();
 		Map<SchemaStatement, Table> foreignTable = new HashMap<>();
+		SchemaStatement latestAlterTable = null;
 		for (Table table : schema.getTables()) {
 			LinkedList<SchemaStatement> alterTableList = new LinkedList<>();
 			for (Column col : table.getColumns()) {
@@ -201,11 +202,17 @@ public abstract class RelationalDatabaseSchemaDialect {
 				Table foreign = col.getForeignKeyReferences().getFirst();
 				if (foreign != table)
 					alterTable.addDependency(createTableMap.get(foreign));
-				if (!alterTableList.isEmpty())
-					alterTable.addDependency(alterTableList.getLast());
-				alterTableList.addLast(alterTable);
-				if (foreign != table)
-					foreignTable.put(alterTable, table);
+				if (canDoConcurrentAlterTable()) {
+					if (!alterTableList.isEmpty())
+						alterTable.addDependency(alterTableList.getLast());
+					alterTableList.addLast(alterTable);
+					if (foreign != table)
+						foreignTable.put(alterTable, table);
+				} else {
+					if (latestAlterTable != null)
+						alterTable.addDependency(latestAlterTable);
+					latestAlterTable = alterTable;
+				}
 				toExecute.add(alterTable);
 			}
 			alterTableByTable.put(table, alterTableList);
@@ -216,6 +223,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 			}
 		}
 		return toExecute;
+	}
+	
+	protected boolean canDoConcurrentAlterTable() {
+		return true;
 	}
 	
 	protected boolean canCreateIndexInTableDefinition(Index index) {

@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational.schema.dialect;
 
+import java.io.PrintStream;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -53,6 +54,15 @@ public class SchemaStatements {
 			.flatMap(s -> client.getSpringClient().sql(log(s.getSql())).fetch().rowsUpdated().doOnError(e -> log(s, e)).thenReturn(s))
 			.doOnNext(this::done)
 			.map(SchemaStatement::getSql);
+	}
+	
+	public void print(PrintStream target) {
+		while (!statements.isEmpty()) {
+			for (SchemaStatement statement : peekReadyStatements()) {
+				target.println(statement.getSql());
+				done(statement);
+			}
+		}
 	}
 
 	private static String log(String sql) {
