@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.schema;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -73,8 +74,7 @@ public class SchemaBuilderFromEntities {
 			indexes.add(indexAnnotation);
 		net.lecousin.reactive.data.relational.annotations.Indexes indexesAnnotation = entityType.findAnnotation(net.lecousin.reactive.data.relational.annotations.Indexes.class);
 		if (indexesAnnotation != null)
-			for (net.lecousin.reactive.data.relational.annotations.Index i : indexesAnnotation.value())
-				indexes.add(i);
+			Collections.addAll(indexes, indexesAnnotation.value());
 		for (net.lecousin.reactive.data.relational.annotations.Index i : indexes) {
 			Index index = new Index(i.name());
 			index.setUnique(i.unique());

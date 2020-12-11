@@ -70,12 +70,9 @@ public final class Enhancer {
 			CtClass cl = classPool.get(className);
 			if (!cl.hasAnnotation(Table.class))
 				throw new ModelException("Class is not an entity (no @Table annotation): " + className);
-			try {
-				cl.getDeclaredField(STATE_FIELD_NAME);
+			if (hasField(cl, STATE_FIELD_NAME)) {
 				logger.warn("Entity already enhanced: " + className);
 				return;
-			} catch (NotFoundException e) {
-				// ok
 			}
 			cl.defrost();
 
@@ -91,12 +88,7 @@ public final class Enhancer {
 	        	// TODO make sure it is not transient
 	        	
 	        	String accessorSuffix = Character.toUpperCase(field.getName().charAt(0)) + field.getName().substring(1);
-	        	try {
-	        		CtMethod accessor = cl.getDeclaredMethod("set" + accessorSuffix);
-	        		enhanceSetter(field, accessor);
-	        	} catch (NotFoundException e) {
-	        		// ignore
-	        	}
+	        	processSetter(cl, field, accessorSuffix);
 	        }
 	        
         	enhanceLazyMethods(cl, classPool);
@@ -106,6 +98,24 @@ public final class Enhancer {
 		} catch (Exception e) {
 			throw new ModelAccessException("Unable to enhance entity " + className, e);
 		}
+	}
+	
+	private static boolean hasField(CtClass cl, String name) {
+		try {
+			cl.getDeclaredField(name);
+			return true;
+		} catch (NotFoundException e) {
+			return false;
+		}
+	}
+	
+	private static void processSetter(CtClass cl, CtField field, String accessorSuffix) throws CannotCompileException {
+    	try {
+    		CtMethod accessor = cl.getDeclaredMethod("set" + accessorSuffix);
+    		enhanceSetter(field, accessor);
+    	} catch (NotFoundException e) {
+    		// ignore
+    	}
 	}
 	
 	private static void addStateAttribute(ClassPool classPool, CtClass cl) throws CannotCompileException, NotFoundException {

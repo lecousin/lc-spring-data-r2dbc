@@ -384,29 +384,33 @@ public class SelectExecution<T> {
 		signalLoadedForeignTables(currentRoot, query.from);
 	}
 	
-	@SuppressWarnings("squid:S3011")
 	private void signalLoadedForeignTables(Object parent, TableReference parentTable) {
 		for (TableReference join : query.joins) {
 			if (join.source != parentTable)
 				continue;
 			try {
-				Field field = parent.getClass().getDeclaredField(join.propertyName);
-				field.setAccessible(true);
-				Object instance = field.get(parent);
-				if (field.isAnnotationPresent(ForeignTable.class)) {
-					EntityState.get(parent, client).foreignTableLoaded(field, instance);
-				}
-				if (instance != null) {
-					boolean isCollection = ModelUtils.isCollection(field);
-					if (isCollection)
-						for (Object element : ModelUtils.getAsCollection(instance))
-							signalLoadedForeignTables(element, join);
-					else
-						signalLoadedForeignTables(instance, join);
-				}
+				signalLoadedForeignTable(parent, join);
 			} catch (Exception e) {
 				throw new MappingException("Error mapping result for entity " + join.targetType.getName(), e);
 			}
+		}
+	}
+	
+	@SuppressWarnings("squid:S3011")
+	private void signalLoadedForeignTable(Object parent, TableReference join) throws ReflectiveOperationException {
+		Field field = parent.getClass().getDeclaredField(join.propertyName);
+		field.setAccessible(true);
+		Object instance = field.get(parent);
+		if (field.isAnnotationPresent(ForeignTable.class)) {
+			EntityState.get(parent, client).foreignTableLoaded(field, instance);
+		}
+		if (instance != null) {
+			boolean isCollection = ModelUtils.isCollection(field);
+			if (isCollection)
+				for (Object element : ModelUtils.getAsCollection(instance))
+					signalLoadedForeignTables(element, join);
+			else
+				signalLoadedForeignTables(instance, join);
 		}
 	}
 }

@@ -69,11 +69,10 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 					continue;
 				
 				Field ftField = ModelUtils.getForeignTableFieldForJoinKey(request.entityType.getType(), fkProperty.getName(), entity.getType());
-				if (ftField != null)
-					continue;
-				
-				ForeignKey fkAnnotation = fkProperty.getRequiredAnnotation(ForeignKey.class);
-				processForeignTableField(op, request, null, null, null, false, entity, fkProperty, fkAnnotation);
+				if (ftField == null) {
+					ForeignKey fkAnnotation = fkProperty.getRequiredAnnotation(ForeignKey.class);
+					processForeignTableField(op, request, null, null, null, false, entity, fkProperty, fkAnnotation);
+				}
 			}
 		}
 		return true;
@@ -245,22 +244,23 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 			Iterator<RelationalPersistentProperty> itProperty = entityType.iterator();
 			do {
 				RelationalPersistentProperty property = itProperty.next();
-				Condition propertyCondition;
-				Object value = request.accessor.getProperty(property);
-				if (value == null) {
-					propertyCondition = Conditions.isNull(Column.create(property.getColumnName(), table));
-				} else {
-					if (property.isAnnotationPresent(ForeignKey.class)) {
-						// get the id instead of the entity
-						value = request.getSavedForeignKeyValue(property.getName());
-					}
-					propertyCondition = Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(value));
-				}
+				Condition propertyCondition = createConditionOnProperty(table, property, request, query);
 				c = c != null ? c.and(propertyCondition) : propertyCondition;
 			} while (itProperty.hasNext());
 			criteria = criteria != null ? criteria.or(c) : c;
 		} while (it.hasNext());
 		return criteria;
+	}
+	
+	private static Condition createConditionOnProperty(Table table, RelationalPersistentProperty property, DeleteRequest request, SqlQuery<Delete> query) {
+		Object value = request.accessor.getProperty(property);
+		if (value == null)
+			return Conditions.isNull(Column.create(property.getColumnName(), table));
+		if (property.isAnnotationPresent(ForeignKey.class)) {
+			// get the id instead of the entity
+			value = request.getSavedForeignKeyValue(property.getName());
+		}
+		return Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(value));
 	}
 	
 	private static void deleteDone(RelationalPersistentEntity<?> entityType, List<DeleteRequest> done) {

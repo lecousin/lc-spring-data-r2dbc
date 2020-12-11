@@ -132,23 +132,27 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			deletedElements.addAll(ModelUtils.getAsCollection(originalValue));
 		deletedElements.removeAll(ModelUtils.getAsCollection(value));
 
-		if (!deletedElements.isEmpty()) {
-			if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
-				// delete
-				for (Object element : deletedElements)
-					op.addToDelete((T) element, foreignEntity, null, null);
-			} else {
-				// update to null
-				for (Object element : deletedElements) {
-					SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
-					save.state.setPersistedField(element, fkProperty.getField(), null, false);
-				}
-			}
-		}
+		if (!deletedElements.isEmpty())
+			deletedElements(op, deletedElements, foreignEntity, fkProperty, fkAnnotation);
 		
 		for (Object element : ModelUtils.getAsCollection(value)) {
 			SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
 			save.state.setPersistedField(element, fkProperty.getField(), request.instance, false);
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	private static <T> void deletedElements(Operation op, List<Object> deletedElements, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation) {
+		if (!fkAnnotation.optional() || fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.DELETE)) {
+			// delete
+			for (Object element : deletedElements)
+				op.addToDelete((T) element, foreignEntity, null, null);
+		} else {
+			// update to null
+			for (Object element : deletedElements) {
+				SaveRequest save = op.addToSave((T) element, foreignEntity, null, null);
+				save.state.setPersistedField(element, fkProperty.getField(), null, false);
+			}
 		}
 	}
 	
@@ -246,38 +250,42 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 	}
 	
 	private static Mono<Object> doUpdate(Operation op, SaveRequest request) {
-		return Mono.fromCallable(() -> {
-			SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
-			Table table = Table.create(request.entityType.getTableName());
-			OutboundRow row = new OutboundRow();
-			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
-			List<AssignValue> assignments = new LinkedList<>();
-			prepareUpdate(request, table, assignments, row, writer, query);
-			if (row.isEmpty())
-				return null;
-			
-			for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
-				assignments.add(AssignValue.create(Column.create(entry.getKey(), table), entry.getValue().getValue() != null ? query.marker(entry.getValue().getValue()) : SQL.nullLiteral()));
+		return Mono.fromCallable(() -> createUpdateRequest(op, request))
+			.flatMap(updatedRows -> updatedRows != null ? updatedRows.thenReturn(request.instance).doOnSuccess(e -> entityUpdated(op, request)) : Mono.just(request.instance));
+	}
+	
+	private static Mono<Integer> createUpdateRequest(Operation op, SaveRequest request) {
+		SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
+		Table table = Table.create(request.entityType.getTableName());
+		OutboundRow row = new OutboundRow();
+		LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
+		List<AssignValue> assignments = new LinkedList<>();
+		prepareUpdate(request, table, assignments, row, writer, query);
+		if (row.isEmpty())
+			return null;
+		
+		for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
+			assignments.add(AssignValue.create(Column.create(entry.getKey(), table), entry.getValue().getValue() != null ? query.marker(entry.getValue().getValue()) : SQL.nullLiteral()));
 
-			Condition criteria = ModelUtils.getConditionOnId(query, request.entityType, request.accessor, op.lcClient.getMappingContext());
-			
-			if (request.entityType.hasVersionProperty()) {
-				RelationalPersistentProperty property = request.entityType.getRequiredVersionProperty();
-				Object value = request.accessor.getProperty(property);
-				long currentVersion = ((Number)value).longValue();
-				criteria = criteria.and(Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion))));
-			}
-			
-			query.setQuery(Update.builder().table(table).set(assignments).where(criteria).build());
-			Mono<Integer> rowsUpdated = query.execute().fetch().rowsUpdated();
-			if (request.entityType.hasVersionProperty())
-				rowsUpdated = rowsUpdated.flatMap(updatedRows -> {
-					if (updatedRows.intValue() == 0)
-						return Mono.error(new OptimisticLockingFailureException("Version does not match"));
-					return Mono.just(updatedRows);
-				});
-			return rowsUpdated;
-		}).flatMap(updatedRows -> updatedRows != null ? updatedRows.thenReturn(request.instance).doOnSuccess(e -> entityUpdated(op, request)) : Mono.just(request.instance));
+		Condition criteria = ModelUtils.getConditionOnId(query, request.entityType, request.accessor, op.lcClient.getMappingContext());
+		
+		if (request.entityType.hasVersionProperty()) {
+			RelationalPersistentProperty property = request.entityType.getRequiredVersionProperty();
+			Object value = request.accessor.getProperty(property);
+			Assert.notNull(value, "Version must not be null");
+			long currentVersion = ((Number)value).longValue();
+			criteria = criteria.and(Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion))));
+		}
+		
+		query.setQuery(Update.builder().table(table).set(assignments).where(criteria).build());
+		Mono<Integer> rowsUpdated = query.execute().fetch().rowsUpdated();
+		if (request.entityType.hasVersionProperty())
+			rowsUpdated = rowsUpdated.flatMap(updatedRows -> {
+				if (updatedRows.intValue() == 0)
+					return Mono.error(new OptimisticLockingFailureException("Version does not match"));
+				return Mono.just(updatedRows);
+			});
+		return rowsUpdated;
 	}
 	
 	private static void prepareUpdate(SaveRequest request, Table table, List<AssignValue> assignments, OutboundRow row, LcEntityWriter writer, SqlQuery<Update> query) {

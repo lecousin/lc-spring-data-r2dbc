@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.lang3.mutable.MutableObject;
+
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
 import net.lecousin.reactive.data.relational.schema.Index;
@@ -181,7 +183,13 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public SchemaStatements createSchemaContent(RelationalDatabaseSchema schema) {
 		SchemaStatements toExecute = new SchemaStatements();
-		// create tables
+		Map<Table, SchemaStatement> createTableMap = createTables(schema, toExecute);
+		addConstraints(schema, toExecute, createTableMap);
+		createSequences(schema, toExecute);
+		return toExecute;
+	}
+	
+	private Map<Table, SchemaStatement> createTables(RelationalDatabaseSchema schema, SchemaStatements toExecute) {
 		Map<Table, SchemaStatement> createTableMap = new HashMap<>();
 		for (Table table : schema.getTables()) {
 			SchemaStatement createTable = new SchemaStatement(createTable(table));
@@ -195,68 +203,85 @@ public abstract class RelationalDatabaseSchemaDialect {
 				toExecute.add(createIndex);
 			}
 		}
-		// add foreign keys
+		return createTableMap;
+	}
+	
+	private void createSequences(RelationalDatabaseSchema schema, SchemaStatements toExecute) {
+		if (!supportsSequence())
+			return;
+		for (Sequence s : schema.getSequences())
+			toExecute.add(new SchemaStatement(createSequence(s)));
+	}
+	
+	private void addConstraints(RelationalDatabaseSchema schema, SchemaStatements toExecute, Map<Table, SchemaStatement> createTableMap) {
 		Map<Table, List<SchemaStatement>> alterTableByTable = new HashMap<>();
 		Map<SchemaStatement, Table> foreignTable = new HashMap<>();
-		SchemaStatement latestAlterTable = null;
+		MutableObject<SchemaStatement> latestAlterTable = new MutableObject<>(null);
 		for (Table table : schema.getTables()) {
-			LinkedList<SchemaStatement> alterTableList = new LinkedList<>();
-			StringBuilder sql = new StringBuilder();
-			Set<Table> foreignTables = new HashSet<>();
-			foreignTables.add(table);
-			for (Column col : table.getColumns()) {
-				if (col.getForeignKeyReferences() == null)
-					continue;
-				if (canAddMultipleConstraintsInSingleAlterTable()) {
-					if (sql.length() > 0)
-						appendForeignKey(table, col, sql);
-					else
-						sql.append(alterTableForeignKey(table, col));
-					foreignTables.add(col.getForeignKeyReferences().getFirst());
-				} else {
-					SchemaStatement alterTable = new SchemaStatement(alterTableForeignKey(table, col));
-					alterTable.addDependency(createTableMap.get(table));
-					Table foreign = col.getForeignKeyReferences().getFirst();
-					if (foreign != table)
-						alterTable.addDependency(createTableMap.get(foreign));
-					if (canDoConcurrentAlterTable()) {
-						if (!alterTableList.isEmpty())
-							alterTable.addDependency(alterTableList.getLast());
-						alterTableList.addLast(alterTable);
-						if (foreign != table)
-							foreignTable.put(alterTable, table);
-					} else {
-						if (latestAlterTable != null)
-							alterTable.addDependency(latestAlterTable);
-						latestAlterTable = alterTable;
-					}
-					toExecute.add(alterTable);
-				}
-			}
-			if (canAddMultipleConstraintsInSingleAlterTable() && sql.length() > 0) {
-				SchemaStatement alterTable = new SchemaStatement(sql.toString());
-				for (Table foreign : foreignTables)
-					alterTable.addDependency(createTableMap.get(foreign));
-				if (!canDoConcurrentAlterTable()) {
-					if (latestAlterTable != null)
-						alterTable.addDependency(latestAlterTable);
-					latestAlterTable = alterTable;
-				}
-				toExecute.add(alterTable);
-			}
-			alterTableByTable.put(table, alterTableList);
+			addTableConstraints(table, toExecute, createTableMap, alterTableByTable, foreignTable, latestAlterTable);
 		}
 		for (Map.Entry<SchemaStatement, Table> entry : foreignTable.entrySet()) {
 			for (SchemaStatement statement : alterTableByTable.get(entry.getValue())) {
 				entry.getKey().doNotExecuteTogether(statement);
 			}
 		}
-
-		// create sequences
-		if (supportsSequence())
-			for (Sequence s : schema.getSequences())
-				toExecute.add(new SchemaStatement(createSequence(s)));
-		return toExecute;
+	}
+	
+	private void addTableConstraints(Table table, SchemaStatements toExecute, Map<Table, SchemaStatement> createTableMap, Map<Table, List<SchemaStatement>> alterTableByTable, Map<SchemaStatement, Table> foreignTable, MutableObject<SchemaStatement> latestAlterTable) {
+		LinkedList<SchemaStatement> alterTableList = new LinkedList<>();
+		StringBuilder sql = new StringBuilder();
+		Set<Table> foreignTables = new HashSet<>();
+		foreignTables.add(table);
+		for (Column col : table.getColumns()) {
+			if (col.getForeignKeyReferences() == null)
+				continue;
+			if (canAddMultipleConstraintsInSingleAlterTable()) {
+				appendForeignKeyConstraint(table, col, sql);
+				foreignTables.add(col.getForeignKeyReferences().getFirst());
+			} else {
+				toExecute.add(createAlterTableAddForeignKey(table, col, createTableMap, alterTableList, foreignTable, latestAlterTable));
+			}
+		}
+		if (canAddMultipleConstraintsInSingleAlterTable() && sql.length() > 0) {
+			SchemaStatement alterTable = new SchemaStatement(sql.toString());
+			for (Table foreign : foreignTables)
+				alterTable.addDependency(createTableMap.get(foreign));
+			if (!canDoConcurrentAlterTable())
+				addAlterTable(latestAlterTable, alterTable);
+			toExecute.add(alterTable);
+		}
+		alterTableByTable.put(table, alterTableList);
+	}
+	
+	private void appendForeignKeyConstraint(Table table, Column col, StringBuilder sql) {
+		if (sql.length() > 0)
+			appendForeignKey(table, col, sql);
+		else
+			sql.append(alterTableForeignKey(table, col));
+	}
+	
+	private SchemaStatement createAlterTableAddForeignKey(Table table, Column col, Map<Table, SchemaStatement> createTableMap, LinkedList<SchemaStatement> alterTableList, Map<SchemaStatement, Table> foreignTable, MutableObject<SchemaStatement> latestAlterTable) {
+		SchemaStatement alterTable = new SchemaStatement(alterTableForeignKey(table, col));
+		alterTable.addDependency(createTableMap.get(table));
+		Table foreign = col.getForeignKeyReferences().getFirst();
+		if (foreign != table)
+			alterTable.addDependency(createTableMap.get(foreign));
+		if (canDoConcurrentAlterTable()) {
+			if (!alterTableList.isEmpty())
+				alterTable.addDependency(alterTableList.getLast());
+			alterTableList.addLast(alterTable);
+			if (foreign != table)
+				foreignTable.put(alterTable, table);
+		} else {
+			addAlterTable(latestAlterTable, alterTable);
+		}
+		return alterTable;
+	}
+	
+	private static void addAlterTable(MutableObject<SchemaStatement> latestAlterTable, SchemaStatement alterTable) {
+		if (latestAlterTable.getValue() != null)
+			alterTable.addDependency(latestAlterTable.getValue());
+		latestAlterTable.setValue(alterTable);
 	}
 	
 	protected boolean canDoConcurrentAlterTable() {
