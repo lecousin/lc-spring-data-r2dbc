@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -41,7 +42,16 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
-		return Arrays.asList(BooleanTypes.class, CharacterTypes.class, DateTypes.class, NumericTypes.class, UpdatableProperties.class, VersionedEntity.class);
+		return Arrays.asList(
+			BooleanTypes.class,
+			CharacterTypes.class,
+			DateTypes.class,
+			Entity1WithSequence.class,
+			Entity2WithSequence.class,
+			NumericTypes.class,
+			UpdatableProperties.class,
+			VersionedEntity.class
+		);
 	}
 	
 	@Test
@@ -539,5 +549,45 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("1.2", entity.getStr1());
 		Assertions.assertEquals("2.2", entity.getStr2());
 		Assertions.assertEquals("3.1", entity.getStr3());
+	}
+	
+	@Test
+	public void test2EntitiesWithSameSequence() {
+		Assumptions.assumeTrue(lcClient.getSchemaDialect().supportsSequence());
+		
+		Entity1WithSequence e1_1 = new Entity1WithSequence();
+		e1_1.setValue("1.1");
+		Entity1WithSequence e1_2 = new Entity1WithSequence();
+		e1_2.setValue("1.2");
+		Entity2WithSequence e2_1 = new Entity2WithSequence();
+		e2_1.setValue("2.1");
+		Entity2WithSequence e2_2 = new Entity2WithSequence();
+		e2_2.setValue("2.2");
+		
+		List<Entity1WithSequence> list1 = lcClient.save(Arrays.asList(e1_1, e1_2)).collectList().block();
+		Assertions.assertEquals(2, list1.size());
+		e1_1 = list1.stream().filter(e -> "1.1".equals(e.getValue())).findFirst().get();
+		e1_2 = list1.stream().filter(e -> "1.2".equals(e.getValue())).findFirst().get();
+		Assertions.assertTrue(e1_1.getId() < 3);
+		Assertions.assertTrue(e1_2.getId() < 3);
+		if (e1_1.getId() == 1)
+			Assertions.assertEquals(2, e1_2.getId());
+		else if (e1_2.getId() == 1)
+			Assertions.assertEquals(2, e1_1.getId());
+		else
+			throw new AssertionError();
+		
+		List<Entity2WithSequence> list2 = lcClient.save(Arrays.asList(e2_1, e2_2)).collectList().block();
+		Assertions.assertEquals(2, list2.size());
+		e2_1 = list2.stream().filter(e -> "2.1".equals(e.getValue())).findFirst().get();
+		e2_2 = list2.stream().filter(e -> "2.2".equals(e.getValue())).findFirst().get();
+		Assertions.assertTrue(e2_1.getId() < 5);
+		Assertions.assertTrue(e2_2.getId() < 5);
+		if (e2_1.getId() == 3)
+			Assertions.assertEquals(4, e2_2.getId());
+		else if (e2_2.getId() == 3)
+			Assertions.assertEquals(4, e2_1.getId());
+		else
+			throw new AssertionError();
 	}
 }

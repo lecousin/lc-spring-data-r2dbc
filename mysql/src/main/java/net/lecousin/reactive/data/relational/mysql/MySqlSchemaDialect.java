@@ -86,4 +86,9 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	protected boolean canAddMultipleConstraintsInSingleAlterTable() {
 		return true;
 	}
+	
+	@Override
+	public boolean supportsSequence() {
+		return false;
+	}
 }

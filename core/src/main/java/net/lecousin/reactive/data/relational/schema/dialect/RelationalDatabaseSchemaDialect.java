@@ -13,6 +13,7 @@ import net.lecousin.reactive.data.relational.schema.Column;
 import net.lecousin.reactive.data.relational.schema.Index;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 import net.lecousin.reactive.data.relational.schema.SchemaException;
+import net.lecousin.reactive.data.relational.schema.Sequence;
 import net.lecousin.reactive.data.relational.schema.Table;
 
 @SuppressWarnings({
@@ -164,6 +165,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 					dropTableMap.get(col.getForeignKeyReferences().getFirst()).addDependency(dropTableMap.get(table));
 			}
 		}
+		// drop sequences
+		if (supportsSequence())
+			for (Sequence s : schema.getSequences())
+				toExecute.add(new SchemaStatement(dropSequence(s)));
 		return toExecute;
 	}
 	
@@ -246,6 +251,11 @@ public abstract class RelationalDatabaseSchemaDialect {
 				entry.getKey().doNotExecuteTogether(statement);
 			}
 		}
+
+		// create sequences
+		if (supportsSequence())
+			for (Sequence s : schema.getSequences())
+				toExecute.add(new SchemaStatement(createSequence(s)));
 		return toExecute;
 	}
 	
@@ -354,5 +364,21 @@ public abstract class RelationalDatabaseSchemaDialect {
 	protected void appendForeignKey(Table table, Column col, StringBuilder sql) {
 		sql.append(',');
 		addForeignKeyStatement(table, col, sql);
+	}
+	
+	public boolean supportsSequence() {
+		return true;
+	}
+
+	protected String dropSequence(Sequence sequence) {
+		return "DROP SEQUENCE IF EXISTS " + sequence.getName();
+	}
+	
+	protected String createSequence(Sequence sequence) {
+		return "CREATE SEQUENCE " + sequence.getName() + " START WITH 1 INCREMENT BY 1";
+	}
+	
+	public String sequenceNextValueFunctionName() {
+		return "NEXTVAL";
 	}
 }

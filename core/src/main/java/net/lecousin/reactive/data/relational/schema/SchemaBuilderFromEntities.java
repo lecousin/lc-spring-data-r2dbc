@@ -4,11 +4,14 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.util.Pair;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -33,6 +36,7 @@ public class SchemaBuilderFromEntities {
 	public RelationalDatabaseSchema build(Collection<Class<?>> entities) {
 		for (Class<?> entity : entities) {
 			schema.add(buildTable(entity));
+			addSequences(entity);
 		}
 		for (Class<?> entity : entities) {
 			addForeignKeys(entity);
@@ -118,6 +122,22 @@ public class SchemaBuilderFromEntities {
 			Column foreignColumn = foreignTable.getColumn(getColumnName(foreignId));
 			fkColumn.setForeignKeyReferences(Pair.of(foreignTable, foreignColumn));
 		} while (keys.hasNext());
+	}
+	
+	protected void addSequences(Class<?> entity) {
+		RelationalPersistentEntity<?> entityType = client.getMappingContext().getRequiredPersistentEntity(entity);
+		for (RelationalPersistentProperty property : entityType.getPersistentProperties(GeneratedValue.class)) {
+			GeneratedValue annotation = property.getRequiredAnnotation(GeneratedValue.class);
+			if (annotation.strategy().equals(GeneratedValue.Strategy.SEQUENCE)) {
+				Assert.isTrue(StringUtils.hasText(annotation.sequence()), "Sequence name must be specified");
+				try {
+					schema.getSequence(annotation.sequence());
+					// already defined
+				} catch (NoSuchElementException e) {
+					schema.add(new Sequence(annotation.sequence()));
+				}
+			}
+		}
 	}
 
 }

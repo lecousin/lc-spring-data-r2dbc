@@ -2,6 +2,7 @@ package net.lecousin.reactive.data.relational.query.operation;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.Insert;
 import org.springframework.data.relational.core.sql.SQL;
+import org.springframework.data.relational.core.sql.SimpleFunction;
 import org.springframework.data.relational.core.sql.SqlIdentifier;
 import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.relational.core.sql.Update;
@@ -208,7 +210,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 				}
 			}
 			
-			query.setQuery(createInsertQuery(query, row, request.entityType.getTableName()));
+			query.setQuery(createInsertQuery(query, row, request.entityType.getTableName(), generated));
 			
 			return query.execute()
 				.filter(statement -> statement.returnGeneratedValues())
@@ -222,10 +224,17 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		}).flatMap(RowsFetchSpec::first);
 	}
 	
-	private static Insert createInsertQuery(SqlQuery<Insert> query, OutboundRow row, SqlIdentifier tableName) {
+	private static Insert createInsertQuery(SqlQuery<Insert> query, OutboundRow row, SqlIdentifier tableName, List<RelationalPersistentProperty> generated) {
 		Table table = Table.create(tableName);
 		List<Column> columns = new ArrayList<>(row.size());
 		List<Expression> values = new ArrayList<>(row.size());
+		for (RelationalPersistentProperty property : generated) {
+			GeneratedValue gv = property.getRequiredAnnotation(GeneratedValue.class);
+			if (gv.strategy().equals(GeneratedValue.Strategy.SEQUENCE)) {
+				columns.add(Column.create(property.getColumnName(), table));
+				values.add(SimpleFunction.create(query.getClient().getSchemaDialect().sequenceNextValueFunctionName(), Arrays.asList(SQL.literalOf(gv.sequence()))));
+			}
+		}
 		for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet()) {
 			columns.add(Column.create(entry.getKey(), table));
 			if (entry.getValue().getValue() == null)
