@@ -1,5 +1,7 @@
 package net.lecousin.reactive.data.relational.test.onetoonemodel;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
@@ -22,6 +24,11 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 	
 	@Autowired
 	private MyEntity3Repository repo3;
+	
+	@Override
+	protected Collection<Class<?>> usedEntities() {
+		return Arrays.asList(MyEntity1.class, MyEntity2.class, MyEntity3.class, MySubEntity1.class, MySubEntity2.class, MySubEntity3.class);
+	}
 	
 	@Test
 	public void testEntity1WithoutSubEntity() {

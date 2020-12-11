@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.test;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -18,6 +19,7 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 
 @DataR2dbcTest
 @EnableAutoConfiguration
@@ -32,7 +34,17 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	
 	@BeforeEach
 	public void initDatabase() {
-		lcClient.dropCreateSchemaContent(lcClient.buildSchemaFromEntities()).block();
+		Collection<Class<?>> usedEntities = usedEntities();
+		RelationalDatabaseSchema schema;
+		if (usedEntities == null)
+			schema = lcClient.buildSchemaFromEntities();
+		else
+			schema = lcClient.buildSchemaFromEntities(usedEntities);
+		lcClient.dropCreateSchemaContent(schema).block();
+	}
+	
+	protected Collection<Class<?>> usedEntities() {
+		return null;
 	}
 
 	protected static class ExpectedEntity<T> {

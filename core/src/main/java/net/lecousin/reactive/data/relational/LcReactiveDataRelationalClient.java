@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -104,7 +105,11 @@ public class LcReactiveDataRelationalClient {
 	}
 	
 	public RelationalDatabaseSchema buildSchemaFromEntities() {
-		return new SchemaBuilderFromEntities(this).build(Enhancer.getEntities());
+		return buildSchemaFromEntities(Enhancer.getEntities());
+	}
+	
+	public RelationalDatabaseSchema buildSchemaFromEntities(Collection<Class<?>> classes) {
+		return new SchemaBuilderFromEntities(this).build(classes);
 	}
 	
 	public <T> Mono<T> save(T entity) {

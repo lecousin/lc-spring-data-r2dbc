@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.test.model1;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -22,6 +23,11 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 	
 	@Autowired
 	private CompanyRepository repoCompany;
+	
+	@Override
+	protected Collection<Class<?>> usedEntities() {
+		return Arrays.asList(Company.class, Employee.class, Person.class, PointOfContact.class, PostalAddress.class, Site.class, User.class);
+	}
 	
 	private void createModel() {
 		Person johnSmith = createPerson("John", "Smith", null);

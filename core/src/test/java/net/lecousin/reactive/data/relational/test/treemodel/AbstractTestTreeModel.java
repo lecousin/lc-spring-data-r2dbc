@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.test.treemodel;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -17,6 +18,11 @@ public abstract class AbstractTestTreeModel extends AbstractLcReactiveDataRelati
 
 	@Autowired
 	private NodeRepository repo;
+	
+	@Override
+	protected Collection<Class<?>> usedEntities() {
+		return Arrays.asList(Node.class);
+	}
 	
 	@Test
 	public void testTwoRoots() {

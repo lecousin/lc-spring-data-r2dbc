@@ -6,6 +6,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
@@ -37,6 +38,11 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Autowired
 	private DateTypesRepository repoDate;
+	
+	@Override
+	protected Collection<Class<?>> usedEntities() {
+		return Arrays.asList(BooleanTypes.class, CharacterTypes.class, DateTypes.class, NumericTypes.class, UpdatableProperties.class, VersionedEntity.class);
+	}
 	
 	@Test
 	public void testBooleans() {

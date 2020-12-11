@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.test.manytomanymodel;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -18,6 +19,11 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 
 	@Autowired
 	private Entity1Repository repo1;
+	
+	@Override
+	protected Collection<Class<?>> usedEntities() {
+		return Arrays.asList(Entity1.class, Entity2.class, JoinEntity.class);
+	}
 	
 	@Test
 	public void test() {
