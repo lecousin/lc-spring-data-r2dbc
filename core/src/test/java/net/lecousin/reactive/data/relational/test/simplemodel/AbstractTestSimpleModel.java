@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
 import io.r2dbc.spi.Row;
@@ -530,6 +531,21 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 
 		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").notIn(Arrays.asList(2, 3, 4))).execute(lcClient).blockFirst());
 		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").notIn(Arrays.asList(12, 13, 14))).execute(lcClient).blockFirst());
+		
+		CharacterTypes c = new CharacterTypes();
+		c.setStr("Hello World");
+		c.setLongString("Hello World");
+		c.setFixedLengthString("Hello");
+		repoChars.save(c).block();
+		
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("%lo%")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("Hello%")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("%World")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("%o%")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("%la%")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").notLike("%la%")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("e", "fixedLengthString")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").notLike("e", "fixedLengthString")).execute(lcClient).blockFirst());
 	}
 	
 	@Test
@@ -606,5 +622,14 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			Assertions.assertEquals(4, e2_1.getId());
 		else
 			throw new AssertionError();
+	}
+	
+	@Test
+	public void testSpringClient() {
+		BooleanTypes e = new BooleanTypes();
+		e.setB1(Boolean.TRUE);
+		e.setB2(false);
+		OutboundRow row = lcClient.getDataAccess().getOutboundRow(e);
+		Assertions.assertEquals(3, row.keySet().size());
 	}
 }
