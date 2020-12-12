@@ -22,10 +22,6 @@ public class SchemaStatements {
 		statements.add(statement);
 	}
 	
-	public boolean hasStatements() {
-		return !statements.isEmpty();
-	}
-	
 	private synchronized List<SchemaStatement> peekReadyStatements() {
 		List<SchemaStatement> ready = new LinkedList<>();
 		for (Iterator<SchemaStatement> it = statements.iterator(); it.hasNext(); ) {

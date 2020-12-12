@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.test.simplemodel;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.ReadOnlyProperty;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -21,6 +22,9 @@ public class UpdatableProperties {
 	
 	@ColumnDefinition(updatable = false)
 	private String str3;
+	
+	@Column @ReadOnlyProperty
+	private String str4;
 
 	public Long getId() {
 		return id;
@@ -52,6 +56,14 @@ public class UpdatableProperties {
 
 	public void setStr3(String str3) {
 		this.str3 = str3;
+	}
+
+	public String getStr4() {
+		return str4;
+	}
+
+	public void setStr4(String str4) {
+		this.str4 = str4;
 	}
 	
 }

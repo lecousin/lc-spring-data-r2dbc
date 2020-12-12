@@ -292,17 +292,25 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Test
 	public void testCharacters() {
+		StringBuilder longString = new StringBuilder(4600);
+		for (int i = 0; i < 4500; ++i)
+			longString.append((char)('a' + (i % 20)));
+		
 		CharacterTypes e1 = new CharacterTypes();
 		e1.setC1('p');
 		e1.setC2(null);
 		e1.setStr(null);
 		e1.setChars(null);
+		e1.setFixedLengthString("abc");
+		e1.setLongString(longString.toString());
 		
 		CharacterTypes e2 = new CharacterTypes();
 		e2.setC1('\n');
 		e2.setC2(Character.valueOf((char)0));
 		e2.setStr("Hello");
 		e2.setChars(new char[] { 'W', 'o', 'r', 'l', 'd' });
+		e2.setFixedLengthString("abcde");
+		e2.setLongString(null);
 		
 		repoChars.saveAll(Arrays.asList(e1, e2)).collectList().block();
 		List<CharacterTypes> list = repoChars.findAll().collectList().block();
@@ -312,11 +320,15 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 				Assertions.assertEquals('p', e.getC1());
 				Assertions.assertNull(e.getStr());
 				Assertions.assertNull(e.getChars());
+				Assertions.assertEquals("abc  ", e.getFixedLengthString());
+				Assertions.assertEquals(longString.toString(), e.getLongString());
 			} else {
 				Assertions.assertEquals('\n', e.getC1());
 				Assertions.assertEquals((char)0, e.getC2().charValue());
 				Assertions.assertEquals("Hello", e.getStr());
 				Assertions.assertEquals("World", new String(e.getChars()));
+				Assertions.assertEquals("abcde", e.getFixedLengthString());
+				Assertions.assertNull(e.getLongString());
 			}
 		}
 
@@ -526,29 +538,34 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		entity.setStr1("1.1");
 		entity.setStr2("2.1");
 		entity.setStr3("3.1");
+		entity.setStr4("4.1");
 		
 		entity = lcClient.save(entity).block();
 		Assertions.assertEquals("1.1", entity.getStr1());
 		Assertions.assertEquals("2.1", entity.getStr2());
 		Assertions.assertEquals("3.1", entity.getStr3());
+		Assertions.assertEquals("4.1", entity.getStr4());
 		long id = entity.getId();
 		
 		entity.setId(10L);
 		entity.setStr1("1.2");
 		entity.setStr2("2.2");
 		entity.setStr3("3.2");
+		entity.setStr4("4.2");
 		
 		entity = lcClient.save(entity).block();
 		Assertions.assertEquals(id, entity.getId());
 		Assertions.assertEquals("1.2", entity.getStr1());
 		Assertions.assertEquals("2.2", entity.getStr2());
 		Assertions.assertEquals("3.1", entity.getStr3());
+		Assertions.assertEquals("4.1", entity.getStr4());
 
 		entity = SelectQuery.from(UpdatableProperties.class, "entity").execute(lcClient).blockFirst();
 		Assertions.assertEquals(id, entity.getId());
 		Assertions.assertEquals("1.2", entity.getStr1());
 		Assertions.assertEquals("2.2", entity.getStr2());
 		Assertions.assertEquals("3.1", entity.getStr3());
+		Assertions.assertEquals("4.1", entity.getStr4());
 	}
 	
 	@Test

@@ -205,7 +205,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			for (RelationalPersistentProperty property : request.entityType) {
 				if (property.isAnnotationPresent(GeneratedValue.class)) {
 					generated.add(property);
-				} else if (property.isWritable()) { 
+				} else if (!property.isTransient()) { 
 					if (request.entityType.isVersionProperty(property)) {
 						// Version 1 for an insert
 						request.accessor.setProperty(property, op.lcClient.getMapper().getConversionService().convert(1L, property.getType()));
@@ -221,7 +221,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 				.map((r, meta) -> {
 					int index = 0;
 					for (RelationalPersistentProperty property : generated)
-						request.accessor.setProperty(property, r.get(index++));
+						request.accessor.setProperty(property, op.lcClient.getSchemaDialect().convertFromDataBase(r.get(index++), property.getType()));
 					request.state.loaded(request.instance);
 					return request.instance;
 				});

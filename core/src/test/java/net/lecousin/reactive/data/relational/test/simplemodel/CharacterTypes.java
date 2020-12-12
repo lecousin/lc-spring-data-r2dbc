@@ -4,6 +4,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 
 @Table
@@ -11,7 +12,7 @@ public class CharacterTypes {
 
 	@Id
 	@GeneratedValue
-	private Long id;
+	private Integer id;
 	
 	@Column
 	private char c1;
@@ -24,12 +25,18 @@ public class CharacterTypes {
 	
 	@Column
 	private char[] chars;
+	
+	@ColumnDefinition(min = 5, max = 5, nullable = false)
+	private String fixedLengthString;
 
-	public Long getId() {
+	@ColumnDefinition(max = 5000, nullable = true)
+	private String longString;
+	
+	public Integer getId() {
 		return id;
 	}
 
-	public void setId(Long id) {
+	public void setId(Integer id) {
 		this.id = id;
 	}
 
@@ -63,6 +70,22 @@ public class CharacterTypes {
 
 	public void setChars(char[] chars) {
 		this.chars = chars;
+	}
+
+	public String getFixedLengthString() {
+		return fixedLengthString;
+	}
+
+	public void setFixedLengthString(String fixedLengthString) {
+		this.fixedLengthString = fixedLengthString;
+	}
+
+	public String getLongString() {
+		return longString;
+	}
+
+	public void setLongString(String longString) {
+		this.longString = longString;
 	}
 	
 }

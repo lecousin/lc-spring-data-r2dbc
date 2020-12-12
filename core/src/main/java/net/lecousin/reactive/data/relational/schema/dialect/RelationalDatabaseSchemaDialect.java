@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
@@ -24,7 +25,7 @@ import net.lecousin.reactive.data.relational.schema.Table;
 })
 public abstract class RelationalDatabaseSchemaDialect {
 	
-	public Object convertToDataBase(Object value) {
+	public Object convertToDataBase(Object value, RelationalPersistentProperty property) {
 		return value;
 	}
 	
@@ -112,10 +113,6 @@ public abstract class RelationalDatabaseSchemaDialect {
 			if (def.max() > Integer.MAX_VALUE) {
 				// large text
 				return "CLOB(" + def.max() + ")";
-			}
-			if (def.min() > 0 && def.max() == def.min()) {
-				// fixed length
-				return "CHAR(" + def.max() + ")";
 			}
 			if (def.max() > 0) {
 				// max length

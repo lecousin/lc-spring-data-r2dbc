@@ -57,4 +57,23 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 		return "TIMESTAMP WITH TIME ZONE";
 	}
 
+	@Override
+	protected String getColumnTypeString(Column col, Class<?> type, ColumnDefinition def) {
+		if (def != null) {
+			if (def.max() > Integer.MAX_VALUE) {
+				// large text
+				return "CLOB(" + def.max() + ")";
+			}
+			if (def.min() > 0 && def.max() == def.min()) {
+				// fixed length
+				return "CHAR(" + def.max() + ")";
+			}
+			if (def.max() > 0) {
+				// max length
+				return "VARCHAR(" + def.max() + ")";
+			}
+		}
+		return "VARCHAR";
+	}
+
 }

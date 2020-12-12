@@ -1,0 +1,6 @@
+autoEnabled=true
+eclipse.preferences.version=1
+idePrefixKey=
+projectKey=lecousin_lc-spring-data-r2dbc
+serverId=SonarCloud/lecousin
+sqPrefixKey=h2

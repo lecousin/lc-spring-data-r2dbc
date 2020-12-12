@@ -123,6 +123,37 @@ public class MyApp {
 }
 ```
 
+Depending on the database you use, a dedicated configuration class is provided, and you just need to provide a ConnectionFactory, in the same way as a classical Spring Data R2DBC project.
+
+Example for H2 in-memory database:
+
+```java
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import io.r2dbc.h2.H2ConnectionConfiguration;
+import io.r2dbc.h2.H2ConnectionFactory;
+import net.lecousin.reactive.data.relational.h2.H2Configuration;
+
+@Configuration
+public class H2TestConfiguration extends H2Configuration {
+
+	@Override
+	@Bean
+	public H2ConnectionFactory connectionFactory() {
+		return new H2ConnectionFactory(
+			H2ConnectionConfiguration.builder()
+			.url("mem:testdb;DB_CLOSE_DELAY=-1;")
+			.username("sa")
+			.build()
+		);
+	}
+	
+}
+```
+
+An example of a basic Spring Boot application is available [here](https://github.com/lecousin/lc-spring-data-r2dbc/tree/master/test-spring-boot)
+
 ## JUnit 5
 
 For your tests, using JUnit 5, you can use the annotation `@DataR2dbcTest` provided by Spring, and add the annotation `@EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)`.
