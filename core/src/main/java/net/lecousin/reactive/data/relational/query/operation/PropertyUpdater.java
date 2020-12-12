@@ -18,6 +18,7 @@ import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Table;
 import org.springframework.data.relational.core.sql.Update;
+import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
@@ -65,35 +66,43 @@ class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
 				}
 				if (reverseMap.isEmpty())
 					continue;
-				Table table = Table.create(entity.getKey().getTableName());
-				for (Map.Entry<Object, Set<Object>> update : reverseMap.entrySet()) {
-					SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
-					List<Expression> values = new ArrayList<>(update.getValue().size());
-					for (Object value : update.getValue())
-						values.add(query.marker(value));
-					List<AssignValue> assignments = new LinkedList<>();
-					assignments.add(AssignValue.create(Column.create(property.getKey().getColumnName(), table), update.getKey() != null ? query.marker(update.getKey()) : SQL.nullLiteral()));
-					if (versionProperty != null)
-						assignments.add(AssignValue.create(Column.create(versionProperty.getColumnName(), table), SQL.literalOf(new ColumnIncrement(Column.create(versionProperty.getColumnName(), table), op.lcClient))));
-					Condition where = Conditions.in(Column.create(property.getKey().getColumnName(), table), values);
-					for (SaveRequest save : op.save.getPendingRequests(entity.getKey(), s -> update.getValue().contains(ModelUtils.getPersistedDatabaseValue(s.state, property.getKey(), op.lcClient.getMappingContext())))) {
-						if (save.state.isPersisted())
-							where = where.and(ModelUtils.getConditionOnId(query, save.entityType, save.accessor, op.lcClient.getMappingContext()).not());
-						save.accessor.setProperty(property.getKey(), update.getKey());
-					}
-					query.setQuery(
-						Update.builder().table(table)
-						.set(assignments)
-						.where(where)
-						.build()
-					);
-					calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
-				}
+				executeUpdates(op, reverseMap, entity.getKey(), property.getKey(), versionProperty, ready, calls);
 			}
 		}
 		if (calls.isEmpty())
 			return null;
 		return Mono.when(calls);
+	}
+	
+	private static void executeUpdates(
+		Operation op, Map<Object, Set<Object>> reverseMap,
+		RelationalPersistentEntity<?> entityType, RelationalPersistentProperty property, @Nullable RelationalPersistentProperty versionProperty,
+		List<Request> ready, List<Mono<Void>> calls
+	) {
+		Table table = Table.create(entityType.getTableName());
+		for (Map.Entry<Object, Set<Object>> update : reverseMap.entrySet()) {
+			SqlQuery<Update> query = new SqlQuery<>(op.lcClient);
+			List<Expression> values = new ArrayList<>(update.getValue().size());
+			for (Object value : update.getValue())
+				values.add(query.marker(value));
+			List<AssignValue> assignments = new LinkedList<>();
+			assignments.add(AssignValue.create(Column.create(property.getColumnName(), table), update.getKey() != null ? query.marker(update.getKey()) : SQL.nullLiteral()));
+			if (versionProperty != null)
+				assignments.add(AssignValue.create(Column.create(versionProperty.getColumnName(), table), SQL.literalOf(new ColumnIncrement(Column.create(versionProperty.getColumnName(), table), op.lcClient))));
+			Condition where = Conditions.in(Column.create(property.getColumnName(), table), values);
+			for (SaveRequest save : op.save.getPendingRequests(entityType, s -> update.getValue().contains(ModelUtils.getPersistedDatabaseValue(s.state, property, op.lcClient.getMappingContext())))) {
+				if (save.state.isPersisted())
+					where = where.and(ModelUtils.getConditionOnId(query, save.entityType, save.accessor, op.lcClient.getMappingContext()).not());
+				save.accessor.setProperty(property, update.getKey());
+			}
+			query.setQuery(
+				Update.builder().table(table)
+				.set(assignments)
+				.where(where)
+				.build()
+			);
+			calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
+		}
 	}
 
 }

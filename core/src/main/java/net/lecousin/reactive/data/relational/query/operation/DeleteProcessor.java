@@ -79,7 +79,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 	}
 	
 	@Override
-	@SuppressWarnings("java:S3011")
+	@SuppressWarnings({"java:S3011", "java:S3776"})
 	protected void processForeignKey(
 		Operation op, DeleteRequest request,
 		RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation,
@@ -149,7 +149,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 		deleteForeign.dependsOn(request);
 	}
 	
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"unchecked", "java:S3776"})
 	@Override
 	protected <T> void processForeignTableField(
 		Operation op, DeleteRequest request,

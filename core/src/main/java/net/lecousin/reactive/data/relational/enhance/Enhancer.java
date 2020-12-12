@@ -7,6 +7,8 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.annotation.Version;
@@ -79,13 +81,8 @@ public final class Enhancer {
 	        addStateAttribute(classPool, cl);
 			
 	        for (CtField field : cl.getDeclaredFields()) {
-	        	if (!field.hasAnnotation(Id.class) &&
-	        		!field.hasAnnotation(Column.class) &&
-	        		!field.hasAnnotation(ColumnDefinition.class) &&
-	        		!field.hasAnnotation(Version.class) &&
-	        		!field.hasAnnotation(ForeignKey.class))
+	        	if (!isPersistent(field))
 	        		continue;
-	        	// TODO make sure it is not transient
 	        	
 	        	String accessorSuffix = Character.toUpperCase(field.getName().charAt(0)) + field.getName().substring(1);
 	        	processSetter(cl, field, accessorSuffix);
@@ -98,6 +95,16 @@ public final class Enhancer {
 		} catch (Exception e) {
 			throw new ModelAccessException("Unable to enhance entity " + className, e);
 		}
+	}
+	
+	private static boolean isPersistent(CtField field) {
+		if (field.hasAnnotation(Transient.class) || field.hasAnnotation(Autowired.class) || field.hasAnnotation(Value.class))
+			return false;
+		return field.hasAnnotation(Id.class) ||
+			field.hasAnnotation(Column.class) ||
+    		field.hasAnnotation(ColumnDefinition.class) ||
+    		field.hasAnnotation(Version.class) ||
+    		field.hasAnnotation(ForeignKey.class);
 	}
 	
 	private static boolean hasField(CtClass cl, String name) {
