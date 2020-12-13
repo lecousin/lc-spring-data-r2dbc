@@ -1,14 +1,18 @@
 package net.lecousin.reactive.data.relational.schema;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.util.Pair;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -33,6 +37,7 @@ public class SchemaBuilderFromEntities {
 	public RelationalDatabaseSchema build(Collection<Class<?>> entities) {
 		for (Class<?> entity : entities) {
 			schema.add(buildTable(entity));
+			addSequences(entity);
 		}
 		for (Class<?> entity : entities) {
 			addForeignKeys(entity);
@@ -69,8 +74,7 @@ public class SchemaBuilderFromEntities {
 			indexes.add(indexAnnotation);
 		net.lecousin.reactive.data.relational.annotations.Indexes indexesAnnotation = entityType.findAnnotation(net.lecousin.reactive.data.relational.annotations.Indexes.class);
 		if (indexesAnnotation != null)
-			for (net.lecousin.reactive.data.relational.annotations.Index i : indexesAnnotation.value())
-				indexes.add(i);
+			Collections.addAll(indexes, indexesAnnotation.value());
 		for (net.lecousin.reactive.data.relational.annotations.Index i : indexes) {
 			Index index = new Index(i.name());
 			index.setUnique(i.unique());
@@ -90,7 +94,10 @@ public class SchemaBuilderFromEntities {
 		col.setNullable(ModelUtils.isNullable(property));
 		GeneratedValue generated = property.findAnnotation(GeneratedValue.class);
 		if (generated != null) {
-			col.setAutoIncrement(true);
+			if (GeneratedValue.Strategy.AUTO_INCREMENT.equals(generated.strategy()))
+				col.setAutoIncrement(true);
+			else if (GeneratedValue.Strategy.RANDOM_UUID.equals(generated.strategy()))
+				col.setRandomUuid(true);
 		}
 		Class<?> type = property.getType();
 		if (property.isAnnotationPresent(ForeignKey.class)) {
@@ -118,6 +125,22 @@ public class SchemaBuilderFromEntities {
 			Column foreignColumn = foreignTable.getColumn(getColumnName(foreignId));
 			fkColumn.setForeignKeyReferences(Pair.of(foreignTable, foreignColumn));
 		} while (keys.hasNext());
+	}
+	
+	protected void addSequences(Class<?> entity) {
+		RelationalPersistentEntity<?> entityType = client.getMappingContext().getRequiredPersistentEntity(entity);
+		for (RelationalPersistentProperty property : entityType.getPersistentProperties(GeneratedValue.class)) {
+			GeneratedValue annotation = property.getRequiredAnnotation(GeneratedValue.class);
+			if (annotation.strategy().equals(GeneratedValue.Strategy.SEQUENCE)) {
+				Assert.isTrue(StringUtils.hasText(annotation.sequence()), "Sequence name must be specified");
+				try {
+					schema.getSequence(annotation.sequence());
+					// already defined
+				} catch (NoSuchElementException e) {
+					schema.add(new Sequence(annotation.sequence()));
+				}
+			}
+		}
 	}
 
 }

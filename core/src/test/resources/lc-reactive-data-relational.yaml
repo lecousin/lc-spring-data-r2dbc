@@ -5,8 +5,11 @@ entities:
       - BooleanTypes
       - CharacterTypes
       - DateTypes
+      - Entity1WithSequence
+      - Entity2WithSequence
       - NumericTypes
       - UpdatableProperties
+      - UUIDEntity
       - VersionedEntity
     - onetoonemodel:
       - MyEntity1

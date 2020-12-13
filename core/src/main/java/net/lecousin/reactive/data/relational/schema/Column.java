@@ -9,6 +9,7 @@ public class Column {
 	private boolean primaryKey;
 	private boolean nullable;
 	private boolean autoIncrement;
+	private boolean randomUuid;
 	private Pair<Table, Column> foreignKeyReferences;
 	
 	public Column(String name) {
@@ -37,6 +38,14 @@ public class Column {
 
 	public void setAutoIncrement(boolean autoIncrement) {
 		this.autoIncrement = autoIncrement;
+	}
+
+	public boolean isRandomUuid() {
+		return randomUuid;
+	}
+
+	public void setRandomUuid(boolean randomUuid) {
+		this.randomUuid = randomUuid;
 	}
 
 	public String getName() {

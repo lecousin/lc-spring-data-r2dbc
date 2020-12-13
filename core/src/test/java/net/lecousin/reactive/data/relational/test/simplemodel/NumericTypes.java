@@ -12,7 +12,7 @@ import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 public class NumericTypes {
 
 	@Id @GeneratedValue
-	private Long id;
+	private Short id;
 	
 	@Column
 	private byte byte1;
@@ -53,11 +53,11 @@ public class NumericTypes {
 	@Column
 	private BigDecimal bigDec;
 
-	public Long getId() {
+	public Short getId() {
 		return id;
 	}
 
-	public void setId(Long id) {
+	public void setId(Short id) {
 		this.id = id;
 	}
 

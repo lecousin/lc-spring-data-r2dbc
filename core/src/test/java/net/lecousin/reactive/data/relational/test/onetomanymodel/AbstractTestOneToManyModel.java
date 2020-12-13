@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.test.onetomanymodel;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -19,6 +20,11 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 
 	@Autowired
 	private RootEntityRepository repo;
+	
+	@Override
+	protected Collection<Class<?>> usedEntities() {
+		return Arrays.asList(RootEntity.class, SubEntity.class, SubEntity2.class, SubEntity3.class);
+	}
 	
 	@Test
 	public void testListEmpty() {

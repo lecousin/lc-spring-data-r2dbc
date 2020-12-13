@@ -80,7 +80,7 @@ public class LcEntityWriter {
 			return;
 		}
 		
-		value = converter.getLcClient().getSchemaDialect().convertToDataBase(value);
+		value = converter.getLcClient().getSchemaDialect().convertToDataBase(value, property);
 
 		if (conversions.isSimpleType(value.getClass())) {
 			writeSimple(sink, value, property);

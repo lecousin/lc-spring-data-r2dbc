@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational.schema.dialect;
 
+import java.io.PrintStream;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -21,15 +22,11 @@ public class SchemaStatements {
 		statements.add(statement);
 	}
 	
-	public boolean hasStatements() {
-		return !statements.isEmpty();
-	}
-	
 	private synchronized List<SchemaStatement> peekReadyStatements() {
 		List<SchemaStatement> ready = new LinkedList<>();
 		for (Iterator<SchemaStatement> it = statements.iterator(); it.hasNext(); ) {
 			SchemaStatement s = it.next();
-			if (s.hasDependency())
+			if (s.hasDependency() || !s.canExecuteWith(ready))
 				continue;
 			ready.add(s);
 			it.remove();
@@ -53,6 +50,15 @@ public class SchemaStatements {
 			.flatMap(s -> client.getSpringClient().sql(log(s.getSql())).fetch().rowsUpdated().doOnError(e -> log(s, e)).thenReturn(s))
 			.doOnNext(this::done)
 			.map(SchemaStatement::getSql);
+	}
+	
+	public void print(PrintStream target) {
+		while (!statements.isEmpty()) {
+			for (SchemaStatement statement : peekReadyStatements()) {
+				target.println(statement.getSql());
+				done(statement);
+			}
+		}
 	}
 
 	private static String log(String sql) {

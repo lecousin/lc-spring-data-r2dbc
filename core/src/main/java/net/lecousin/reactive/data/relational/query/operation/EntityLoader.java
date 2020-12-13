@@ -13,6 +13,7 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 class EntityLoader {
@@ -44,21 +45,17 @@ class EntityLoader {
 	}
 
 	private Mono<Void> doLoad(Operation op) {
-		// TODO do it in group instead of one by one
-		List<Mono<?>> loads = new LinkedList<>();
+		List<Flux<?>> loads = new LinkedList<>();
 		Map<RelationalPersistentEntity<?>, Map<Object, List<Consumer<Object>>>> map = toLoad;
 		toLoad = new HashMap<>();
 		for (Map.Entry<RelationalPersistentEntity<?>, Map<Object, List<Consumer<Object>>>> entity : map.entrySet()) {
-			for (Map.Entry<Object, List<Consumer<Object>>> instance : entity.getValue().entrySet()) {
-				loads.add(
-					op.lcClient.lazyLoad(instance.getKey(), entity.getKey())
-					.map(loaded -> {
-						for (Consumer<Object> consumer : instance.getValue())
-							op.toCall(() -> consumer.accept(loaded));
-						return loaded;
-					})
-				);
-			}
+			loads.add(
+				op.lcClient.lazyLoad(entity.getValue().keySet(), entity.getKey())
+				.doOnNext(loaded -> {
+					for (Consumer<Object> consumer : entity.getValue().get(loaded))
+						op.toCall(() -> consumer.accept(loaded));
+				})
+			);
 		}
 		if (loads.isEmpty())
 			return null;

@@ -2,15 +2,22 @@ package net.lecousin.reactive.data.relational.schema.dialect;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+import org.apache.commons.lang3.mutable.MutableObject;
+import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
 import net.lecousin.reactive.data.relational.schema.Index;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 import net.lecousin.reactive.data.relational.schema.SchemaException;
+import net.lecousin.reactive.data.relational.schema.Sequence;
 import net.lecousin.reactive.data.relational.schema.Table;
 
 @SuppressWarnings({
@@ -19,7 +26,7 @@ import net.lecousin.reactive.data.relational.schema.Table;
 })
 public abstract class RelationalDatabaseSchemaDialect {
 	
-	public Object convertToDataBase(Object value) {
+	public Object convertToDataBase(Object value, RelationalPersistentProperty property) {
 		return value;
 	}
 	
@@ -61,6 +68,8 @@ public abstract class RelationalDatabaseSchemaDialect {
 			return getColumnTypeDateTimeWithTimeZone(col, type, def);
 		if (java.time.Instant.class.equals(type))
 			return getColumnTypeTimestamp(col, type, def);
+		if (UUID.class.equals(type))
+			return getColumnTypeUUID(col, type, def);
 		throw new SchemaException("Column type not supported: " + type.getName() + " for column " + col.getName());
 	}
 
@@ -108,10 +117,6 @@ public abstract class RelationalDatabaseSchemaDialect {
 				// large text
 				return "CLOB(" + def.max() + ")";
 			}
-			if (def.min() > 0 && def.max() == def.min()) {
-				// fixed length
-				return "CHAR(" + def.max() + ")";
-			}
 			if (def.max() > 0) {
 				// max length
 				return "VARCHAR(" + def.max() + ")";
@@ -143,6 +148,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
 		return "DATETIME WITH TIME ZONE";
 	}
+
+	protected String getColumnTypeUUID(Column col, Class<?> type, ColumnDefinition def) {
+		return "UUID";
+	}
 	
 	public SchemaStatements dropSchemaContent(RelationalDatabaseSchema schema) {
 		SchemaStatements toExecute = new SchemaStatements();
@@ -162,6 +171,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 					dropTableMap.get(col.getForeignKeyReferences().getFirst()).addDependency(dropTableMap.get(table));
 			}
 		}
+		// drop sequences
+		if (supportsSequence())
+			for (Sequence s : schema.getSequences())
+				toExecute.add(new SchemaStatement(dropSequence(s)));
 		return toExecute;
 	}
 	
@@ -174,7 +187,13 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public SchemaStatements createSchemaContent(RelationalDatabaseSchema schema) {
 		SchemaStatements toExecute = new SchemaStatements();
-		// create tables
+		Map<Table, SchemaStatement> createTableMap = createTables(schema, toExecute);
+		addConstraints(schema, toExecute, createTableMap);
+		createSequences(schema, toExecute);
+		return toExecute;
+	}
+	
+	private Map<Table, SchemaStatement> createTables(RelationalDatabaseSchema schema, SchemaStatements toExecute) {
 		Map<Table, SchemaStatement> createTableMap = new HashMap<>();
 		for (Table table : schema.getTables()) {
 			SchemaStatement createTable = new SchemaStatement(createTable(table));
@@ -188,22 +207,93 @@ public abstract class RelationalDatabaseSchemaDialect {
 				toExecute.add(createIndex);
 			}
 		}
-		// add foreign keys
-		SchemaStatement previousAlter = null;
+		return createTableMap;
+	}
+	
+	private void createSequences(RelationalDatabaseSchema schema, SchemaStatements toExecute) {
+		if (!supportsSequence())
+			return;
+		for (Sequence s : schema.getSequences())
+			toExecute.add(new SchemaStatement(createSequence(s)));
+	}
+	
+	private void addConstraints(RelationalDatabaseSchema schema, SchemaStatements toExecute, Map<Table, SchemaStatement> createTableMap) {
+		Map<Table, List<SchemaStatement>> alterTableByTable = new HashMap<>();
+		Map<SchemaStatement, Table> foreignTable = new HashMap<>();
+		MutableObject<SchemaStatement> latestAlterTable = new MutableObject<>(null);
 		for (Table table : schema.getTables()) {
-			for (Column col : table.getColumns()) {
-				if (col.getForeignKeyReferences() == null)
-					continue;
-				SchemaStatement alterTable = new SchemaStatement(alterTableForeignKey(table, col));
-				alterTable.addDependency(createTableMap.get(table));
-				alterTable.addDependency(createTableMap.get(col.getForeignKeyReferences().getFirst()));
-				if (previousAlter != null)
-					alterTable.addDependency(previousAlter);
-				previousAlter = alterTable;
-				toExecute.add(alterTable);
+			addTableConstraints(table, toExecute, createTableMap, alterTableByTable, foreignTable, latestAlterTable);
+		}
+		for (Map.Entry<SchemaStatement, Table> entry : foreignTable.entrySet()) {
+			for (SchemaStatement statement : alterTableByTable.get(entry.getValue())) {
+				entry.getKey().doNotExecuteTogether(statement);
 			}
 		}
-		return toExecute;
+	}
+	
+	private void addTableConstraints(Table table, SchemaStatements toExecute, Map<Table, SchemaStatement> createTableMap, Map<Table, List<SchemaStatement>> alterTableByTable, Map<SchemaStatement, Table> foreignTable, MutableObject<SchemaStatement> latestAlterTable) {
+		LinkedList<SchemaStatement> alterTableList = new LinkedList<>();
+		StringBuilder sql = new StringBuilder();
+		Set<Table> foreignTables = new HashSet<>();
+		foreignTables.add(table);
+		for (Column col : table.getColumns()) {
+			if (col.getForeignKeyReferences() == null)
+				continue;
+			if (canAddMultipleConstraintsInSingleAlterTable()) {
+				appendForeignKeyConstraint(table, col, sql);
+				foreignTables.add(col.getForeignKeyReferences().getFirst());
+			} else {
+				toExecute.add(createAlterTableAddForeignKey(table, col, createTableMap, alterTableList, foreignTable, latestAlterTable));
+			}
+		}
+		if (canAddMultipleConstraintsInSingleAlterTable() && sql.length() > 0) {
+			SchemaStatement alterTable = new SchemaStatement(sql.toString());
+			for (Table foreign : foreignTables)
+				alterTable.addDependency(createTableMap.get(foreign));
+			if (!canDoConcurrentAlterTable())
+				addAlterTable(latestAlterTable, alterTable);
+			toExecute.add(alterTable);
+		}
+		alterTableByTable.put(table, alterTableList);
+	}
+	
+	private void appendForeignKeyConstraint(Table table, Column col, StringBuilder sql) {
+		if (sql.length() > 0)
+			appendForeignKey(table, col, sql);
+		else
+			sql.append(alterTableForeignKey(table, col));
+	}
+	
+	private SchemaStatement createAlterTableAddForeignKey(Table table, Column col, Map<Table, SchemaStatement> createTableMap, LinkedList<SchemaStatement> alterTableList, Map<SchemaStatement, Table> foreignTable, MutableObject<SchemaStatement> latestAlterTable) {
+		SchemaStatement alterTable = new SchemaStatement(alterTableForeignKey(table, col));
+		alterTable.addDependency(createTableMap.get(table));
+		Table foreign = col.getForeignKeyReferences().getFirst();
+		if (foreign != table)
+			alterTable.addDependency(createTableMap.get(foreign));
+		if (canDoConcurrentAlterTable()) {
+			if (!alterTableList.isEmpty())
+				alterTable.addDependency(alterTableList.getLast());
+			alterTableList.addLast(alterTable);
+			if (foreign != table)
+				foreignTable.put(alterTable, table);
+		} else {
+			addAlterTable(latestAlterTable, alterTable);
+		}
+		return alterTable;
+	}
+	
+	private static void addAlterTable(MutableObject<SchemaStatement> latestAlterTable, SchemaStatement alterTable) {
+		if (latestAlterTable.getValue() != null)
+			alterTable.addDependency(latestAlterTable.getValue());
+		latestAlterTable.setValue(alterTable);
+	}
+	
+	protected boolean canDoConcurrentAlterTable() {
+		return true;
+	}
+	
+	protected boolean canAddMultipleConstraintsInSingleAlterTable() {
+		return false;
 	}
 	
 	protected boolean canCreateIndexInTableDefinition(Index index) {
@@ -258,6 +348,8 @@ public abstract class RelationalDatabaseSchemaDialect {
 		sql.append(col.getName());
 		sql.append(' ');
 		sql.append(col.getType());
+		if (col.isRandomUuid() && supportsUuidGeneration())
+			addDefaultRandomUuid(col, sql);
 		if (!col.isNullable())
 			addNotNull(col, sql);
 		if (col.isAutoIncrement())
@@ -278,6 +370,14 @@ public abstract class RelationalDatabaseSchemaDialect {
 		sql.append(" AUTO_INCREMENT");
 	}
 	
+	public boolean supportsUuidGeneration() {
+		return true;
+	}
+	
+	protected void addDefaultRandomUuid(Column col, StringBuilder sql) {
+		sql.append(" DEFAULT RANDOM_UUID()");
+	}
+	
 	protected void addPrimaryKey(Column col, StringBuilder sql) {
 		sql.append(" PRIMARY KEY");
 	}
@@ -286,6 +386,11 @@ public abstract class RelationalDatabaseSchemaDialect {
 		StringBuilder sql = new StringBuilder();
 		sql.append("ALTER TABLE ");
 		sql.append(table.getName());
+		addForeignKeyStatement(table, col, sql);
+		return sql.toString();
+	}
+	
+	protected void addForeignKeyStatement(Table table, Column col, StringBuilder sql) {
 		sql.append(" ADD FOREIGN KEY (");
 		sql.append(col.getName());
 		sql.append(") REFERENCES ");
@@ -293,6 +398,26 @@ public abstract class RelationalDatabaseSchemaDialect {
 		sql.append('(');
 		sql.append(col.getForeignKeyReferences().getSecond().getName());
 		sql.append(')');
-		return sql.toString();
+	}
+	
+	protected void appendForeignKey(Table table, Column col, StringBuilder sql) {
+		sql.append(',');
+		addForeignKeyStatement(table, col, sql);
+	}
+	
+	public boolean supportsSequence() {
+		return true;
+	}
+
+	protected String dropSequence(Sequence sequence) {
+		return "DROP SEQUENCE IF EXISTS " + sequence.getName();
+	}
+	
+	protected String createSequence(Sequence sequence) {
+		return "CREATE SEQUENCE " + sequence.getName() + " START WITH 1 INCREMENT BY 1";
+	}
+	
+	public String sequenceNextValueFunctionName() {
+		return "NEXTVAL";
 	}
 }

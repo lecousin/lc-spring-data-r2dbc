@@ -7,6 +7,7 @@ import java.util.NoSuchElementException;
 public class RelationalDatabaseSchema {
 
 	private List<Table> tables = new LinkedList<>();
+	private List<Sequence> sequences = new LinkedList<>();
 	
 	public void add(Table table) {
 		tables.add(table);
@@ -21,5 +22,20 @@ public class RelationalDatabaseSchema {
 			if (table.getName().equals(name))
 				return table;
 		throw new NoSuchElementException("Table " + name);
+	}
+	
+	public void add(Sequence sequence) {
+		sequences.add(sequence);
+	}
+	
+	public List<Sequence> getSequences() {
+		return sequences;
+	}
+	
+	public Sequence getSequence(String name) {
+		for (Sequence sequence : sequences)
+			if (sequence.getName().equals(name))
+				return sequence;
+		throw new NoSuchElementException("Sequence " + name);
 	}
 }

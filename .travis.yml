@@ -2,7 +2,7 @@ language: java
 jdk:
   - oraclejdk11
   - openjdk11
-dist: trusty
+dist: xenial
 git:
   depth: false
 
@@ -12,7 +12,7 @@ addons:
     token:
       secure: jtsd/i39O0E71dh70JDfCkMdYniwJWbttdAsjvcu2CHOAGj1RF244B/G5Di8x+CQsFf+CVcr3Yoeis40LHoEzPuTaMm1Yy0LlTjzkQEpTfvGnz6VXJ/BDFt9KyQYbHyzdn0nOxZkoMhomQCYJ5u8hkZtYo25c6lqYZBVKGvUIvJcR0Rl6As4EerMwIlI9L0R4gvcoLl/RbKYYGz69VjSd4Q3FgjT7NtQWwe9LHBwoo2ux9VGAvTRjeUjtUMX97+18e1tSZ3UTUzMqz+01y4VrqZC3HjFGZGQHWp0WHePT9PZGHrRjI/tJ8mgWPooPwQ0tWCibbIJuORDMeYfxjaQAXY8m8hrTWoPs5WEgL7gaW+23vK+og+xrmUCG3BDRdSTEFaoGCb+MdcBTzOGtqDKXjzWApA0IZFYm/WOFBlCa3IbmwHXLOrvQSGUa8bMFChPN1bfhAmY97aTssm2XxcV0qQw/bohr/UoiXwdJRCPXZh6kdjTQVBBS21r7ltZZcT+Ibfq43OjK7Ij9wf61882FfYchU/dBljk41y+06HBS2HKbp+w2Xxvsw12x3tNlh0NfYqPT4pZekYcJH3kK5v99dWd3NqlE41jTzhjjUiawQX6ESW6qOjj0Bh440AFDbtujquGhpH8KCcLlSWFdn9qh+Mp/5tf42v7pfYVZ1kL9JE=
 
-script: mvn test verify install sonar:sonar -Dsonar.projectKey=lecousin_lc-spring-data-r2dbc -DprojectName=lc-spring-data-r2dbc -Dsonar.projectName=lc-spring-data-r2dbc -B 
+script: mvn -T 4 test verify install sonar:sonar -Dsonar.projectKey=lecousin_lc-spring-data-r2dbc -DprojectName=lc-spring-data-r2dbc -Dsonar.projectName=lc-spring-data-r2dbc -B 
   
 after_success:
  - bash <(curl -s https://codecov.io/bash)

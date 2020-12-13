@@ -33,6 +33,10 @@ public class SqlQuery<T> {
 		markers = client.getDialect().getBindMarkersFactory().create();
 	}
 	
+	public LcReactiveDataRelationalClient getClient() {
+		return client;
+	}
+
 	public T getQuery() {
 		return query;
 	}

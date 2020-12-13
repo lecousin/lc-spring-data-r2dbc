@@ -11,9 +11,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.CollectionFactory;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mapping.MappingException;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
@@ -99,13 +103,19 @@ public class EntityState {
 	}
 	
 	@SuppressWarnings("unchecked")
-	public synchronized <T> Mono<T> loading(Mono<T> doLoading) {
+	public synchronized <T> Mono<T> loading(Supplier<Mono<T>> doLoading) {
 		if (loading != null)
 			return (Mono<T>) loading;
-		loading = doLoading.doOnSuccess(entity -> {
+		loading = doLoading.get().doOnSuccess(entity -> {
 			loading = null;
 			loaded(entity);
 		}).cache();
+		return (Mono<T>) loading;
+	}
+	
+	@SuppressWarnings("unchecked")
+	@Nullable
+	public <T> Mono<T> getLoading() {
 		return (Mono<T>) loading;
 	}
 	
@@ -119,9 +129,11 @@ public class EntityState {
 		modifiedFields.clear();
 		persistedValues.clear();
 		for (Field f : entity.getClass().getDeclaredFields()) {
-			if (Enhancer.STATE_FIELD_NAME.equals(f.getName()))
+			if (Enhancer.STATE_FIELD_NAME.equals(f.getName()) ||
+				f.isAnnotationPresent(Transient.class) ||
+				f.isAnnotationPresent(Autowired.class) ||
+				f.isAnnotationPresent(Value.class))
 				continue;
-			// TODO exclude transient fields
 			f.setAccessible(true);
 			try {
 				savePersistedValue(f, f.get(entity));

@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.postgres.test;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.time.Duration;
 
 import org.springframework.context.annotation.Bean;
@@ -32,6 +33,9 @@ public class PostgresTestConfiguration extends PostgresConfiguration {
 		EmbeddedPostgres.Builder builder = EmbeddedPostgres.builder().setPGStartupWait(Duration.ofSeconds(30));
 		try {
 			epg = builder.start();
+			Connection conn = epg.getPostgresDatabase().getConnection();
+			conn.prepareCall("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").execute();
+			conn.close();
 		} catch (Throwable e) {
 			error = e;
 		}

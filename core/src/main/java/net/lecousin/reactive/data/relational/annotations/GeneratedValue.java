@@ -11,5 +11,20 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD })
 public @interface GeneratedValue {
+	
+	enum Strategy {
+		/** Use auto increment/serial capability from database. */
+		AUTO_INCREMENT,
+		/** Use a sequence. Sequence name must be specified. */
+		SEQUENCE,
+		/** Generate a random UUID. Must be used only with a column of type java.util.UUID. */
+		RANDOM_UUID;
+	}
+	
+	/** Strategy to generate the value. */
+	Strategy strategy() default Strategy.AUTO_INCREMENT;
+	
+	/** For SEQUENCE strategy, specifies the name of the sequence to use. */
+	String sequence() default ""; 
 
 }

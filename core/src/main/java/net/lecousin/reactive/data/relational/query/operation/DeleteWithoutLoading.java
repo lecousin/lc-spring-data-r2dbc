@@ -57,22 +57,27 @@ class DeleteWithoutLoading extends AbstractProcessor<DeleteWithoutLoading.Reques
 				continue;
 			SqlQuery<Delete> query = new SqlQuery<>(op.lcClient);
 			Table table = Table.create(entity.getKey().getTableName());
-			Iterator<Request> it = ready.iterator();
-			Condition condition = null;
-			do {
-				Request r = it.next();
-				Column col = Column.create(r.whereProperty.getColumnName(), table);
-				Condition c = r.whereValue != null ? Conditions.isEqual(col, query.marker(r.whereValue)) : Conditions.isNull(col);
-				condition = condition != null ? condition.or(c) : c;
-				if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
-					LcReactiveDataRelationalClient.logger.debug("Delete " + entity.getKey().getType().getName() + " where " + r.whereProperty.getName() + " = " + r.whereValue);
-			} while (it.hasNext());
+			Condition condition = createCondition(entity.getKey(), table, ready, query);
 			query.setQuery(Delete.builder().from(table).where(condition).build());
 			calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
 		}
 		if (calls.isEmpty())
 			return null;
 		return Mono.when(calls);
+	}
+	
+	private static Condition createCondition(RelationalPersistentEntity<?> entityType, Table table, List<Request> ready, SqlQuery<Delete> query) {
+		Condition condition = null;
+		Iterator<Request> it = ready.iterator();
+		do {
+			Request r = it.next();
+			Column col = Column.create(r.whereProperty.getColumnName(), table);
+			Condition c = r.whereValue != null ? Conditions.isEqual(col, query.marker(r.whereValue)) : Conditions.isNull(col);
+			condition = condition != null ? condition.or(c) : c;
+			if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
+				LcReactiveDataRelationalClient.logger.debug("Delete " + entityType.getType().getName() + " where " + r.whereProperty.getName() + " = " + r.whereValue);
+		} while (it.hasNext());
+		return condition;
 	}
 
 }

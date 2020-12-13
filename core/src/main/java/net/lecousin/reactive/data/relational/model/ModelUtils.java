@@ -35,6 +35,7 @@ import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
+import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 
 public class ModelUtils {
 	
@@ -507,6 +508,26 @@ public class ModelUtils {
 			RelationalPersistentProperty property = it.next();
 			Object value = getDatabaseValue(accessor.getBean(), property, mappingContext);
 			Condition propertyCondition = Conditions.isEqual(Column.create(property.getColumnName(), table), value != null ? query.marker(value) : SQL.nullLiteral());
+			condition = condition != null ? condition.and(propertyCondition) : propertyCondition;
+		} while (it.hasNext());
+		return condition;
+	}
+	
+	public static Criteria getCriteriaOnId(String entityName, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+		if (entityType.hasIdProperty())
+			return getCriteriaOnProperties(entityName, Arrays.asList(entityType.getRequiredIdProperty()), accessor, mappingContext);
+		if (entityType.isAnnotationPresent(CompositeId.class))
+			return getCriteriaOnProperties(entityName, getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, mappingContext);
+		return getCriteriaOnProperties(entityName, entityType, accessor, mappingContext);
+	}
+	
+	public static Criteria getCriteriaOnProperties(String entityName, Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+		Iterator<RelationalPersistentProperty> it = properties.iterator();
+		Criteria condition = null;
+		do {
+			RelationalPersistentProperty property = it.next();
+			Object value = getDatabaseValue(accessor.getBean(), property, mappingContext);
+			Criteria propertyCondition = value != null ? Criteria.property(entityName, property.getName()).is(value) : Criteria.property(entityName, property.getName()).isNull();
 			condition = condition != null ? condition.and(propertyCondition) : propertyCondition;
 		} while (it.hasNext());
 		return condition;

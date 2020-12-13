@@ -6,12 +6,16 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
 import io.r2dbc.spi.Row;
@@ -37,6 +41,21 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Autowired
 	private DateTypesRepository repoDate;
+	
+	@Override
+	protected Collection<Class<?>> usedEntities() {
+		return Arrays.asList(
+			BooleanTypes.class,
+			CharacterTypes.class,
+			DateTypes.class,
+			Entity1WithSequence.class,
+			Entity2WithSequence.class,
+			NumericTypes.class,
+			UpdatableProperties.class,
+			UUIDEntity.class,
+			VersionedEntity.class
+		);
+	}
 	
 	@Test
 	public void testBooleans() {
@@ -276,17 +295,25 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Test
 	public void testCharacters() {
+		StringBuilder longString = new StringBuilder(4600);
+		for (int i = 0; i < 4500; ++i)
+			longString.append((char)('a' + (i % 20)));
+		
 		CharacterTypes e1 = new CharacterTypes();
 		e1.setC1('p');
 		e1.setC2(null);
 		e1.setStr(null);
 		e1.setChars(null);
+		e1.setFixedLengthString("abc");
+		e1.setLongString(longString.toString());
 		
 		CharacterTypes e2 = new CharacterTypes();
 		e2.setC1('\n');
 		e2.setC2(Character.valueOf((char)0));
 		e2.setStr("Hello");
 		e2.setChars(new char[] { 'W', 'o', 'r', 'l', 'd' });
+		e2.setFixedLengthString("abcde");
+		e2.setLongString(null);
 		
 		repoChars.saveAll(Arrays.asList(e1, e2)).collectList().block();
 		List<CharacterTypes> list = repoChars.findAll().collectList().block();
@@ -296,11 +323,15 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 				Assertions.assertEquals('p', e.getC1());
 				Assertions.assertNull(e.getStr());
 				Assertions.assertNull(e.getChars());
+				Assertions.assertEquals("abc  ", e.getFixedLengthString());
+				Assertions.assertEquals(longString.toString(), e.getLongString());
 			} else {
 				Assertions.assertEquals('\n', e.getC1());
 				Assertions.assertEquals((char)0, e.getC2().charValue());
 				Assertions.assertEquals("Hello", e.getStr());
 				Assertions.assertEquals("World", new String(e.getChars()));
+				Assertions.assertEquals("abcde", e.getFixedLengthString());
+				Assertions.assertNull(e.getLongString());
 			}
 		}
 
@@ -371,7 +402,10 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		VersionedEntity entity2 = new VersionedEntity();
 		entity2.setStr("World");
 		entity2.setVersion(10L);
+		
+		long creationDateStart = System.currentTimeMillis();
 		List<VersionedEntity> list = repoVersion.saveAll(Arrays.asList(entity1, entity2)).collectList().block();
+		long creationDateEnd = System.currentTimeMillis();
 		Assertions.assertEquals(2, list.size());
 		entity1 = list.get(0);
 		entity2 = list.get(1);
@@ -381,6 +415,16 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertNotNull(entity2.getId());
 		Assertions.assertEquals(1, entity2.getVersion());
 		Assertions.assertEquals("World", entity2.getStr());
+		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
+		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(entity2.getCreation(), entity2.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getCreationInstant().toEpochMilli());
+		Assertions.assertEquals(java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalDate());
+		Assertions.assertEquals(java.time.LocalTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalTime());
+		Assertions.assertEquals(java.time.OffsetTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationOffsetTime());
+		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalDateTime());
+		Assertions.assertEquals(java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationZonedDateTime());
 		final Long id1 = entity1.getId();
 		final Long id2 = entity2.getId();
 		
@@ -391,9 +435,19 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("Hello", entity1.getStr());
 		Assertions.assertEquals(1, entity2.getVersion());
 		Assertions.assertEquals("World", entity2.getStr());
+		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
+		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(entity2.getCreation(), entity2.getModification().toInstant().toEpochMilli());
 		
 		// update entity2 => version 2
 		entity2.setStr("World !");
+		while (System.currentTimeMillis() == creationDateStart)
+			try {
+				Thread.sleep(10);
+			} catch (InterruptedException e1) {
+				e1.printStackTrace();
+			}
 		list = repoVersion.saveAll(Arrays.asList(entity1, entity2)).collectList().block();
 		entity1 = list.stream().filter(e -> id1.equals(e.getId())).findFirst().get();
 		entity2 = list.stream().filter(e -> id2.equals(e.getId())).findFirst().get();
@@ -401,6 +455,12 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("Hello", entity1.getStr());
 		Assertions.assertEquals(2, entity2.getVersion());
 		Assertions.assertEquals("World !", entity2.getStr());
+		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
+		Assertions.assertTrue(entity1.getCreation() == entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertTrue(entity2.getCreation() < entity2.getModification().toInstant().toEpochMilli());
+		
 		
 		list = repoVersion.findAll().collectList().block();
 		entity1 = list.stream().filter(e -> id1.equals(e.getId())).findFirst().get();
@@ -409,6 +469,10 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("Hello", entity1.getStr());
 		Assertions.assertEquals(2, entity2.getVersion());
 		Assertions.assertEquals("World !", entity2.getStr());
+		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
+		Assertions.assertTrue(entity2.getCreation() < entity2.getModification().toInstant().toEpochMilli());
 		
 		// save entity2 with version 1 => error
 		entity2.setVersion(1L);
@@ -502,6 +566,21 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 
 		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").notIn(Arrays.asList(2, 3, 4))).execute(lcClient).blockFirst());
 		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").notIn(Arrays.asList(12, 13, 14))).execute(lcClient).blockFirst());
+		
+		CharacterTypes c = new CharacterTypes();
+		c.setStr("Hello World");
+		c.setLongString("Hello World");
+		c.setFixedLengthString("Hello");
+		repoChars.save(c).block();
+		
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("%lo%")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("Hello%")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("%World")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("%o%")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("%la%")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").notLike("%la%")).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").like("e", "fixedLengthString")).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").notLike("e", "fixedLengthString")).execute(lcClient).blockFirst());
 	}
 	
 	@Test
@@ -510,28 +589,91 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		entity.setStr1("1.1");
 		entity.setStr2("2.1");
 		entity.setStr3("3.1");
+		entity.setStr4("4.1");
 		
 		entity = lcClient.save(entity).block();
 		Assertions.assertEquals("1.1", entity.getStr1());
 		Assertions.assertEquals("2.1", entity.getStr2());
 		Assertions.assertEquals("3.1", entity.getStr3());
+		Assertions.assertEquals("4.1", entity.getStr4());
 		long id = entity.getId();
 		
 		entity.setId(10L);
 		entity.setStr1("1.2");
 		entity.setStr2("2.2");
 		entity.setStr3("3.2");
+		entity.setStr4("4.2");
 		
 		entity = lcClient.save(entity).block();
 		Assertions.assertEquals(id, entity.getId());
 		Assertions.assertEquals("1.2", entity.getStr1());
 		Assertions.assertEquals("2.2", entity.getStr2());
 		Assertions.assertEquals("3.1", entity.getStr3());
+		Assertions.assertEquals("4.1", entity.getStr4());
 
 		entity = SelectQuery.from(UpdatableProperties.class, "entity").execute(lcClient).blockFirst();
 		Assertions.assertEquals(id, entity.getId());
 		Assertions.assertEquals("1.2", entity.getStr1());
 		Assertions.assertEquals("2.2", entity.getStr2());
 		Assertions.assertEquals("3.1", entity.getStr3());
+		Assertions.assertEquals("4.1", entity.getStr4());
+	}
+	
+	@Test
+	public void test2EntitiesWithSameSequence() {
+		Assumptions.assumeTrue(lcClient.getSchemaDialect().supportsSequence());
+		
+		Entity1WithSequence e1_1 = new Entity1WithSequence();
+		e1_1.setValue("1.1");
+		Entity1WithSequence e1_2 = new Entity1WithSequence();
+		e1_2.setValue("1.2");
+		Entity2WithSequence e2_1 = new Entity2WithSequence();
+		e2_1.setValue("2.1");
+		Entity2WithSequence e2_2 = new Entity2WithSequence();
+		e2_2.setValue("2.2");
+		
+		List<Entity1WithSequence> list1 = lcClient.save(Arrays.asList(e1_1, e1_2)).collectList().block();
+		Assertions.assertEquals(2, list1.size());
+		e1_1 = list1.stream().filter(e -> "1.1".equals(e.getValue())).findFirst().get();
+		e1_2 = list1.stream().filter(e -> "1.2".equals(e.getValue())).findFirst().get();
+		Assertions.assertTrue(e1_1.getId() < 3);
+		Assertions.assertTrue(e1_2.getId() < 3);
+		if (e1_1.getId() == 1)
+			Assertions.assertEquals(2, e1_2.getId());
+		else if (e1_2.getId() == 1)
+			Assertions.assertEquals(2, e1_1.getId());
+		else
+			throw new AssertionError();
+		
+		List<Entity2WithSequence> list2 = lcClient.save(Arrays.asList(e2_1, e2_2)).collectList().block();
+		Assertions.assertEquals(2, list2.size());
+		e2_1 = list2.stream().filter(e -> "2.1".equals(e.getValue())).findFirst().get();
+		e2_2 = list2.stream().filter(e -> "2.2".equals(e.getValue())).findFirst().get();
+		Assertions.assertTrue(e2_1.getId() < 5);
+		Assertions.assertTrue(e2_2.getId() < 5);
+		if (e2_1.getId() == 3)
+			Assertions.assertEquals(4, e2_2.getId());
+		else if (e2_2.getId() == 3)
+			Assertions.assertEquals(4, e2_1.getId());
+		else
+			throw new AssertionError();
+	}
+	
+	@Test
+	public void testSpringClient() {
+		BooleanTypes e = new BooleanTypes();
+		e.setB1(Boolean.TRUE);
+		e.setB2(false);
+		OutboundRow row = lcClient.getDataAccess().getOutboundRow(e);
+		Assertions.assertEquals(3, row.keySet().size());
+	}
+	
+	@Test
+	public void testUUID() {
+		UUIDEntity e = new UUIDEntity();
+		e.setUuidNonKey(UUID.randomUUID());
+		
+		e = lcClient.save(e).block();
+		Assertions.assertNotNull(e.getUuidKey());
 	}
 }
