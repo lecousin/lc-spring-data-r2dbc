@@ -37,7 +37,10 @@ this library aims at providing the most useful features that are really missing 
  
 ## Dependencies
 
- - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.4.0, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
+ - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.4.1, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
+ - commons-lang3 version 3.11, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.apache.commons/commons-lang3.svg)
+ - javassist version 3.27.0-GA, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.javassist/javassist.svg)
+
  - H2 (io.r2dbc:r2dbc-h2) version 0.8.4.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-h2.svg)
  - MySql (dev.miku:r2dbc-mysql) version 0.8.2.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/dev.miku/r2dbc-mysql.svg)
  - Postgres (io.r2dbc:r2dbc-postgresql) version 0.8.6.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-postgresql.svg)
