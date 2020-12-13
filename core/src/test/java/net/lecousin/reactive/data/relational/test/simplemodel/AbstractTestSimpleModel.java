@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -51,6 +52,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			Entity2WithSequence.class,
 			NumericTypes.class,
 			UpdatableProperties.class,
+			UUIDEntity.class,
 			VersionedEntity.class
 		);
 	}
@@ -664,5 +666,14 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		e.setB2(false);
 		OutboundRow row = lcClient.getDataAccess().getOutboundRow(e);
 		Assertions.assertEquals(3, row.keySet().size());
+	}
+	
+	@Test
+	public void testUUID() {
+		UUIDEntity e = new UUIDEntity();
+		e.setUuidNonKey(UUID.randomUUID());
+		
+		e = lcClient.save(e).block();
+		Assertions.assertNotNull(e.getUuidKey());
 	}
 }

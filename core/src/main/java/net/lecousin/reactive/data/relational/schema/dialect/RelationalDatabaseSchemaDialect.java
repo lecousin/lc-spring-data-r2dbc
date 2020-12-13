@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
@@ -67,6 +68,8 @@ public abstract class RelationalDatabaseSchemaDialect {
 			return getColumnTypeDateTimeWithTimeZone(col, type, def);
 		if (java.time.Instant.class.equals(type))
 			return getColumnTypeTimestamp(col, type, def);
+		if (UUID.class.equals(type))
+			return getColumnTypeUUID(col, type, def);
 		throw new SchemaException("Column type not supported: " + type.getName() + " for column " + col.getName());
 	}
 
@@ -144,6 +147,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 
 	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
 		return "DATETIME WITH TIME ZONE";
+	}
+
+	protected String getColumnTypeUUID(Column col, Class<?> type, ColumnDefinition def) {
+		return "UUID";
 	}
 	
 	public SchemaStatements dropSchemaContent(RelationalDatabaseSchema schema) {
@@ -341,6 +348,8 @@ public abstract class RelationalDatabaseSchemaDialect {
 		sql.append(col.getName());
 		sql.append(' ');
 		sql.append(col.getType());
+		if (col.isRandomUuid() && supportsUuidGeneration())
+			addDefaultRandomUuid(col, sql);
 		if (!col.isNullable())
 			addNotNull(col, sql);
 		if (col.isAutoIncrement())
@@ -359,6 +368,14 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	protected void addAutoIncrement(Column col, StringBuilder sql) {
 		sql.append(" AUTO_INCREMENT");
+	}
+	
+	public boolean supportsUuidGeneration() {
+		return true;
+	}
+	
+	protected void addDefaultRandomUuid(Column col, StringBuilder sql) {
+		sql.append(" DEFAULT RANDOM_UUID()");
 	}
 	
 	protected void addPrimaryKey(Column col, StringBuilder sql) {

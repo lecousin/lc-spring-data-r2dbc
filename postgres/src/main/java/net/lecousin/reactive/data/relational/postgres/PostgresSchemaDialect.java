@@ -76,4 +76,8 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 		return "VARCHAR";
 	}
 
+	@Override
+	protected void addDefaultRandomUuid(Column col, StringBuilder sql) {
+		sql.append(" DEFAULT UUID_GENERATE_V4()");
+	}
 }

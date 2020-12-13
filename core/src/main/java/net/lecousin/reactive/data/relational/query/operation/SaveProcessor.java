@@ -9,6 +9,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -209,7 +210,14 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			long currentDate = System.currentTimeMillis();
 			for (RelationalPersistentProperty property : request.entityType) {
 				if (property.isAnnotationPresent(GeneratedValue.class)) {
-					generated.add(property);
+					GeneratedValue gv = property.getRequiredAnnotation(GeneratedValue.class);
+					if (GeneratedValue.Strategy.RANDOM_UUID.equals(gv.strategy()) && !op.lcClient.getSchemaDialect().supportsUuidGeneration()) {
+						UUID uuid = UUID.randomUUID();
+						request.accessor.setProperty(property, uuid);
+						writer.writeProperty(row, property, request.accessor);
+					} else {
+						generated.add(property);
+					}
 				} else if (!property.isTransient()) { 
 					if (request.entityType.isVersionProperty(property)) {
 						// Version 1 for an insert

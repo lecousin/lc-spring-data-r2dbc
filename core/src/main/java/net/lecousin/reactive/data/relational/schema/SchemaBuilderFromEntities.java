@@ -94,7 +94,10 @@ public class SchemaBuilderFromEntities {
 		col.setNullable(ModelUtils.isNullable(property));
 		GeneratedValue generated = property.findAnnotation(GeneratedValue.class);
 		if (generated != null) {
-			col.setAutoIncrement(true);
+			if (GeneratedValue.Strategy.AUTO_INCREMENT.equals(generated.strategy()))
+				col.setAutoIncrement(true);
+			else if (GeneratedValue.Strategy.RANDOM_UUID.equals(generated.strategy()))
+				col.setRandomUuid(true);
 		}
 		Class<?> type = property.getType();
 		if (property.isAnnotationPresent(ForeignKey.class)) {

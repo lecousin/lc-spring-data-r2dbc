@@ -1,5 +1,7 @@
 package net.lecousin.reactive.data.relational.mysql;
 
+import java.util.UUID;
+
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
@@ -20,6 +22,8 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 			if (def != null && def.min() > 0 && ((String)value).length() < def.min())
 				value = StringUtils.rightPad((String)value, (int)def.min(), ' ');
 		}
+		if (value instanceof UUID)
+			value = ((UUID)value).toString();
 		return super.convertToDataBase(value, property);
 	}
 	
@@ -29,6 +33,8 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 			return java.time.OffsetTime.parse((CharSequence)value);
 		if (java.time.ZonedDateTime.class.equals(targetType))
 			return java.time.ZonedDateTime.parse((CharSequence)value);
+		if (UUID.class.equals(targetType))
+			return UUID.fromString((String)value);
 		if (value instanceof Long) {
 			if (Byte.class.equals(targetType) || byte.class.equals(targetType))
 				value = ((Long)value).byteValue();
@@ -63,6 +69,16 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	@Override
 	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
 		return "VARCHAR(100)";
+	}
+	
+	@Override
+	protected String getColumnTypeUUID(Column col, Class<?> type, ColumnDefinition def) {
+		return "VARCHAR(36)";
+	}
+	
+	@Override
+	public boolean supportsUuidGeneration() {
+		return false;
 	}
 	
 	@Override

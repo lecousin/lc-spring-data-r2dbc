@@ -16,7 +16,9 @@ public @interface GeneratedValue {
 		/** Use auto increment/serial capability from database. */
 		AUTO_INCREMENT,
 		/** Use a sequence. Sequence name must be specified. */
-		SEQUENCE;
+		SEQUENCE,
+		/** Generate a random UUID. Must be used only with a column of type java.util.UUID. */
+		RANDOM_UUID;
 	}
 	
 	/** Strategy to generate the value. */

@@ -9,6 +9,7 @@ entities:
       - Entity2WithSequence
       - NumericTypes
       - UpdatableProperties
+      - UUIDEntity
       - VersionedEntity
     - onetoonemodel:
       - MyEntity1
