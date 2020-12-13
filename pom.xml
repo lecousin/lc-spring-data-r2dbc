@@ -46,7 +46,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   
-    <spring-boot.version>2.4.0</spring-boot.version>
+    <spring-boot.version>2.4.1</spring-boot.version>
     <junit-jupiter.version>5.7.0</junit-jupiter.version>
     
     <r2dbc-h2.version>0.8.4.RELEASE</r2dbc-h2.version>
@@ -54,7 +54,7 @@
     <r2dbc-mysql.version>0.8.2.RELEASE</r2dbc-mysql.version>
 
     <!-- Versions to force for dependencies -->    
-    <reactor.version>3.4.0</reactor.version>
+    <reactor.version>3.4.1</reactor.version>
     
     <maven-compiler.version>3.8.0</maven-compiler.version>
     <maven-source.version>3.2.0</maven-source.version>
