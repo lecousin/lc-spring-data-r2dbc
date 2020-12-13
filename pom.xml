@@ -48,6 +48,8 @@
   
     <spring-boot.version>2.4.1</spring-boot.version>
     <junit-jupiter.version>5.7.0</junit-jupiter.version>
+    <javassist.version>3.27.0-GA</javassist.version>
+    <commons-lang3.version>3.11</commons-lang3.version>
     
     <r2dbc-h2.version>0.8.4.RELEASE</r2dbc-h2.version>
     <r2dbc-postgres.version>0.8.6.RELEASE</r2dbc-postgres.version>
@@ -92,6 +94,19 @@
         <artifactId>reactor-core</artifactId>
         <version>${reactor.version}</version>
       </dependency>
+      
+      <dependency>
+        <groupId>org.javassist</groupId>
+        <artifactId>javassist</artifactId>
+        <version>${javassist.version}</version>
+      </dependency>
+      
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-lang3</artifactId>
+        <version>${commons-lang3.version}</version>
+      </dependency>
+      
     </dependencies>
   </dependencyManagement>
 
