@@ -297,3 +297,9 @@ public interface RootEntityRepository extends LcR2dbcRepository<RootEntity, Long
 
 You can note the method `getLcClient()` needed to execute requests, which is automatically available if your repository extends `LcR2dbcRepository`.
 If you don't need it, your repository can just extend the `R2dbcRepository` base interface of Spring.
+
+# Notes
+
+## WARNING: An illegal reflective access operation has occurred
+
+If you get this warning, just add a file package-info.java in the packages containing your entities. We use this trick to allow access to the package without loading a class.

@@ -90,7 +90,13 @@ public final class Enhancer {
 	        
         	enhanceLazyMethods(cl, classPool);
 
-	        Class<?> newClass = cl.toClass();
+        	Class<?> neighbor = null;
+        	try {
+        		neighbor = Enhancer.class.getClassLoader().loadClass(cl.getPackageName() + ".package-info");
+        	} catch (Exception e) {
+        		// ignore
+        	}
+	        Class<?> newClass = neighbor != null ? cl.toClass(neighbor) : cl.toClass();
 	        entities.put(newClass, null);
 		} catch (Exception e) {
 			throw new ModelAccessException("Unable to enhance entity " + className, e);
