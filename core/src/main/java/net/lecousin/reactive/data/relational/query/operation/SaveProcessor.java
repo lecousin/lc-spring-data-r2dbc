@@ -200,7 +200,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		return Mono.when(statements);
 	}
 	
-	@SuppressWarnings("java:S1612") // cannot do it
+	@SuppressWarnings({"java:S1612", "java:S3776"}) // cannot do it
 	private static Mono<Object> doInsert(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> {
 			SqlQuery<Insert> query = new SqlQuery<>(op.lcClient);
