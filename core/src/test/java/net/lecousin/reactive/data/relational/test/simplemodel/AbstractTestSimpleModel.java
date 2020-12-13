@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
@@ -25,6 +26,7 @@ import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactory
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 
 @EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)
+@ComponentScan
 public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRelationalTest {
 
 	@Autowired
@@ -41,6 +43,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Autowired
 	private DateTypesRepository repoDate;
+	
+	@Autowired
+	private TransactionalService transactionalService;
 	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
@@ -675,5 +680,25 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		
 		e = lcClient.save(e).block();
 		Assertions.assertNotNull(e.getUuidKey());
+	}
+	
+	@Test
+	public void testTransactions() {
+		CharacterTypes e = transactionalService.createCorrectEntity().block();
+		Assertions.assertNotNull(e);
+		Assertions.assertNotNull(e.getId());
+		e = repoChars.findAll().blockFirst();
+		Assertions.assertNotNull(e);
+		Assertions.assertNotNull(e.getId());
+		transactionalService.deleteEntity(e).block();
+		Assertions.assertEquals(0, repoChars.findAll().collectList().block().size());
+		
+		try {
+			transactionalService.createCorrectEntityThenInvalidEntity().collectList().block();
+			throw new AssertionError();
+		} catch (Exception err) {
+			// ok
+		}
+		Assertions.assertEquals(0, repoChars.findAll().collectList().block().size());
 	}
 }
