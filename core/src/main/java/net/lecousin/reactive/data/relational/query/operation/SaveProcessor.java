@@ -1,8 +1,10 @@
 package net.lecousin.reactive.data.relational.query.operation;
 
 import java.lang.reflect.Field;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +12,8 @@ import java.util.Objects;
 
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
@@ -202,6 +206,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			final List<RelationalPersistentProperty> generated = new LinkedList<>();
 			OutboundRow row = new OutboundRow();
 			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
+			long currentDate = System.currentTimeMillis();
 			for (RelationalPersistentProperty property : request.entityType) {
 				if (property.isAnnotationPresent(GeneratedValue.class)) {
 					generated.add(property);
@@ -209,6 +214,8 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 					if (request.entityType.isVersionProperty(property)) {
 						// Version 1 for an insert
 						request.accessor.setProperty(property, op.lcClient.getMapper().getConversionService().convert(1L, property.getType()));
+					} else if (property.isAnnotationPresent(CreatedDate.class) || property.isAnnotationPresent(LastModifiedDate.class)) {
+						request.accessor.setProperty(property, getDateValue(currentDate, property.getType()));
 					}
 					writer.writeProperty(row, property, request.accessor);
 				}
@@ -260,8 +267,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		OutboundRow row = new OutboundRow();
 		LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
 		List<AssignValue> assignments = new LinkedList<>();
-		prepareUpdate(request, table, assignments, row, writer, query);
-		if (row.isEmpty())
+		if (!prepareUpdate(request, table, assignments, row, writer, query))
 			return null;
 		
 		for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
@@ -288,21 +294,34 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		return rowsUpdated;
 	}
 	
-	private static void prepareUpdate(SaveRequest request, Table table, List<AssignValue> assignments, OutboundRow row, LcEntityWriter writer, SqlQuery<Update> query) {
+	private static boolean prepareUpdate(SaveRequest request, Table table, List<AssignValue> assignments, OutboundRow row, LcEntityWriter writer, SqlQuery<Update> query) {
+		boolean hasUpdate = false;
+		Map<RelationalPersistentProperty, Object> propertiesToSetIfUpdate = new HashMap<>();
+		long currentDate = System.currentTimeMillis();
 		for (RelationalPersistentProperty property : request.entityType) {
 			if (request.entityType.isVersionProperty(property)) {
 				Object value = request.accessor.getProperty(property);
 				Assert.notNull(value, "Version must not be null (property " + property.getName() + " on " + request.entityType.getType().getSimpleName() + ")");
 				long currentVersion = ((Number)value).longValue();
 				assignments.add(AssignValue.create(Column.create(property.getColumnName(), table), query.marker(Long.valueOf(currentVersion + 1))));
+			} else if (property.isAnnotationPresent(LastModifiedDate.class)) {
+				propertiesToSetIfUpdate.put(property, getDateValue(currentDate, property.getType()));
 			} else if (request.state.isFieldModified(property.getName())) {
 				if (ModelUtils.isUpdatable(property)) {
 					writer.writeProperty(row, property, request.accessor);
+					hasUpdate = true;
 				} else {
 					request.state.restorePersistedValue(request.instance, property.getField());
 				}
 			}
 		}
+		if (hasUpdate) {
+			for (Map.Entry<RelationalPersistentProperty, Object> e : propertiesToSetIfUpdate.entrySet()) {
+				request.accessor.setProperty(e.getKey(), e.getValue());
+				writer.writeProperty(row, e.getKey(), request.accessor);
+			}
+		}
+		return hasUpdate;
 	}
 	
 	private static void entityUpdated(Operation op, SaveRequest request) {
@@ -313,6 +332,25 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			Assert.notNull(version, "Version must not be null");
 			request.accessor.setProperty(property, op.lcClient.getMapper().getConversionService().convert(((Number)version).longValue() + 1, property.getType()));
 		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	private static <T> T getDateValue(long timestamp, Class<T> type) {
+		if (type.equals(long.class) || type.equals(Long.class))
+			return (T) Long.valueOf(timestamp);
+		if (type.isAssignableFrom(java.time.Instant.class))
+			return (T) java.time.Instant.ofEpochMilli(timestamp);
+		if (type.isAssignableFrom(java.time.LocalDate.class))
+			return (T) java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
+		if (type.isAssignableFrom(java.time.LocalTime.class))
+			return (T) java.time.LocalTime.ofInstant(java.time.Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
+		if (type.isAssignableFrom(java.time.OffsetTime.class))
+			return (T) java.time.OffsetTime.ofInstant(java.time.Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
+		if (type.isAssignableFrom(java.time.LocalDateTime.class))
+			return (T) java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
+		if (type.isAssignableFrom(java.time.ZonedDateTime.class))
+			return (T) java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
+		return null;
 	}
 	
 }

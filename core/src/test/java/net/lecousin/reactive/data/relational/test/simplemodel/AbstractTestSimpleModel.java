@@ -400,7 +400,10 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		VersionedEntity entity2 = new VersionedEntity();
 		entity2.setStr("World");
 		entity2.setVersion(10L);
+		
+		long creationDateStart = System.currentTimeMillis();
 		List<VersionedEntity> list = repoVersion.saveAll(Arrays.asList(entity1, entity2)).collectList().block();
+		long creationDateEnd = System.currentTimeMillis();
 		Assertions.assertEquals(2, list.size());
 		entity1 = list.get(0);
 		entity2 = list.get(1);
@@ -410,6 +413,16 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertNotNull(entity2.getId());
 		Assertions.assertEquals(1, entity2.getVersion());
 		Assertions.assertEquals("World", entity2.getStr());
+		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
+		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(entity2.getCreation(), entity2.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getCreationInstant().toEpochMilli());
+		Assertions.assertEquals(java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalDate());
+		Assertions.assertEquals(java.time.LocalTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalTime());
+		Assertions.assertEquals(java.time.OffsetTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationOffsetTime());
+		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalDateTime());
+		Assertions.assertEquals(java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationZonedDateTime());
 		final Long id1 = entity1.getId();
 		final Long id2 = entity2.getId();
 		
@@ -420,9 +433,19 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("Hello", entity1.getStr());
 		Assertions.assertEquals(1, entity2.getVersion());
 		Assertions.assertEquals("World", entity2.getStr());
+		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
+		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(entity2.getCreation(), entity2.getModification().toInstant().toEpochMilli());
 		
 		// update entity2 => version 2
 		entity2.setStr("World !");
+		while (System.currentTimeMillis() == creationDateStart)
+			try {
+				Thread.sleep(10);
+			} catch (InterruptedException e1) {
+				e1.printStackTrace();
+			}
 		list = repoVersion.saveAll(Arrays.asList(entity1, entity2)).collectList().block();
 		entity1 = list.stream().filter(e -> id1.equals(e.getId())).findFirst().get();
 		entity2 = list.stream().filter(e -> id2.equals(e.getId())).findFirst().get();
@@ -430,6 +453,12 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("Hello", entity1.getStr());
 		Assertions.assertEquals(2, entity2.getVersion());
 		Assertions.assertEquals("World !", entity2.getStr());
+		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
+		Assertions.assertTrue(entity1.getCreation() == entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertTrue(entity2.getCreation() < entity2.getModification().toInstant().toEpochMilli());
+		
 		
 		list = repoVersion.findAll().collectList().block();
 		entity1 = list.stream().filter(e -> id1.equals(e.getId())).findFirst().get();
@@ -438,6 +467,10 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("Hello", entity1.getStr());
 		Assertions.assertEquals(2, entity2.getVersion());
 		Assertions.assertEquals("World !", entity2.getStr());
+		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
+		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
+		Assertions.assertTrue(entity2.getCreation() < entity2.getModification().toInstant().toEpochMilli());
 		
 		// save entity2 with version 1 => error
 		entity2.setVersion(1L);
