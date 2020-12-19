@@ -55,7 +55,8 @@ public class SchemaStatements {
 	public void print(PrintStream target) {
 		while (!statements.isEmpty()) {
 			for (SchemaStatement statement : peekReadyStatements()) {
-				target.println(statement.getSql());
+				target.print(statement.getSql());
+				target.println(";");
 				done(statement);
 			}
 		}
