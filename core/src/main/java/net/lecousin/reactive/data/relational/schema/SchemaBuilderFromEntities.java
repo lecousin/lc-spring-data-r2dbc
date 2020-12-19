@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mapping.MappingException;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.util.Pair;
@@ -57,7 +58,11 @@ public class SchemaBuilderFromEntities {
 		RelationalPersistentEntity<?> entityType = client.getMappingContext().getRequiredPersistentEntity(entity);
 		Table table = new Table(getTableName(entityType));
 		for (RelationalPersistentProperty property : entityType)
-			table.add(buildColumn(property));
+			try {
+				table.add(buildColumn(property));
+			} catch (Exception e) {
+				throw new MappingException("Error building schema for entity " + entityType.getName() + " on property " + property.getName(), e);
+			}
 		CompositeId compositeId = entityType.findAnnotation(CompositeId.class);
 		if (compositeId != null) {
 			Index index = new Index(compositeId.indexName());
