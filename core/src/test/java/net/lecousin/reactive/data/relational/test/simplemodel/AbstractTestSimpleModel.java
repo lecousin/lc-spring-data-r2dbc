@@ -572,6 +572,22 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertNotNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_2").notIn(Arrays.asList(2, 3, 4))).execute(lcClient).blockFirst());
 		Assertions.assertNull(SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").notIn(Arrays.asList(12, 13, 14))).execute(lcClient).blockFirst());
 		
+		// invalid criteria
+		try {
+			SelectQuery.from(NumericTypes.class, "e").where(Criteria.property("e", "int_1").is(Arrays.asList(12, 13, 14))).execute(lcClient).blockFirst();
+			throw new AssertionError();
+		} catch (Exception e) {
+			// ok
+		}
+		try {
+			Criteria.PropertyOperation c = new Criteria.PropertyOperation(Criteria.property("e", "int_1"), Criteria.PropertyOperator.IN, "wrong");
+			SelectQuery.from(NumericTypes.class, "e").where(c).execute(lcClient).blockFirst();
+			throw new AssertionError();
+		} catch (Exception e) {
+			// ok
+		}
+		
+		
 		CharacterTypes c = new CharacterTypes();
 		c.setStr("Hello World");
 		c.setLongString("Hello World");
