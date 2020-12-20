@@ -5,13 +5,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
+import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Condition;
 import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.Table;
 
+import net.lecousin.reactive.data.relational.annotations.ForeignKey;
+import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.And;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.Or;
@@ -44,7 +48,8 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 	@Override
 	public Condition visit(PropertyOperation op) {
 		RelationalPersistentEntity<?> entity = entitiesByAlias.get(op.getLeft().getEntityName());
-		Column left = Column.create(entity.getRequiredPersistentProperty(op.getLeft().getPropertyName()).getColumnName(), tablesByAlias.get(op.getLeft().getEntityName()));
+		RelationalPersistentProperty property = entity.getRequiredPersistentProperty(op.getLeft().getPropertyName());
+		Column left = Column.create(property.getColumnName(), tablesByAlias.get(op.getLeft().getEntityName()));
 		
 		switch (op.getOperator()) {
 		case IS_NULL: return Conditions.isNull(left);
@@ -64,7 +69,14 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 			}
 		}
 		
-		Expression right = toExpression(op.getValue());
+		Object rightValue = op.getValue();
+		if (property.isAnnotationPresent(ForeignKey.class) && rightValue != null && property.getType().isAssignableFrom(rightValue.getClass())) {
+			// if foreign key, we need to use the id instead of the object
+			MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> context = query.getClient().getMappingContext();
+			RelationalPersistentEntity<?> foreignEntity = context.getRequiredPersistentEntity(property.getType());
+			rightValue = ModelUtils.getId(foreignEntity, foreignEntity.getPropertyAccessor(rightValue), context);
+		}
+		Expression right = toExpression(rightValue);
 		switch (op.getOperator()) {
 		case EQUALS: return Conditions.isEqual(left, right);
 		case NOT_EQUALS: return Conditions.isNotEqual(left, right);
