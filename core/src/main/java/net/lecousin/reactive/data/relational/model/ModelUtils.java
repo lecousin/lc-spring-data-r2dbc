@@ -489,6 +489,8 @@ public class ModelUtils {
 		for (RelationalPersistentProperty property : properties) {
 			id.add(property.getName(), source.getPropertyValue(property));
 		}
+		if (id.isNull())
+			return null;
 		return id;
 	}
 	

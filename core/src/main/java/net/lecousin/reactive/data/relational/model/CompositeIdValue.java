@@ -12,6 +12,17 @@ public class CompositeIdValue {
 		properties.put(name, value);
 	}
 	
+	/** Return true if all id properties are null.
+	 * 
+	 * @return true if all id properties are null
+	 */
+	public boolean isNull() {
+		for (Object value : properties.values())
+			if (value != null)
+				return false;
+		return true;
+	}
+	
 	@Override
 	public boolean equals(Object obj) {
 		if (!(obj instanceof CompositeIdValue))
