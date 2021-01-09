@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>parent</artifactId>
-  <version>0.3.2</version>
+  <version>0.3.3</version>
   <packaging>pom</packaging>
   
   <name>net.lecousin.reactive-data-relational aka lc-spring-data-r2dbc</name>
