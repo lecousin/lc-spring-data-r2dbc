@@ -15,6 +15,8 @@ import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import reactor.core.publisher.Flux;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 public class SelectQuery<T> {
 	
@@ -40,6 +42,7 @@ public class SelectQuery<T> {
 	Criteria where = null;
 	long offset = 0;
 	long limit = -1;
+	List<Tuple2<String, Boolean>> orderBy = new LinkedList<>();
 	
 	private SelectQuery(Class<T> type, String alias) {
 		from = new TableReference(null, null, type, alias);
@@ -69,6 +72,11 @@ public class SelectQuery<T> {
 	public SelectQuery<T> limit(long start, long nb) {
 		this.offset = start;
 		this.limit = nb;
+		return this;
+	}
+	
+	public SelectQuery<T> orderBy(String rootPropertyName, boolean ascending) {
+		this.orderBy.add(Tuples.of(rootPropertyName, Boolean.valueOf(ascending)));
 		return this;
 	}
 	

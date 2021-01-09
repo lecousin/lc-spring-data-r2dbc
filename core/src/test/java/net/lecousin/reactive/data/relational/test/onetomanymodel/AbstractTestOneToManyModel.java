@@ -803,4 +803,52 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 		Assertions.assertTrue(subs.stream().anyMatch(sub -> "1.2".equals(sub.getSubValue())));
 	}
 
+	
+	@Test
+	public void testOrderBy() {
+		RootEntity root1 = new RootEntity();
+		root1.setValue("root1");
+		RootEntity root2 = new RootEntity();
+		root2.setValue("root2");
+		RootEntity root3 = new RootEntity();
+		root3.setValue("root3");
+		
+		SubEntity sub1_1 = new SubEntity();
+		sub1_1.setSubValue("1.1");
+		SubEntity sub1_2 = new SubEntity();
+		sub1_2.setSubValue("1.2");
+		SubEntity sub1_3 = new SubEntity();
+		sub1_3.setSubValue("1.3");
+		root1.setList(Arrays.asList(sub1_1, sub1_2, sub1_3));
+		
+		SubEntity sub2_1 = new SubEntity();
+		sub2_1.setSubValue("2.1");
+		SubEntity sub2_2 = new SubEntity();
+		sub2_2.setSubValue("2.2");
+		SubEntity sub2_3 = new SubEntity();
+		sub2_3.setSubValue("2.3");
+		root2.setList(Arrays.asList(sub2_1, sub2_2, sub2_3));
+		
+		SubEntity sub3_1 = new SubEntity();
+		sub3_1.setSubValue("3.1");
+		SubEntity sub3_2 = new SubEntity();
+		sub3_2.setSubValue("3.2");
+		SubEntity sub3_3 = new SubEntity();
+		sub3_3.setSubValue("3.3");
+		root3.setList(Arrays.asList(sub3_1, sub3_2, sub3_3));
+
+		repo.saveAll(Arrays.asList(root1, root2, root3)).blockLast();
+		
+		List<RootEntity> list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("value", true).execute(lcClient).collectList().block();
+		Assertions.assertEquals(3, list.size());
+		Assertions.assertEquals("root1", list.get(0).getValue());
+		Assertions.assertEquals("root2", list.get(1).getValue());
+		Assertions.assertEquals("root3", list.get(2).getValue());
+
+		list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("value", false).execute(lcClient).collectList().block();
+		Assertions.assertEquals(3, list.size());
+		Assertions.assertEquals("root3", list.get(0).getValue());
+		Assertions.assertEquals("root2", list.get(1).getValue());
+		Assertions.assertEquals("root1", list.get(2).getValue());
+	}
 }

@@ -3,21 +3,26 @@ package net.lecousin.reactive.data.relational.query;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.core.CollectionFactory;
+import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.mapping.MappingException;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Column;
+import org.springframework.data.relational.core.sql.OrderByField;
 import org.springframework.data.relational.core.sql.Select;
 import org.springframework.data.relational.core.sql.SelectBuilder.BuildSelect;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectFromAndJoin;
+import org.springframework.data.relational.core.sql.SelectBuilder.SelectFromAndOrderBy;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectJoin;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectOrdered;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectWhere;
@@ -40,6 +45,7 @@ import net.lecousin.reactive.data.relational.query.criteria.CriteriaVisitor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
 
 public class SelectExecution<T> {
 	
@@ -155,10 +161,28 @@ public class SelectExecution<T> {
 			.flatMap(ids -> {
 				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getIdProperty().getName();
 				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false).execute().fetch().all();
-				return Flux.create(sink ->
+				return Flux.create((Consumer<FluxSink<T>>)sink ->
 					fromDb.doOnComplete(() -> handleRow(null, sink, mapping))
 						.subscribe(row -> handleRow(row, sink, mapping))
-				);
+				)
+				.collectList()
+				.flatMapMany(list -> {
+					List<T> orderedList = new ArrayList<>(list.size());
+					List<T> rawList = new ArrayList<>(list);
+					RelationalPersistentEntity<?> entityType = mapping.entitiesByAlias.get(query.from.alias);
+					for (Object id : ids) {
+						for (Iterator<T> it = rawList.iterator(); it.hasNext(); ) {
+							T entity = it.next();
+							Object entityId = ModelUtils.getRequiredId(entity, entityType, null);
+							if (entityId.equals(id)) {
+								it.remove();
+								orderedList.add(entity);
+								break;
+							}
+						}
+					}
+					return Flux.fromIterable(orderedList);
+				});
 			});
 	}
 	
@@ -228,15 +252,16 @@ public class SelectExecution<T> {
 		return mapping;
 	}
 	
-	private SqlQuery<Select> buildFinalSql(SelectMapping mapping, Criteria criteria, boolean applyLimit) {
+	private SqlQuery<Select> buildFinalSql(SelectMapping mapping, Criteria criteria, boolean applyLimitAndOrderBy) {
 		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
 		List<Column> selectFields = new ArrayList<>(mapping.fields.size());
 		for (SelectField field : mapping.fields)
 			selectFields.add(field.toSql());
 		BuildSelect select = Select.builder().select(selectFields).from(mapping.tableByAlias.get(query.from.alias));
-		if (applyLimit && query.limit > 0) {
-			select = ((SelectFromAndJoin)select).limitOffset(query.limit, query.offset);
+		if (applyLimitAndOrderBy) {
+			select = addLimit(select);
+			select = addOrderBy(select);
 		}
 		
 		for (TableReference join : query.joins) {
@@ -254,15 +279,38 @@ public class SelectExecution<T> {
 		q.setQuery(select.build());
 		return q;
 	}
+	
+	private BuildSelect addLimit(BuildSelect select) {
+		if (query.limit > 0) {
+			return ((SelectFromAndJoin)select).limitOffset(query.limit, query.offset);
+		}
+		return select;
+	}
+	
+	private BuildSelect addOrderBy(BuildSelect select) {
+		if (!query.orderBy.isEmpty()) {
+			List<OrderByField> list = new ArrayList<>(query.orderBy.size());
+			for (Tuple2<String, Boolean> orderBy : query.orderBy) {
+				RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+				RelationalPersistentProperty p = e.getRequiredPersistentProperty(orderBy.getT1());
+				OrderByField o = OrderByField.from(Column.create(p.getColumnName(), Table.create(e.getTableName()).as(query.from.alias)), orderBy.getT2().booleanValue() ? Direction.ASC : Direction.DESC);
+				list.add(o);
+			}
+			return ((SelectFromAndOrderBy)select).orderBy(list);
+		}
+		return select;
+	}
 
 	
 	private SqlQuery<Select> buildDistinctRootIdSql(SelectMapping mapping) {
 		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
-		BuildSelect select = Select.builder().select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias))).distinct().from(mapping.tableByAlias.get(query.from.alias));
-		if (query.limit > 0) {
-			select = ((SelectFromAndJoin)select).limitOffset(query.limit, query.offset);
-		}
+		BuildSelect select = Select.builder()
+			.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
+			.distinct()
+			.from(mapping.tableByAlias.get(query.from.alias));
+		select = addLimit(select);
+		select = addOrderBy(select);
 		
 		for (TableReference join : query.joins) {
 			if (!needsTableForPreSelect(join))
