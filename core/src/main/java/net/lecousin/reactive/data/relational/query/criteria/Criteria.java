@@ -40,6 +40,10 @@ public interface Criteria {
 			return visitor.visit(this);
 		}
 		
+		@Override
+		public String toString() {
+			return "(" + left.toString() + " AND " + right.toString() + ")";
+		}
 	}
 
 	public static class Or implements Criteria {
@@ -62,6 +66,11 @@ public interface Criteria {
 		@Override
 		public <T> T accept(CriteriaVisitor<T> visitor) {
 			return visitor.visit(this);
+		}
+		
+		@Override
+		public String toString() {
+			return "(" + left.toString() + " OR " + right.toString() + ")";
 		}
 	}
 	
@@ -176,6 +185,11 @@ public interface Criteria {
 		public Criteria notIn(Collection<?> values) {
 			return new PropertyOperation(this, PropertyOperator.NOT_IN, values);
 		}
+		
+		@Override
+		public String toString() {
+			return entityName + "." + propertyName;
+		}
 	}
 
 	public static class PropertyOperation implements Criteria {
@@ -206,6 +220,10 @@ public interface Criteria {
 			return visitor.visit(this);
 		}
 		
+		@Override
+		public String toString() {
+			return left + " " + operator + " " + value;
+		}
 	}
 	
 }

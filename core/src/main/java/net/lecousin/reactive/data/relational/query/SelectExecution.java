@@ -63,7 +63,9 @@ public class SelectExecution<T> {
 	
 	public Flux<T> execute() {
 		return Mono.fromCallable(this::needsPreSelectIds)
-			.flatMapMany(needsPreSelect -> needsPreSelect.booleanValue() ? executeWithPreSelect() : executeWithoutPreSelect());
+			.flatMapMany(needsPreSelect -> needsPreSelect.booleanValue() ? executeWithPreSelect() : executeWithoutPreSelect())
+			.checkpoint(query.toString())
+			;
 	}
 	
 	private boolean needsPreSelectIds() {

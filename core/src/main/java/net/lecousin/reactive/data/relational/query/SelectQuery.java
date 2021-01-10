@@ -107,4 +107,26 @@ public class SelectQuery<T> {
 		}
 	}
 	
+	@Override
+	public String toString() {
+		StringBuilder s = new StringBuilder();
+		s.append("Select from ").append(from.targetType.getSimpleName()).append(" as ").append(from.alias);
+		for (TableReference join : joins) {
+			s.append(" join ");
+			if (join.targetType != null)
+				s.append(join.targetType.getSimpleName()).append(" as ");
+			s.append(join.alias);
+		}
+		if (where != null)
+			s.append(" where ").append(where.toString());
+		if (limit > 0)
+			s.append(" limit ").append(offset).append(',').append(limit);
+		if (!orderBy.isEmpty()) {
+			s.append(" order by ");
+			for (Tuple2<String, Boolean> o : orderBy)
+				s.append(o.getT1()).append(o.getT2().booleanValue() ? " ASC" : " DESC");
+		}
+		return s.toString();
+	}
+	
 }
