@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -18,6 +19,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.JoinTableInfo;
+import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 
@@ -36,10 +40,19 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	public void initDatabase() {
 		Collection<Class<?>> usedEntities = usedEntities();
 		RelationalDatabaseSchema schema;
-		if (usedEntities == null)
+		if (usedEntities == null) {
 			schema = lcClient.buildSchemaFromEntities();
-		else
-			schema = lcClient.buildSchemaFromEntities(usedEntities);
+		} else {
+			List<Class<?>> entities = new LinkedList<>(usedEntities);
+			for (Class<?> cl : usedEntities) {
+				for (JoinTableInfo jt : LcEntityTypeInfo.get(cl).getJoinTables()) {
+					Class<?> c = ModelUtils.getCollectionType(jt.getJoinForeignTable().getField());
+					if (!entities.contains(c))
+						entities.add(c);
+				}
+			}
+			schema = lcClient.buildSchemaFromEntities(entities);
+		}
 		lcClient.dropCreateSchemaContent(schema).block();
 	}
 	

@@ -3,4 +3,4 @@ eclipse.preferences.version=1
 idePrefixKey=
 projectKey=lecousin_lc-spring-data-r2dbc
 serverId=SonarCloud/lecousin
-sqPrefixKey=test-junit-5
+sqPrefixKey=core

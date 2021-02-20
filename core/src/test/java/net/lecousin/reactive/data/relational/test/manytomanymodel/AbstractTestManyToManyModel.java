@@ -2,6 +2,7 @@ package net.lecousin.reactive.data.relational.test.manytomanymodel;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -19,14 +20,17 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 
 	@Autowired
 	private Entity1Repository repo1;
+
+	@Autowired
+	private Entity3Repository repo3;
 	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
-		return Arrays.asList(Entity1.class, Entity2.class, JoinEntity.class);
+		return Arrays.asList(Entity1.class, Entity2.class, JoinEntity.class, Entity3.class, Entity4.class);
 	}
 	
 	@Test
-	public void test() {
+	public void testManualJoin() {
 		/*
 		 * e2_1 -> e1_1, e1_2
 		 * e2_2 -> e1_3
@@ -148,4 +152,118 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 		Assertions.assertEquals(5, SelectQuery.from(JoinEntity.class, "entity").execute(lcClient).collectList().block().size());
 	}
 
+	
+	@Test
+	public void testAutomaticJoin() {
+		/*
+		 * e2_1 -> e1_1, e1_2
+		 * e2_2 -> e1_3
+		 * e2_3 -> e1_4, e1_5, e1_1
+		 * ----
+		 * e1_1 -> e2_1, e2_3
+		 * e1_2 -> e2_1
+		 * e1_3 -> e2_2
+		 * e1_4 -> e2_3
+		 * e1_5 -> e2_3
+		 */
+		Entity3 e1_1 = new Entity3();
+		e1_1.setValue("1.1");
+		e1_1.setLinks(new HashSet<>());
+
+		Entity3 e1_2 = new Entity3();
+		e1_2.setValue("1.2");
+		e1_2.setLinks(new HashSet<>());
+
+		Entity3 e1_3 = new Entity3();
+		e1_3.setValue("1.3");
+		e1_3.setLinks(new HashSet<>());
+
+		Entity3 e1_4 = new Entity3();
+		e1_4.setValue("1.4");
+		e1_4.setLinks(new HashSet<>());
+
+		Entity3 e1_5 = new Entity3();
+		e1_5.setValue("1.5");
+		e1_5.setLinks(new HashSet<>());
+		
+		Entity4 e2_1 = new Entity4();
+		e2_1.setValue("2.1");
+		e2_1.setLinks(new HashSet<>());
+		
+		Entity4 e2_2 = new Entity4();
+		e2_2.setValue("2.2");
+		e2_2.setLinks(new HashSet<>());
+		
+		Entity4 e2_3 = new Entity4();
+		e2_3.setValue("2.3");
+		e2_3.setLinks(new HashSet<>());
+		
+		e1_1.getLinks().add(e2_1);
+		e2_1.getLinks().add(e1_1);
+		
+		e1_2.getLinks().add(e2_1);
+		e2_1.getLinks().add(e1_2);
+		
+		e1_3.getLinks().add(e2_2);
+		e2_2.getLinks().add(e1_3);
+		
+		e1_4.getLinks().add(e2_3);
+		e2_3.getLinks().add(e1_4);
+		
+		e1_5.getLinks().add(e2_3);
+		e2_3.getLinks().add(e1_5);
+		
+		e1_1.getLinks().add(e2_3);
+		e2_3.getLinks().add(e1_1);
+		
+		List<Entity3> list1 = repo3.saveAll(Arrays.asList(e1_1, e1_2, e1_3, e1_4, e1_5)).collectList().block();
+		Assertions.assertEquals(5, list1.size());
+		
+		Assertions.assertEquals(5, SelectQuery.from(Entity3.class, "e").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Entity4.class, "e").execute(lcClient).collectList().block().size());
+		
+		list1 = repo3.findByEntity3Value("1.3").collectList().block();
+		Assertions.assertEquals(1, list1.size());
+		Assertions.assertEquals("1.3", list1.get(0).getValue());
+		Assertions.assertEquals(1, list1.get(0).getLinks().size());
+		Assertions.assertEquals("2.2", list1.get(0).getLinks().iterator().next().getValue());
+		
+		list1 = repo3.findByEntity3Value("1.5").collectList().block();
+		Assertions.assertEquals(1, list1.size());
+		Assertions.assertEquals("1.5", list1.get(0).getValue());
+		Assertions.assertEquals(1, list1.get(0).getLinks().size());
+		Assertions.assertEquals("2.3", list1.get(0).getLinks().iterator().next().getValue());
+		Assertions.assertEquals(3, list1.get(0).getLinks().iterator().next().lazyGetLinks().collectList().block().size());
+
+		
+		list1 = repo3.findByEntity4Value("2.3").collectList().block();
+		Assertions.assertEquals(3, list1.size());
+		
+		list1 = repo3.findByLinkedEntity3Value("1.1").collectList().block();
+		Assertions.assertEquals(4, list1.size());
+		
+		Assertions.assertEquals(5, SelectQuery.from(Entity3.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Entity4.class, "entity").execute(lcClient).collectList().block().size());
+		//Assertions.assertEquals(6, SelectQuery.from(JoinEntity.class, "entity").execute(lcClient).collectList().block().size());
+		
+		list1 = repo3.findWithLinks().collectList().block();
+		Assertions.assertEquals(5, list1.size());
+		
+		// remove link e1_3 -> e2_2 ==> e1_3 and e2_2 become orphans
+		e1_3 = list1.stream().filter(e -> "1.3".equals(e.getValue())).findFirst().get();
+		Entity4 link = e1_3.getLinks().stream().filter(l -> "2.2".equals(l.getValue())).findFirst().get();
+		e1_3.getLinks().remove(link);
+		repo3.save(e1_3).block();
+		
+		Assertions.assertEquals(5, SelectQuery.from(Entity3.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(3, SelectQuery.from(Entity4.class, "entity").execute(lcClient).collectList().block().size());
+		// e1_3 and e2_2 does not have any link
+		list1 = repo3.findWithLinks().collectList().block();
+		Assertions.assertEquals(5, list1.size());
+		e1_3 = list1.stream().filter(e -> "1.3".equals(e.getValue())).findFirst().get();
+		Assertions.assertEquals(0, e1_3.lazyGetLinks().collectList().block().size());
+		e2_2 = SelectQuery.from(Entity4.class, "entity").execute(lcClient).collectList().block().stream().filter(e -> "2.2".equals(e.getValue())).findFirst().get();
+		Assertions.assertEquals(0, e2_2.lazyGetLinks().collectList().block().size());
+	}
+	
 }

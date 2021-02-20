@@ -8,11 +8,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.core.CollectionFactory;
@@ -26,21 +24,17 @@ import org.springframework.data.relational.core.sql.Condition;
 import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Table;
-import org.springframework.data.util.Pair;
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
-import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 
 public class ModelUtils {
 	
-	private static final Map<Class<?>, Map<String, Pair<Field, ForeignTable>>> CACHE_FOREIGN_TABLE = new HashMap<>();
-
 	private ModelUtils() {
 		// no instance
 	}
@@ -94,7 +88,7 @@ public class ModelUtils {
 	 */
 	@SuppressWarnings("java:S3011")
 	public static void setReverseLink(Object instance, Object linkedInstance, RelationalPersistentProperty linkedProperty) {
-		Field field = getForeignTableFieldForJoinKey(instance.getClass(), linkedProperty.getName(), linkedInstance.getClass());
+		Field field = LcEntityTypeInfo.get(instance.getClass()).getForeignTableFieldForJoinKey(linkedProperty.getName(), linkedInstance.getClass());
 		if (field != null && !isCollection(field))
 			try {
 				field.set(instance, linkedInstance);
@@ -103,169 +97,12 @@ public class ModelUtils {
 			}
 	}
 	
-	/** Return the foreign table field on the given entity type, having the given join key.
+	/** Retrieve all fields from the class and its super classes.
 	 * 
-	 * @param entity entity type on which to search for the foreign table field
-	 * @param joinKey join key
-	 * @return the field
+	 * @param cl class
+	 * @return fields
 	 */
-	@Nullable
-	public static Field getForeignTableFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
-		Pair<Field, ForeignTable> p = getForeignTableWithFieldForJoinKey(entity, joinKey, targetType);
-		return p != null ? p.getFirst() : null;
-	}
-	
-	/** Return the foreign table field on the given entity type, having the given join key.
-	 * 
-	 * @param entity entity type on which to search for the foreign table field
-	 * @param joinKey join key
-	 * @return the field
-	 */
-	public static Field getRequiredForeignTableFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
-		return getRequiredForeignTableWithFieldForJoinKey(entity, joinKey, targetType).getFirst();
-	}
-	
-	/** Return the foreign table field on the given entity type, having the given join key.
-	 * 
-	 * @param entity entity type on which to search for the foreign table field
-	 * @param joinKey join key
-	 * @return the field and the foreign table annotation
-	 */
-	@Nullable
-	public static Pair<Field, ForeignTable> getForeignTableWithFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
-		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(entity);
-		for (Map.Entry<String, Pair<Field, ForeignTable>> e : map.entrySet())
-			if (e.getValue().getSecond().joinKey().equals(joinKey)) {
-				Field field = e.getValue().getFirst();
-				Class<?> type;
-				if (ModelUtils.isCollection(field))
-					type = ModelUtils.getCollectionType(field);
-				else
-					type = field.getType();
-				if (targetType.equals(type))
-					return e.getValue();
-			}
-		return null;
-	}
-	
-	private static String missingForeignTable(String expected, String expectedOn, Class<?> entity) {
-		return "Missing @ForeignTable " + expected + " '" + expectedOn + "' in class '" + entity.getSimpleName() + "'";
-	}
-	
-	/** Return the foreign table field on the given entity type, having the given join key.
-	 * 
-	 * @param entity entity type on which to search for the foreign table field
-	 * @param joinKey join key
-	 * @return the field and the foreign table annotation
-	 */
-	public static Pair<Field, ForeignTable> getRequiredForeignTableWithFieldForJoinKey(Class<?> entity, String joinKey, Class<?> targetType) {
-		Pair<Field, ForeignTable> p = getForeignTableWithFieldForJoinKey(entity, joinKey, targetType);
-		if (p == null)
-			throw new MappingException(missingForeignTable("field with join key", joinKey, entity));
-		return p;
-	}
-	
-	/** Return the foreign table field on the given property in the given entity type.
-	 * 
-	 * @param entity entity type on which to search for the foreign table field
-	 * @param propertyName foreign table property
-	 * @return the field
-	 */
-	@Nullable
-	public static Field getForeignTableFieldForProperty(Class<?> entity, String propertyName) {
-		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(entity);
-		Pair<Field, ForeignTable> p = map.get(propertyName);
-		return p != null ? p.getFirst() : null;
-	}
-	
-	/** Return the foreign table field on the given property in the given entity type.
-	 * 
-	 * @param entity entity type on which to search for the foreign table field
-	 * @param propertyName foreign table property
-	 * @return the field
-	 */
-	public static Field getRequiredForeignTableFieldForProperty(Class<?> entity, String propertyName) {
-		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(entity);
-		Pair<Field, ForeignTable> p = map.get(propertyName);
-		if (p == null)
-			throw new MappingException(missingForeignTable("on property", propertyName, entity));
-		return p.getFirst();
-	}
-	
-	/** Return the foreign table field on the given property in the given entity type.
-	 * 
-	 * @param entity entity type on which to search for the foreign table field
-	 * @param propertyName foreign table property
-	 * @return the foreign table annotation
-	 */
-	@Nullable
-	public static ForeignTable getForeignTableForProperty(Class<?> entity, String propertyName) {
-		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(entity);
-		Pair<Field, ForeignTable> p = map.get(propertyName);
-		return p != null ? p.getSecond() : null;
-	}
-	
-	/** Return the foreign table field on the given property in the given entity type.
-	 * 
-	 * @param entity entity type on which to search for the foreign table field
-	 * @param propertyName foreign table property
-	 * @return the foreign table annotation
-	 */
-	public static ForeignTable getRequiredForeignTableForProperty(Class<?> entity, String propertyName) {
-		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(entity);
-		Pair<Field, ForeignTable> p = map.get(propertyName);
-		if (p == null)
-			throw new MappingException(missingForeignTable("on property", propertyName, entity));
-		return p.getSecond();
-	}
-	
-	/** Return true if the given field is associated to a @ForeignTable annotation.
-	 * 
-	 * @param field field
-	 * @return true if it is a foreign table
-	 */
-	public static boolean isForeignTableField(Field field) {
-		Map<String, Pair<Field, ForeignTable>> map = getForeignTableFieldMap(field.getDeclaringClass());
-		for (Pair<Field, ForeignTable> p : map.values())
-			if (p.getFirst().equals(field))
-				return true;
-		return false;
-	}
-	
-	/** Return the list of foreign tables declared in the given entity type.
-	 * 
-	 * @param entity entity type
-	 * @return list of fields with their corresponding foreign table annotation
-	 */
-	public static Collection<Pair<Field, ForeignTable>> getForeignTables(Class<?> entity) {
-		return getForeignTableFieldMap(entity).values();
-	}
-	
-	private static Map<String, Pair<Field, ForeignTable>> getForeignTableFieldMap(Class<?> entity) {
-		Map<String, Pair<Field, ForeignTable>> map;
-		synchronized (CACHE_FOREIGN_TABLE) {
-			map = CACHE_FOREIGN_TABLE.get(entity);
-			if (map == null) {
-				map = new HashMap<>();
-				fillForeignTables(entity, map);
-				CACHE_FOREIGN_TABLE.put(entity, map);
-			}
-		}
-		return map;
-	}
-	
-	@SuppressWarnings("java:S3011")
-	private static void fillForeignTables(Class<?> entity, Map<String, Pair<Field, ForeignTable>> map) {
-		for (Field f : getAllFields(entity)) {
-			ForeignTable ft = f.getAnnotation(ForeignTable.class);
-			if (ft != null) {
-				map.put(f.getName(), Pair.of(f, ft));
-				f.setAccessible(true);
-			}
-		}
-	}
-	
-	private static List<Field> getAllFields(Class<?> cl) {
+	public static List<Field> getAllFields(Class<?> cl) {
 		List<Field> fields = new LinkedList<>();
 		getAllFields(cl, fields);
 		return fields;

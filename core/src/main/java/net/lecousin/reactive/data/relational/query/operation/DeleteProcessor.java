@@ -18,13 +18,14 @@ import org.springframework.data.relational.core.sql.Delete;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.StatementBuilder;
 import org.springframework.data.relational.core.sql.Table;
-import org.springframework.data.util.Pair;
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
@@ -68,7 +69,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 				if (!fkProperty.getType().equals(request.entityType.getType()))
 					continue;
 				
-				Field ftField = ModelUtils.getForeignTableFieldForJoinKey(request.entityType.getType(), fkProperty.getName(), entity.getType());
+				Field ftField = LcEntityTypeInfo.get(request.entityType.getType()).getForeignTableFieldForJoinKey(fkProperty.getName(), entity.getType());
 				if (ftField == null) {
 					ForeignKey fkAnnotation = fkProperty.getRequiredAnnotation(ForeignKey.class);
 					processForeignTableField(op, request, null, null, null, false, entity, fkProperty, fkAnnotation);
@@ -196,8 +197,8 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 
 	
 	private static boolean hasOtherLinks(Operation op, Class<?> entityType, String otherThanField) {
-		for (Pair<Field, ForeignTable> p : ModelUtils.getForeignTables(entityType)) {
-			if (!p.getFirst().getName().equals(otherThanField))
+		for (ForeignTableInfo fti : LcEntityTypeInfo.get(entityType).getForeignTables()) {
+			if (!fti.getField().getName().equals(otherThanField))
 				return true;
 		}
 		RelationalPersistentEntity<?> entity = op.lcClient.getMappingContext().getRequiredPersistentEntity(entityType);

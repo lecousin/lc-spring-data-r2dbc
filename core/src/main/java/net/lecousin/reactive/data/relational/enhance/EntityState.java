@@ -24,10 +24,12 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
+import reactor.core.CorePublisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -41,7 +43,7 @@ public class EntityState {
 	private Mono<?> loading = null;
 	private Map<String, Object> persistedValues = new HashMap<>();
 	private Set<String> modifiedFields = new HashSet<>();
-	private Set<String> foreignTablesLoaded = new HashSet<>();
+	private Map<String, CorePublisher<?>> foreignTablesLoaded = new HashMap<>();
 	
 	public EntityState(LcReactiveDataRelationalClient client, RelationalPersistentEntity<?> entityType) {
 		this.client = client;
@@ -54,7 +56,7 @@ public class EntityState {
 	
 	public static EntityState get(Object entity, LcReactiveDataRelationalClient client, @Nullable RelationalPersistentEntity<?> entityType) {
 		try {
-			Field fieldInfo = Enhancer.entities.get(entity.getClass());
+			Field fieldInfo = LcEntityTypeInfo.get(entity.getClass()).getStateField();
 			EntityState state = (EntityState) fieldInfo.get(entity);
 			if (state == null) {
 				RelationalPersistentEntity<?> type;
@@ -227,7 +229,7 @@ public class EntityState {
 	
 	public void setForeignTableField(Object instance, Field field, Object value, boolean saved) {
 		setPersistedField(instance, field, value, saved);
-		foreignTablesLoaded.add(field.getName());
+		foreignTablesLoaded.put(field.getName(), null);
 	}
 	
 	@Nullable
@@ -242,7 +244,7 @@ public class EntityState {
 		Object instance = field.get(entity);
 		if (instance != null)
 			return new MutableObject<>((T) instance);
-		if (foreignTablesLoaded.contains(field.getName()) || (persistedValues.containsKey(field.getName()) && persistedValues.get(field.getName()) != null))
+		if (foreignTablesLoaded.containsKey(field.getName()) || (persistedValues.containsKey(field.getName()) && persistedValues.get(field.getName()) != null))
 			return new MutableObject<>(null);
 		return null;
 	}
@@ -250,15 +252,17 @@ public class EntityState {
 	@SuppressWarnings("unchecked")
 	public <T> Mono<T> lazyGetForeignTableField(Object entity, String fieldName, String joinKey) {
 		try {
+			CorePublisher<?> loading = foreignTablesLoaded.get(fieldName);
+			if (loading != null)
+				return (Mono<T>)loading;
 			MutableObject<T> instance = getForeignTableField(entity, fieldName);
 			if (instance != null)
 				return instance.getValue() != null ? Mono.just(instance.getValue()) : Mono.empty();
-			foreignTablesLoaded.add(fieldName);
 			Field field = entity.getClass().getDeclaredField(fieldName);
 			Object id = ModelUtils.getRequiredId(entity, entityType, null);
 			RelationalPersistentEntity<?> elementEntity = client.getMappingContext().getRequiredPersistentEntity(field.getType());
 			RelationalPersistentProperty fkProperty = elementEntity.getRequiredPersistentProperty(joinKey);
-			return SelectQuery.from((Class<T>) field.getType(), "entity")
+			Mono<T> select = SelectQuery.from((Class<T>) field.getType(), "entity")
 				.where(Criteria.property("entity", fkProperty.getName()).is(id))
 				.execute(client)
 				.next()
@@ -274,6 +278,9 @@ public class EntityState {
 						throw new ModelAccessException("Unable to set " + fieldName, e);
 					}
 				});
+			select = select.cache();
+			foreignTablesLoaded.put(fieldName, select);
+			return select;
 		} catch (Exception e) {
 			return Mono.error(e);
 		}
@@ -282,6 +289,9 @@ public class EntityState {
 	@SuppressWarnings("unchecked")
 	public <T> Flux<T> lazyGetForeignTableCollectionField(Object entity, String fieldName, String joinKey) {
 		try {
+			CorePublisher<?> loading = foreignTablesLoaded.get(fieldName);
+			if (loading != null)
+				return (Flux<T>)loading;
 			MutableObject<?> instance = getForeignTableField(entity, fieldName);
 			if (instance != null) {
 				if (instance.getValue() == null)
@@ -292,7 +302,6 @@ public class EntityState {
 				return Flux.fromIterable((Iterable<T>) collection);
 			}
 
-			foreignTablesLoaded.add(fieldName);
 			Field field = entity.getClass().getDeclaredField(fieldName);
 			field.setAccessible(true);
 			Object id = ModelUtils.getRequiredId(entity, entityType, null);
@@ -308,11 +317,29 @@ public class EntityState {
 			Field fk = elementType.getDeclaredField(joinKey);
 			fk.setAccessible(true);
 			if (field.getType().isArray())
-				return toArray(flux, field, entity, elementType, fk);
-			return toCollection(flux, field, entity, elementType, fk);
+				flux = toArray(flux, field, entity, elementType, fk);
+			else
+				flux = toCollection(flux, field, entity, elementType, fk);
+			flux = flux.cache();
+			foreignTablesLoaded.put(fieldName, flux);
+			return flux;
 		} catch (Exception e) {
 			return Flux.error(e);
 		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public <T> Flux<T> lazyGetJoinTableField(Object entity, String joinFieldName, int joinFieldKeyNumber) {
+		return lazyGetForeignTableCollectionField(entity, joinFieldName + "_join", "entity" + joinFieldKeyNumber)
+			.map(joinEntity -> {
+				try {
+					Field f = joinEntity.getClass().getDeclaredField("entity" + joinFieldKeyNumber);
+					f.setAccessible(true);
+					return (T) f.get(joinEntity);
+				} catch (Exception e) {
+					throw new ModelAccessException("Unable to access to join table property", e);
+				}
+			});
 	}
 	
 	private static <T> Flux<T> toArray(Flux<T> flux, Field field, Object entity, Class<?> elementType, Field fk) {
@@ -350,7 +377,7 @@ public class EntityState {
 	}
 	
 	public void foreignTableLoaded(Field field, Object value) {
-		foreignTablesLoaded.add(field.getName());
+		foreignTablesLoaded.put(field.getName(), null);
 		savePersistedValue(field, value);
 	}
 	

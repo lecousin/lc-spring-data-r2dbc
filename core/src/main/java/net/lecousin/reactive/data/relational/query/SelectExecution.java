@@ -33,6 +33,7 @@ import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.model.PropertiesSource;
 import net.lecousin.reactive.data.relational.model.PropertiesSourceMap;
@@ -338,18 +339,16 @@ public class SelectExecution<T> {
 			Column joinTarget = Column.create(targetEntity.getIdColumn(), joinTargetTable);
 			Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
 			Column joinSource = Column.create(property.getColumnName(), joinSourceTable);
-			select = ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
-		} else {
-			ForeignTable ft = ModelUtils.getRequiredForeignTableForProperty(join.source.targetType, join.propertyName);
-			property = targetEntity.getRequiredPersistentProperty(ft.joinKey());
-
-			Table joinTargetTable = mapping.tableByAlias.get(join.alias);
-			Column joinTarget = Column.create(property.getColumnName(), joinTargetTable);
-			Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
-			Column joinSource = Column.create(sourceEntity.getIdColumn(), joinSourceTable);
-			select = ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
+			return ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
 		}
-		return select;
+		ForeignTable ft = LcEntityTypeInfo.get(join.source.targetType).getRequiredForeignTableForProperty(join.propertyName);
+		property = targetEntity.getRequiredPersistentProperty(ft.joinKey());
+
+		Table joinTargetTable = mapping.tableByAlias.get(join.alias);
+		Column joinTarget = Column.create(property.getColumnName(), joinTargetTable);
+		Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
+		Column joinSource = Column.create(sourceEntity.getIdColumn(), joinSourceTable);
+		return ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
 	}
 	
 	private T currentRoot = null;
@@ -421,7 +420,7 @@ public class SelectExecution<T> {
 		if (isCollection)
 			ModelUtils.addToCollectionField(field, parent, instance);
 		else {
-			if (ModelUtils.isForeignTableField(field))
+			if (LcEntityTypeInfo.isForeignTableField(field))
 				parentState.setForeignTableField(parent, field, instance, true);
 			else
 				parentState.setPersistedField(parent, field, instance, true);

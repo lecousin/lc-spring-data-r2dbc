@@ -27,6 +27,8 @@ entities:
       - Entity1
       - Entity2
       - JoinEntity
+      - Entity3
+      - Entity4
     - model1:
       - Company
       - Employee

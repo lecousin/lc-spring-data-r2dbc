@@ -12,6 +12,9 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.JoinTableInfo;
+import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import reactor.core.publisher.Flux;
@@ -90,20 +93,36 @@ public class SelectQuery<T> {
 	
 	
 	void setJoinsTargetType(LcMappingR2dbcConverter mapper) {
-		for (TableReference join : joins) {
-			if (join.targetType == null) {
-				RelationalPersistentEntity<?> joinSourceEntity = mapper.getMappingContext().getRequiredPersistentEntity(join.source.targetType);
-				RelationalPersistentProperty property = joinSourceEntity.getPersistentProperty(join.propertyName);
-				if (property != null) {
-					join.targetType = property.getActualType();
-				} else {
-					Field f = ModelUtils.getRequiredForeignTableFieldForProperty(join.source.targetType, join.propertyName);
-					if (ModelUtils.isCollection(f))
-						join.targetType = ModelUtils.getCollectionType(f);
-					else
-						join.targetType = f.getType();
-				}
+		for (int i = 0; i < joins.size(); ++i) {
+			TableReference join = joins.get(i);
+			if (join.targetType != null)
+				continue;
+			RelationalPersistentEntity<?> joinSourceEntity = mapper.getMappingContext().getRequiredPersistentEntity(join.source.targetType);
+			RelationalPersistentProperty property = joinSourceEntity.getPersistentProperty(join.propertyName);
+			if (property != null) {
+				join.targetType = property.getActualType();
+				continue;
 			}
+			LcEntityTypeInfo sourceInfo = LcEntityTypeInfo.get(join.source.targetType);
+			Field f = sourceInfo.getForeignTableFieldForProperty(join.propertyName);
+			if (f != null) {
+				if (ModelUtils.isCollection(f))
+					join.targetType = ModelUtils.getCollectionType(f);
+				else
+					join.targetType = f.getType();
+				continue;
+			}
+			JoinTableInfo joinInfo = sourceInfo.getJoinTable(join.propertyName);
+			if (joinInfo != null) {
+				TableReference newJoin = new TableReference(join.source, joinInfo.getJoinForeignTable().getField().getName(), ModelUtils.getCollectionType(joinInfo.getJoinForeignTable().getField()), join.source.alias + "__join__" + join.alias);
+				join.source = newJoin;
+				join.propertyName = joinInfo.getJoinTargetFieldName();
+				join.targetType = ModelUtils.getCollectionType(joinInfo.getField());
+				tableAliases.put(newJoin.alias, newJoin);
+				joins.add(i, newJoin);
+				continue;
+			}
+			throw new ModelAccessException("Cannot join on property " + join.source.targetType.getSimpleName() + '#' + join.propertyName);
 		}
 	}
 	

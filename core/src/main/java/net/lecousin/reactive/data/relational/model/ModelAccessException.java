@@ -7,5 +7,9 @@ public class ModelAccessException extends RuntimeException {
 	public ModelAccessException(String message, Throwable cause) {
 		super(message, cause);
 	}
+	
+	public ModelAccessException(String message) {
+		super(message);
+	}
 
 }

@@ -21,12 +21,12 @@ import org.springframework.lang.Nullable;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
 
-import net.lecousin.reactive.data.relational.enhance.Enhancer;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
 import net.lecousin.reactive.data.relational.mapping.LcReactiveDataAccessStrategy;
 import net.lecousin.reactive.data.relational.model.EntityCache;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectExecution;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
@@ -62,7 +62,7 @@ public class LcReactiveDataRelationalClient {
 	@PostConstruct
 	public void init() {
 		// ensure all declared entities have been detected by Spring
-		for (Class<?> type : Enhancer.getEntities())
+		for (Class<?> type : LcEntityTypeInfo.getClasses())
 			mappingContext.getPersistentEntity(type);
 	}
 	
@@ -108,7 +108,7 @@ public class LcReactiveDataRelationalClient {
 	}
 	
 	public RelationalDatabaseSchema buildSchemaFromEntities() {
-		return buildSchemaFromEntities(Enhancer.getEntities());
+		return buildSchemaFromEntities(LcEntityTypeInfo.getClasses());
 	}
 	
 	public RelationalDatabaseSchema buildSchemaFromEntities(Collection<Class<?>> classes) {

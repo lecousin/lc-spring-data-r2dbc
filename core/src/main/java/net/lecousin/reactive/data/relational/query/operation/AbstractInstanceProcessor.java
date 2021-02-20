@@ -12,12 +12,13 @@ import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.util.Pair;
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import reactor.core.publisher.Mono;
@@ -103,26 +104,26 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 		for (RelationalPersistentProperty property : request.entityType) {
 			ForeignKey fkAnnotation = property.findAnnotation(ForeignKey.class);
 			if (fkAnnotation != null) {
-				Pair<Field, ForeignTable> p = ModelUtils.getForeignTableWithFieldForJoinKey(property.getActualType(), property.getName(), request.entityType.getType());
-				processForeignKey(op, request, property, fkAnnotation, p != null ? p.getFirst() : null, p != null ? p.getSecond() : null);
+				ForeignTableInfo fti = LcEntityTypeInfo.get(property.getActualType()).getForeignTableWithFieldForJoinKey(property.getName(), request.entityType.getType());
+				processForeignKey(op, request, property, fkAnnotation, fti != null ? fti.getField() : null, fti != null ? fti.getAnnotation() : null);
 			}
 		}
 	}
 	
 	private void processForeignTables(Operation op, R request) {
-		for (Pair<Field, ForeignTable> p : ModelUtils.getForeignTables(request.instance.getClass())) {
-			boolean isCollection = ModelUtils.isCollection(p.getFirst());
-			RelationalPersistentEntity<?> foreignEntity = op.lcClient.getMappingContext().getRequiredPersistentEntity(isCollection ? ModelUtils.getRequiredCollectionType(p.getFirst()) : p.getFirst().getType());
-			RelationalPersistentProperty fkProperty = foreignEntity.getRequiredPersistentProperty(p.getSecond().joinKey());
+		for (ForeignTableInfo fti : LcEntityTypeInfo.get(request.instance.getClass()).getForeignTables()) {
+			boolean isCollection = ModelUtils.isCollection(fti.getField());
+			RelationalPersistentEntity<?> foreignEntity = op.lcClient.getMappingContext().getRequiredPersistentEntity(isCollection ? ModelUtils.getRequiredCollectionType(fti.getField()) : fti.getField().getType());
+			RelationalPersistentProperty fkProperty = foreignEntity.getRequiredPersistentProperty(fti.getAnnotation().joinKey());
 			ForeignKey fk = fkProperty.findAnnotation(ForeignKey.class);
 			MutableObject<?> foreignFieldValue;
 			try {
-				foreignFieldValue = request.state.getForeignTableField(request.instance, p.getFirst().getName());
+				foreignFieldValue = request.state.getForeignTableField(request.instance, fti.getField().getName());
 			} catch (Exception e) {
 				throw new ModelAccessException("Unable to get foreign table field", e);
 			}
 			
-			processForeignTableField(op, request, p.getFirst(), p.getSecond(), foreignFieldValue, isCollection, foreignEntity, fkProperty, fk);
+			processForeignTableField(op, request, fti.getField(), fti.getAnnotation(), foreignFieldValue, isCollection, foreignEntity, fkProperty, fk);
 		}
 	}
 	
