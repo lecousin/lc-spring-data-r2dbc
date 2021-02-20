@@ -2,7 +2,7 @@
 
 net.lecousin.reactive-data-relational
 [![Maven Central](https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22reactive-data-relational%22%20AND%20a%3A%22core%22)
-[![Javadoc](https://img.shields.io/badge/javadoc-0.3.3-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.3.3)
+[![Javadoc](https://img.shields.io/badge/javadoc-0.4.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.4.0)
 ![build status](https://travis-ci.org/lecousin/lc-spring-data-r2dbc.svg?branch=master "Build Status")
 [![Codecov](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg)](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master)
 
@@ -21,7 +21,7 @@ this library aims at providing the most useful features that are really missing 
 ## Features
 
  - Lazy loading
- - Linked entities (1 to 1, 1 to n, n to 1)
+ - Linked entities (1 to 1, 1 to n, n to 1, n to n)
  - Select statement with joins
  - Save (insert/update) with cascade
  - Delete with cascade
@@ -37,7 +37,7 @@ this library aims at providing the most useful features that are really missing 
  
 ## Dependencies
 
- - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.4.1, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
+ - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.4.3, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
  - commons-lang3 version 3.11, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.apache.commons/commons-lang3.svg)
  - javassist version 3.27.0-GA, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.javassist/javassist.svg)
 
@@ -57,7 +57,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>h2</artifactId>
-  <version>0.3.3</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -67,7 +67,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>postgres</artifactId>
-  <version>0.3.3</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -77,7 +77,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>mysql</artifactId>
-  <version>0.3.3</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -167,7 +167,7 @@ In addition, in order to make sure the initializer is launched before any test c
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>test-junit-5</artifactId>
-  <version>0.3.3</version>
+  <version>0.4.0</version>
   <scope>test</scope>
 </dependency>
 ```
@@ -187,6 +187,9 @@ In addition, here are the following supported options:
 - Annotation `net.lecousin.reactive.data.relational.annotations.ForeignKey` can be used to indicate a link. The cascade behavior can be specified using the attributes `optional`, `onForeignDeleted`, and `cascadeDelete`. A foreign key cannot be used on a collection type.
 - Annotation `net.lecousin.reactive.data.relational.annotations.ForeignTable` is the other side of the foreign key. It does not store anything in the database
 but indicates the link to another class. A foreign table can be used on a collection type for a one to many link.
+- Annotation `net.lecousin.reactive.data.relational.annotations.JoinTable` can be used for a many to many (n-n) relationship when no additional field is required
+on the join table. The join table will be automatically created with the 2 foreign keys. This allows to join directly between 2 tables with many to many relationship in a
+transparent manner.
 - Annotations `org.springframework.data.annotation.CreatedDate` and `org.springframework.data.annotation.LastModifiedDate` can be used to automatically store respectively the creation date and modification date. It can be used with a column of type `Long`, `Instant`, `LocalDate`, `LocalTime`, `OffsetTime`, `LocalDateTime`, or `ZonedDateTime`.
 
 Additional methods may be declared in an Entity class to handle lazy loading, documented in the [dedicated section](#lazy-loading).
