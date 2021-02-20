@@ -92,6 +92,7 @@ public class SelectQuery<T> {
 	}
 	
 	
+	@SuppressWarnings("java:S135")
 	void setJoinsTargetType(LcMappingR2dbcConverter mapper) {
 		for (int i = 0; i < joins.size(); ++i) {
 			TableReference join = joins.get(i);

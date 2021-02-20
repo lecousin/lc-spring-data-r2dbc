@@ -17,6 +17,9 @@ public class LcEntityTypeInfo {
 
 	private static final Map<Class<?>, LcEntityTypeInfo> cache = new HashMap<>();
 	
+	private static final String ATTRIBUTE1 = Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + "1";
+	private static final String ATTRIBUTE2 = Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + "2";
+	
 	private Class<?> type;
 	private Field stateField;
 	private Map<String, ForeignTableInfo> foreignTables = new HashMap<>();
@@ -111,12 +114,12 @@ public class LcEntityTypeInfo {
 				info.joinForeignTable = foreignTables.get(f.getName() + "_join");
 				if (info.joinForeignTable == null)
 					throw new ModelAccessException("@JoinTable without corresponding @ForeignTable"); // should never happen with Enhancer
-				if (info.joinForeignTable.annotation.joinKey().equals("entity1")) {
-					info.joinSourceFieldName = "entity1";
-					info.joinTargetFieldName = "entity2";
+				if (info.joinForeignTable.annotation.joinKey().equals(ATTRIBUTE1)) {
+					info.joinSourceFieldName = ATTRIBUTE1;
+					info.joinTargetFieldName = ATTRIBUTE2;
 				} else {
-					info.joinSourceFieldName = "entity2";
-					info.joinTargetFieldName = "entity1";
+					info.joinSourceFieldName = ATTRIBUTE2;
+					info.joinTargetFieldName = ATTRIBUTE1;
 				}
 				joinTables.put(f.getName(), info);
 				f.setAccessible(true);
@@ -161,12 +164,12 @@ public class LcEntityTypeInfo {
 		for (Map.Entry<String, ForeignTableInfo> e : foreignTables.entrySet())
 			if (e.getValue().getAnnotation().joinKey().equals(joinKey)) {
 				Field field = e.getValue().getField();
-				Class<?> type;
+				Class<?> fieldType;
 				if (ModelUtils.isCollection(field))
-					type = ModelUtils.getCollectionType(field);
+					fieldType = ModelUtils.getCollectionType(field);
 				else
-					type = field.getType();
-				if (targetType.equals(type))
+					fieldType = field.getType();
+				if (targetType.equals(fieldType))
 					return e.getValue();
 			}
 		return null;
@@ -276,7 +279,7 @@ public class LcEntityTypeInfo {
 		return joinTables.values();
 	}
 	
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"unchecked", "java:S1168", "java:S2259"})
 	public <T> Collection<T> getJoinTableElementsForJoinTableClass(Object instance, Class<T> joinTableClass) {
 		for (JoinTableInfo jti : joinTables.values()) {
 			if (ModelUtils.getCollectionType(jti.joinForeignTable.field).equals(joinTableClass)) {

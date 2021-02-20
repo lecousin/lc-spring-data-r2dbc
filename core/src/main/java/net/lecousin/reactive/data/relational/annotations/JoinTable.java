@@ -7,6 +7,11 @@ import java.lang.annotation.Target;
 
 import org.springframework.data.annotation.Transient;
 
+/**
+ * Indicates a many to many relationship.<br/>
+ * A join table will be created, using the specified table name and column name.<br/>
+ * If it exists several many to many relationships between the two same entities, the tableName or joinProperty can be used to avoid ambiguity.
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD })
 @Transient
@@ -25,10 +30,8 @@ public @interface JoinTable {
 	String columnName() default "";
 	
 	/**
-	 * Specifies if the linked entities must be deleted when the owning entity is deleted.
+	 * Specifies the property on the linked entity to use for the join.
 	 */
-	boolean cascadeDelete() default false;
-	
 	String joinProperty() default "";
 	
 }

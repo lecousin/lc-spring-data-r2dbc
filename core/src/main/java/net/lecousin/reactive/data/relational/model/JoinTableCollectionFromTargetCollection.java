@@ -8,22 +8,23 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public class JoinTableCollectionFromTargetCollection<JT, T> implements Collection<JT> {
+@SuppressWarnings({"java:S3011"})
+public class JoinTableCollectionFromTargetCollection<J, T> implements Collection<J> {
 
 	private Object sourceInstance;
-	private Class<JT> joinClass;
+	private Class<J> joinClass;
 	private Set<T> targetCollection;
 	private Field sourceField;
 	private Field targetField;
-	private Collection<JT> originalCollection;
+	private Collection<J> originalCollection;
 
 	@SuppressWarnings("unchecked")
-	public JoinTableCollectionFromTargetCollection(Object sourceInstance, Collection<JT> originalCollection, Set<T> targetCollection, String joinClassName, int sourceAttributeLinkNumber) {
+	public JoinTableCollectionFromTargetCollection(Object sourceInstance, Collection<J> originalCollection, Set<T> targetCollection, String joinClassName, int sourceAttributeLinkNumber) {
 		this.sourceInstance = sourceInstance;
 		this.targetCollection = targetCollection;
 		this.originalCollection = originalCollection != null ? new ArrayList<>(originalCollection) : new ArrayList<>(0);
 		try {
-			joinClass = (Class<JT>) getClass().getClassLoader().loadClass(joinClassName);
+			joinClass = (Class<J>) getClass().getClassLoader().loadClass(joinClassName);
 			sourceField = joinClass.getDeclaredField("entity" + sourceAttributeLinkNumber);
 			sourceField.setAccessible(true);
 			targetField = joinClass.getDeclaredField("entity" + (sourceAttributeLinkNumber == 1 ? 2 : 1));
@@ -33,21 +34,21 @@ public class JoinTableCollectionFromTargetCollection<JT, T> implements Collectio
 		}
 	}
 	
-	@SuppressWarnings("unchecked")
-	private JT getOriginalOrCreate(T target) {
-		for (JT join : originalCollection)
+	@SuppressWarnings({"unchecked", "java:S3776"})
+	private J getOriginalOrCreate(T target) {
+		for (J join : originalCollection)
 			try {
 				if (Objects.equals(targetField.get(join), target))
 					return join;
 			} catch (Exception e) {
 				// ignore
 			}
-		Collection<JT> col = LcEntityTypeInfo.get(target.getClass()).getJoinTableElementsForJoinTableClass(target, joinClass);
+		Collection<J> col = LcEntityTypeInfo.get(target.getClass()).getJoinTableElementsForJoinTableClass(target, joinClass);
 		if (col != null) {
 			if (col instanceof JoinTableCollectionFromTargetCollection) {
-				col = ((JoinTableCollectionFromTargetCollection<JT, ?>)col).originalCollection;
+				col = ((JoinTableCollectionFromTargetCollection<J, ?>)col).originalCollection;
 			}
-			for (JT join : col)
+			for (J join : col)
 				try {
 					if (Objects.equals(sourceField.get(join), sourceInstance)) {
 						originalCollection.add(join);
@@ -59,7 +60,7 @@ public class JoinTableCollectionFromTargetCollection<JT, T> implements Collectio
 		}
 		
 		try {
-			JT join = joinClass.getConstructor().newInstance();
+			J join = joinClass.getConstructor().newInstance();
 			sourceField.set(join, sourceInstance);
 			targetField.set(join, target);
 			originalCollection.add(join);
@@ -106,16 +107,16 @@ public class JoinTableCollectionFromTargetCollection<JT, T> implements Collectio
 	}
 
 	@Override
-	public Iterator<JT> iterator() {
+	public Iterator<J> iterator() {
 		Iterator<T> it = targetCollection.iterator();
-		return new Iterator<JT>() {
+		return new Iterator<J>() {
 			@Override
 			public boolean hasNext() {
 				return it.hasNext();
 			}
 			
 			@Override
-			public JT next() {
+			public J next() {
 				return getOriginalOrCreate(it.next());
 			}
 		};
@@ -132,13 +133,13 @@ public class JoinTableCollectionFromTargetCollection<JT, T> implements Collectio
         if (a.length < targetCollection.size())
             a = (R[])java.lang.reflect.Array.newInstance(a.getClass().getComponentType(), targetCollection.size());
         int i = 0;
-        for (JT e : this)
+        for (J e : this)
         	a[i++] = (R) e;
         return a;
 	}
 
 	@Override
-	public boolean add(JT e) {
+	public boolean add(J e) {
 		try {
 			@SuppressWarnings("unchecked")
 			T target = (T) targetField.get(e);
@@ -153,9 +154,9 @@ public class JoinTableCollectionFromTargetCollection<JT, T> implements Collectio
 	}
 
 	@Override
-	public boolean addAll(Collection<? extends JT> c) {
+	public boolean addAll(Collection<? extends J> c) {
 		boolean result = false;
-		for (JT e : c)
+		for (J e : c)
 			result |= add(e);
 		return result;
 	}

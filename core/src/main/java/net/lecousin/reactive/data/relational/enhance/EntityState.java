@@ -45,6 +45,8 @@ public class EntityState {
 	private Set<String> modifiedFields = new HashSet<>();
 	private Map<String, CorePublisher<?>> foreignTablesLoaded = new HashMap<>();
 	
+	private static final String ENTITY_ALIAS = "entity";
+	
 	public EntityState(LcReactiveDataRelationalClient client, RelationalPersistentEntity<?> entityType) {
 		this.client = client;
 		this.entityType = entityType;
@@ -252,9 +254,9 @@ public class EntityState {
 	@SuppressWarnings("unchecked")
 	public <T> Mono<T> lazyGetForeignTableField(Object entity, String fieldName, String joinKey) {
 		try {
-			CorePublisher<?> loading = foreignTablesLoaded.get(fieldName);
-			if (loading != null)
-				return (Mono<T>)loading;
+			CorePublisher<?> foreignLoading = foreignTablesLoaded.get(fieldName);
+			if (foreignLoading != null)
+				return (Mono<T>)foreignLoading;
 			MutableObject<T> instance = getForeignTableField(entity, fieldName);
 			if (instance != null)
 				return instance.getValue() != null ? Mono.just(instance.getValue()) : Mono.empty();
@@ -262,8 +264,8 @@ public class EntityState {
 			Object id = ModelUtils.getRequiredId(entity, entityType, null);
 			RelationalPersistentEntity<?> elementEntity = client.getMappingContext().getRequiredPersistentEntity(field.getType());
 			RelationalPersistentProperty fkProperty = elementEntity.getRequiredPersistentProperty(joinKey);
-			Mono<T> select = SelectQuery.from((Class<T>) field.getType(), "entity")
-				.where(Criteria.property("entity", fkProperty.getName()).is(id))
+			Mono<T> select = SelectQuery.from((Class<T>) field.getType(), ENTITY_ALIAS)
+				.where(Criteria.property(ENTITY_ALIAS, fkProperty.getName()).is(id))
 				.execute(client)
 				.next()
 				.doOnNext(inst -> {
@@ -289,9 +291,9 @@ public class EntityState {
 	@SuppressWarnings("unchecked")
 	public <T> Flux<T> lazyGetForeignTableCollectionField(Object entity, String fieldName, String joinKey) {
 		try {
-			CorePublisher<?> loading = foreignTablesLoaded.get(fieldName);
-			if (loading != null)
-				return (Flux<T>)loading;
+			CorePublisher<?> foreignLoading = foreignTablesLoaded.get(fieldName);
+			if (foreignLoading != null)
+				return (Flux<T>)foreignLoading;
 			MutableObject<?> instance = getForeignTableField(entity, fieldName);
 			if (instance != null) {
 				if (instance.getValue() == null)
@@ -330,10 +332,10 @@ public class EntityState {
 	
 	@SuppressWarnings("unchecked")
 	public <T> Flux<T> lazyGetJoinTableField(Object entity, String joinFieldName, int joinFieldKeyNumber) {
-		return lazyGetForeignTableCollectionField(entity, joinFieldName + "_join", "entity" + joinFieldKeyNumber)
+		return lazyGetForeignTableCollectionField(entity, joinFieldName + "_join", Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + joinFieldKeyNumber)
 			.map(joinEntity -> {
 				try {
-					Field f = joinEntity.getClass().getDeclaredField("entity" + joinFieldKeyNumber);
+					Field f = joinEntity.getClass().getDeclaredField(Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + joinFieldKeyNumber);
 					f.setAccessible(true);
 					return (T) f.get(joinEntity);
 				} catch (Exception e) {

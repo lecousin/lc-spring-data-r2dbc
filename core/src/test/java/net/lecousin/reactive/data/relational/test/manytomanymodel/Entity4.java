@@ -20,7 +20,7 @@ public class Entity4 {
 	@Column
 	private String value;
 	
-	@JoinTable
+	@JoinTable(columnName = "entity3")
 	private Set<Entity3> links;
 
 	public Long getId() {

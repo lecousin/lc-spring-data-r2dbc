@@ -6,15 +6,16 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 
-public class JoinTableCollectionToTargetCollection<JT, T> implements Set<T> {
+@SuppressWarnings({"java:S3011"})
+public class JoinTableCollectionToTargetCollection<J, T> implements Set<T> {
 
 	private Object sourceInstance;
-	private Collection<JT> sourceCollection;
+	private Collection<J> sourceCollection;
 	private Class<?> joinClass;
 	private Field sourceField;
 	private Field targetField;
 	
-	public JoinTableCollectionToTargetCollection(Object sourceInstance, Collection<JT> sourceCollection, String joinClassName, int sourceAttributeLinkNumber) {
+	public JoinTableCollectionToTargetCollection(Object sourceInstance, Collection<J> sourceCollection, String joinClassName, int sourceAttributeLinkNumber) {
 		this.sourceInstance = sourceInstance;
 		this.sourceCollection = sourceCollection;
 		try {
@@ -29,7 +30,7 @@ public class JoinTableCollectionToTargetCollection<JT, T> implements Set<T> {
 	}
 	
 	@SuppressWarnings("unchecked")
-	private T getTarget(JT join) {
+	private T getTarget(J join) {
 		try {
 			return (T) targetField.get(join);
 		} catch (Exception e) {
@@ -54,7 +55,7 @@ public class JoinTableCollectionToTargetCollection<JT, T> implements Set<T> {
 
 	@Override
 	public boolean contains(Object o) {
-		for (JT jt : sourceCollection)
+		for (J jt : sourceCollection)
 			if (Objects.equals(o, getTarget(jt)))
 				return true;
 		return false;
@@ -70,7 +71,7 @@ public class JoinTableCollectionToTargetCollection<JT, T> implements Set<T> {
 
 	@Override
 	public Iterator<T> iterator() {
-		Iterator<JT> it = sourceCollection.iterator();
+		Iterator<J> it = sourceCollection.iterator();
 		return new Iterator<T>() {
 			@Override
 			public boolean hasNext() {
@@ -106,7 +107,7 @@ public class JoinTableCollectionToTargetCollection<JT, T> implements Set<T> {
 			return false;
 		try {
 			@SuppressWarnings("unchecked")
-			JT join = (JT) joinClass.getConstructor().newInstance();
+			J join = (J) joinClass.getConstructor().newInstance();
 			sourceField.set(join, sourceInstance);
 			targetField.set(join, e);
 			sourceCollection.add(join);
@@ -126,7 +127,7 @@ public class JoinTableCollectionToTargetCollection<JT, T> implements Set<T> {
 
 	@Override
 	public boolean remove(Object o) {
-		for (Iterator<JT> it = sourceCollection.iterator(); it.hasNext(); )
+		for (Iterator<J> it = sourceCollection.iterator(); it.hasNext(); )
 			if (Objects.equals(o, getTarget(it.next()))) {
 				it.remove();
 				return true;
@@ -145,7 +146,7 @@ public class JoinTableCollectionToTargetCollection<JT, T> implements Set<T> {
 	@Override
 	public boolean retainAll(Collection<?> c) {
 		boolean result = false;
-		for (Iterator<JT> it = sourceCollection.iterator(); it.hasNext(); )
+		for (Iterator<J> it = sourceCollection.iterator(); it.hasNext(); )
 			if (!c.contains(getTarget(it.next()))) {
 				it.remove();
 				result = true;

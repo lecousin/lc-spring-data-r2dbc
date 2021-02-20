@@ -49,6 +49,9 @@ public final class Enhancer {
 	private static final Log logger = LogFactory.getLog(Enhancer.class);
 	
 	public static final String STATE_FIELD_NAME = "_lcState";
+	public static final String JOIN_TABLE_ATTRIBUTE_PREFIX = "entity";
+	
+	private static final String DEFAULT_VALUE_ANNOTATION_ATTRIBUTE = "value";
 	
 	private ClassPool classPool;
 	private Map<String, CtClass> classes;
@@ -62,6 +65,7 @@ public final class Enhancer {
 		new Enhancer().enhanceClasses(entityClasses);
 	}
 	
+	@SuppressWarnings("java:S1141")
 	private void enhanceClasses(Collection<String> entityClasses) throws ModelException {
 		logger.info("Enhancing " + entityClasses.size() + " entity classes");
 		
@@ -72,28 +76,13 @@ public final class Enhancer {
 		processJoinTables();
 		
 		// add state attribute
-		for (CtClass cl : classes.values())
-			try {
-				addStateAttribute(cl);
-			} catch (Exception e) {
-				throw new ModelException("Unable to add state attribute to class " + cl.getName(), e);
-			}
+		addStateAttribute();
 		
 		// persistent fields accessor
-		for (CtClass cl : classes.values())
-			try {
-				enhancePersistentFields(cl);
-			} catch (Exception e) {
-				throw new ModelException("Error enhancing entity class " + cl.getName(), e);
-			}
+		enhancePersistentFields();
 		
 		// lazy methods
-		for (CtClass cl : classes.values())
-			try {
-				enhanceLazyMethods(cl);
-			} catch (Exception e) {
-				throw new ModelException("Error enhancing entity class " + cl.getName(), e);
-			}
+		enhanceLazyMethods();
 		
 		// process join table getter and setter
 		for (Map.Entry<CtClass, Map<String, JoinTableInfo>> classEntry : joinTableFields.entrySet()) {
@@ -167,6 +156,15 @@ public final class Enhancer {
 		}
 	}
 	
+	private void addStateAttribute() throws ModelException {
+		for (CtClass cl : classes.values())
+			try {
+				addStateAttribute(cl);
+			} catch (Exception e) {
+				throw new ModelException("Unable to add state attribute to class " + cl.getName(), e);
+			}
+	}
+	
 	private void addStateAttribute(CtClass cl) throws CannotCompileException, NotFoundException {
 		CtField f = new CtField(classPool.get("net.lecousin.reactive.data.relational.enhance.EntityState"), STATE_FIELD_NAME, cl);
 		cl.addField(f);
@@ -176,6 +174,15 @@ public final class Enhancer {
         Annotation annot = new Annotation(Transient.class.getName(), cpool);
         attr.addAnnotation(annot);
         f.getFieldInfo().addAttribute(attr);
+	}
+	
+	private void enhancePersistentFields() throws ModelException {
+		for (CtClass cl : classes.values())
+			try {
+				enhancePersistentFields(cl);
+			} catch (Exception e) {
+				throw new ModelException("Error enhancing entity class " + cl.getName(), e);
+			}
 	}
 	
 	private static void enhancePersistentFields(CtClass cl) throws CannotCompileException {
@@ -197,6 +204,7 @@ public final class Enhancer {
 		setter.insertBefore("if ($0._lcState != null) { $0._lcState.fieldSet(\"" + field.getName() + "\", $1); }");
 	}
 	
+	@SuppressWarnings("java:S3776")
 	private void processJoinTables() throws ModelException {
 		LinkedList<Tuple4<CtClass, CtField, JoinTable, CtClass>> joins = new LinkedList<>();
 		CtClass clSet = null;
@@ -255,7 +263,8 @@ public final class Enhancer {
 		private int linkNumber;
 	}
 	
-	private void createJoinTable(Tuple4<CtClass, CtField, JoinTable, CtClass> t, LinkedList<Tuple4<CtClass, CtField, JoinTable, CtClass>> joins) throws Exception {
+	@SuppressWarnings({"java:S3776", "java:S135"}) // complexity and several continue in loop
+	private void createJoinTable(Tuple4<CtClass, CtField, JoinTable, CtClass> t, LinkedList<Tuple4<CtClass, CtField, JoinTable, CtClass>> joins) throws ModelException, ReflectiveOperationException, CannotCompileException, NotFoundException {
 		List<Tuple4<CtClass, CtField, JoinTable, CtClass>> targetJoins = new LinkedList<>();
 		for (Tuple4<CtClass, CtField, JoinTable, CtClass> tt : joins) {
 			if (!tt.getT1().equals(t.getT4()))
@@ -276,14 +285,18 @@ public final class Enhancer {
 		CtClass class2;
 		CtField field1 = null;
 		CtField field2 = null;
+		String columnName1 = "";
+		String columnName2 = "";
 		if (t.getT1().getName().compareTo(t.getT4().getName()) < 0) {
 			class1 = t.getT1();
 			class2 = t.getT4();
 			field1 = t.getT2();
+			columnName1 = t.getT3().columnName();
 		} else {
 			class1 = t.getT4();
 			class2 = t.getT1();
 			field2 = t.getT2();
+			columnName2 = t.getT3().columnName();
 		}
 		
 		String tableName;
@@ -298,8 +311,10 @@ public final class Enhancer {
 			tableName = tt.getT3().tableName();
 			if (class1.equals(tt.getT1())) {
 				field1 = tt.getT2();
+				columnName1 = tt.getT3().columnName();
 			} else {
 				field2 = tt.getT2();
+				columnName2 = tt.getT3().columnName();
 			}
 		}
 		
@@ -329,65 +344,63 @@ public final class Enhancer {
 		
         AnnotationsAttribute attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
         Annotation annot = new Annotation(Table.class.getName(), constPool);
-        annot.addMemberValue("value", new StringMemberValue(tableName, constPool));
+        annot.addMemberValue(DEFAULT_VALUE_ANNOTATION_ATTRIBUTE, new StringMemberValue(tableName, constPool));
         attr.addAnnotation(annot);
         joinClassFile.addAttribute(attr);
         
-		CtField field = new CtField(class1, "entity1", joinClass);
-		joinClass.addField(field);
-        attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
-        annot = new Annotation(ForeignKey.class.getName(), constPool);
-        annot.addMemberValue("optional", new BooleanMemberValue(false, constPool));
-        attr.addAnnotation(annot);
-        field.getFieldInfo().addAttribute(attr);
-
-        field = new CtField(class2, "entity2", joinClass);
-		joinClass.addField(field);
-        attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
-        annot = new Annotation(ForeignKey.class.getName(), constPool);
-        annot.addMemberValue("optional", new BooleanMemberValue(false, constPool));
-        attr.addAnnotation(annot);
-        field.getFieldInfo().addAttribute(attr);
+        createJoinTableField(joinClass, JOIN_TABLE_ATTRIBUTE_PREFIX + "1", class1, columnName1, constPool);
+        createJoinTableField(joinClass, JOIN_TABLE_ATTRIBUTE_PREFIX + "2", class2, columnName2, constPool);
         
-        if (field1 != null) {
-    		ClassFile classFile = class1.getClassFile();
-    		constPool = classFile.getConstPool();
-
-    		field = new CtField(classPool.get(Collection.class.getName()), field1.getName() + "_join", class1);
-    		field.setGenericSignature(new SignatureAttribute.ClassType(Collection.class.getName(), new TypeArgument[] { new TypeArgument(new SignatureAttribute.ClassType(joinClassName)) }).encode());
-            class1.addField(field);
-            attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
-            annot = new Annotation(ForeignTable.class.getName(), constPool);
-            annot.addMemberValue("joinKey", new StringMemberValue("entity1", constPool));
-            attr.addAnnotation(annot);
-            field.getFieldInfo().addAttribute(attr);
-            
-            JoinTableInfo info = new JoinTableInfo();
-            info.joinClassName = joinClassName;
-            info.linkNumber = 1;
-            joinTableFields.computeIfAbsent(class1, c -> new HashMap<>()).put(field1.getName(), info);
-        }
+        if (field1 != null)
+        	createJoinField(class1, field1, joinClassName);
         
-        if (field2 != null) {
-    		ClassFile classFile = class2.getClassFile();
-    		constPool = classFile.getConstPool();
-
-    		field = new CtField(classPool.get(Collection.class.getName()), field2.getName() + "_join", class2);
-    		field.setGenericSignature(new SignatureAttribute.ClassType(Collection.class.getName(), new TypeArgument[] { new TypeArgument(new SignatureAttribute.ClassType(joinClassName)) }).encode());
-            class2.addField(field);
-            attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
-            annot = new Annotation(ForeignTable.class.getName(), constPool);
-            annot.addMemberValue("joinKey", new StringMemberValue("entity2", constPool));
-            attr.addAnnotation(annot);
-            field.getFieldInfo().addAttribute(attr);
-            
-            JoinTableInfo info = new JoinTableInfo();
-            info.joinClassName = joinClassName;
-            info.linkNumber = 2;
-            joinTableFields.computeIfAbsent(class2, c -> new HashMap<>()).put(field2.getName(), info);
-        }
+        if (field2 != null)
+        	createJoinField(class2, field2, joinClassName);
         
         classes.put(joinClassName, joinClass);
+	}
+	
+	private static void createJoinTableField(CtClass joinClass, String fieldName, CtClass targetType, String columnName, ConstPool constPool) throws CannotCompileException {
+		CtField field = new CtField(targetType, fieldName, joinClass);
+		joinClass.addField(field);
+		AnnotationsAttribute attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
+		Annotation annot = new Annotation(ForeignKey.class.getName(), constPool);
+        annot.addMemberValue("optional", new BooleanMemberValue(false, constPool));
+        attr.addAnnotation(annot);
+        if (columnName.length() > 0) {
+        	annot = new Annotation(Column.class.getName(), constPool);
+            annot.addMemberValue(DEFAULT_VALUE_ANNOTATION_ATTRIBUTE, new StringMemberValue(columnName, constPool));
+            attr.addAnnotation(annot);
+        }
+        field.getFieldInfo().addAttribute(attr);
+	}
+	
+	private void createJoinField(CtClass cl, CtField joinField, String joinClassName) throws CannotCompileException, NotFoundException {
+		ClassFile classFile = cl.getClassFile();
+		ConstPool constPool = classFile.getConstPool();
+
+		CtField field = new CtField(classPool.get(Collection.class.getName()), joinField.getName() + "_join", cl);
+		field.setGenericSignature(new SignatureAttribute.ClassType(Collection.class.getName(), new TypeArgument[] { new TypeArgument(new SignatureAttribute.ClassType(joinClassName)) }).encode());
+        cl.addField(field);
+        AnnotationsAttribute attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
+        Annotation annot = new Annotation(ForeignTable.class.getName(), constPool);
+        annot.addMemberValue("joinKey", new StringMemberValue("entity1", constPool));
+        attr.addAnnotation(annot);
+        field.getFieldInfo().addAttribute(attr);
+        
+        JoinTableInfo info = new JoinTableInfo();
+        info.joinClassName = joinClassName;
+        info.linkNumber = 1;
+        joinTableFields.computeIfAbsent(cl, c -> new HashMap<>()).put(joinField.getName(), info);
+	}
+	
+	private void enhanceLazyMethods() throws ModelException {
+		for (CtClass cl : classes.values())
+			try {
+				enhanceLazyMethods(cl);
+			} catch (Exception e) {
+				throw new ModelException("Error enhancing entity class " + cl.getName(), e);
+			}
 	}
 	
 	private void enhanceLazyMethods(CtClass cl) throws ReflectiveOperationException, CannotCompileException, NotFoundException {
@@ -407,7 +420,7 @@ public final class Enhancer {
 		enhanceLazyGetMethods(cl);
 	}
 	
-	@SuppressWarnings("java:S3776")
+	@SuppressWarnings({"java:S3776", "java:S135"})
 	private void enhanceLazyGetMethods(CtClass cl) throws ReflectiveOperationException, CannotCompileException, NotFoundException {
 		for (CtMethod method : cl.getMethods()) {
 			if (method.getName().startsWith("lazyGet")) {
