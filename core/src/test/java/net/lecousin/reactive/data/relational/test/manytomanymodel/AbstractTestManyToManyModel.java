@@ -248,6 +248,17 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 		
 		list1 = repo3.findWithLinks().collectList().block();
 		Assertions.assertEquals(5, list1.size());
+		Assertions.assertEquals(2, list1.stream().filter(e -> "1.1".equals(e.getValue())).findFirst().get().getLinks().size());
+		Assertions.assertEquals(1, list1.stream().filter(e -> "1.2".equals(e.getValue())).findFirst().get().getLinks().size());
+		Assertions.assertEquals(1, list1.stream().filter(e -> "1.3".equals(e.getValue())).findFirst().get().getLinks().size());
+		Assertions.assertEquals(1, list1.stream().filter(e -> "1.4".equals(e.getValue())).findFirst().get().getLinks().size());
+		Assertions.assertEquals(1, list1.stream().filter(e -> "1.5".equals(e.getValue())).findFirst().get().getLinks().size());
+		List<Entity4> list2 = SelectQuery.from(Entity4.class, "entity").execute(lcClient).collectList().block();
+		Assertions.assertEquals(3, list2.size());
+		Assertions.assertEquals(2, list2.stream().filter(e -> "2.1".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
+		Assertions.assertEquals(1, list2.stream().filter(e -> "2.2".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
+		Assertions.assertEquals(3, list2.stream().filter(e -> "2.3".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
+		
 		
 		// remove link e1_3 -> e2_2 ==> e1_3 and e2_2 become orphans
 		e1_3 = list1.stream().filter(e -> "1.3".equals(e.getValue())).findFirst().get();
@@ -264,6 +275,17 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 		Assertions.assertEquals(0, e1_3.lazyGetLinks().collectList().block().size());
 		e2_2 = SelectQuery.from(Entity4.class, "entity").execute(lcClient).collectList().block().stream().filter(e -> "2.2".equals(e.getValue())).findFirst().get();
 		Assertions.assertEquals(0, e2_2.lazyGetLinks().collectList().block().size());
+		// other links remain
+		Assertions.assertEquals(2, list1.stream().filter(e -> "1.1".equals(e.getValue())).findFirst().get().getLinks().size());
+		Assertions.assertEquals(1, list1.stream().filter(e -> "1.2".equals(e.getValue())).findFirst().get().getLinks().size());
+		Assertions.assertEquals(0, list1.stream().filter(e -> "1.3".equals(e.getValue())).findFirst().get().getLinks().size());
+		Assertions.assertEquals(1, list1.stream().filter(e -> "1.4".equals(e.getValue())).findFirst().get().getLinks().size());
+		Assertions.assertEquals(1, list1.stream().filter(e -> "1.5".equals(e.getValue())).findFirst().get().getLinks().size());
+		list2 = SelectQuery.from(Entity4.class, "entity").execute(lcClient).collectList().block();
+		Assertions.assertEquals(3, list2.size());
+		Assertions.assertEquals(2, list2.stream().filter(e -> "2.1".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
+		Assertions.assertEquals(0, list2.stream().filter(e -> "2.2".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
+		Assertions.assertEquals(3, list2.stream().filter(e -> "2.3".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
 	}
 	
 }

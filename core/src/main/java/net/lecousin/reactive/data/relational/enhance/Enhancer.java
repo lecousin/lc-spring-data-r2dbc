@@ -352,10 +352,9 @@ public final class Enhancer {
         createJoinTableField(joinClass, JOIN_TABLE_ATTRIBUTE_PREFIX + "2", class2, columnName2, constPool);
         
         if (field1 != null)
-        	createJoinField(class1, field1, joinClassName);
-        
+        	createJoinField(class1, field1, joinClassName, 1);
         if (field2 != null)
-        	createJoinField(class2, field2, joinClassName);
+        	createJoinField(class2, field2, joinClassName, 2);
         
         classes.put(joinClassName, joinClass);
 	}
@@ -375,7 +374,7 @@ public final class Enhancer {
         field.getFieldInfo().addAttribute(attr);
 	}
 	
-	private void createJoinField(CtClass cl, CtField joinField, String joinClassName) throws CannotCompileException, NotFoundException {
+	private void createJoinField(CtClass cl, CtField joinField, String joinClassName, int linkNumber) throws CannotCompileException, NotFoundException {
 		ClassFile classFile = cl.getClassFile();
 		ConstPool constPool = classFile.getConstPool();
 
@@ -384,13 +383,13 @@ public final class Enhancer {
         cl.addField(field);
         AnnotationsAttribute attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
         Annotation annot = new Annotation(ForeignTable.class.getName(), constPool);
-        annot.addMemberValue("joinKey", new StringMemberValue("entity1", constPool));
+        annot.addMemberValue("joinKey", new StringMemberValue(JOIN_TABLE_ATTRIBUTE_PREFIX + linkNumber, constPool));
         attr.addAnnotation(annot);
         field.getFieldInfo().addAttribute(attr);
         
         JoinTableInfo info = new JoinTableInfo();
         info.joinClassName = joinClassName;
-        info.linkNumber = 1;
+        info.linkNumber = linkNumber;
         joinTableFields.computeIfAbsent(cl, c -> new HashMap<>()).put(joinField.getName(), info);
 	}
 	

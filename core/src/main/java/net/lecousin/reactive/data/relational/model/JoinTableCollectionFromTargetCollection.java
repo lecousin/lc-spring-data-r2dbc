@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import net.lecousin.reactive.data.relational.enhance.Enhancer;
+
 @SuppressWarnings({"java:S3011"})
 public class JoinTableCollectionFromTargetCollection<J, T> implements Collection<J> {
 
@@ -25,9 +27,9 @@ public class JoinTableCollectionFromTargetCollection<J, T> implements Collection
 		this.originalCollection = originalCollection != null ? new ArrayList<>(originalCollection) : new ArrayList<>(0);
 		try {
 			joinClass = (Class<J>) getClass().getClassLoader().loadClass(joinClassName);
-			sourceField = joinClass.getDeclaredField("entity" + sourceAttributeLinkNumber);
+			sourceField = joinClass.getDeclaredField(Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + sourceAttributeLinkNumber);
 			sourceField.setAccessible(true);
-			targetField = joinClass.getDeclaredField("entity" + (sourceAttributeLinkNumber == 1 ? 2 : 1));
+			targetField = joinClass.getDeclaredField(Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + (sourceAttributeLinkNumber == 1 ? 2 : 1));
 			targetField.setAccessible(true);
 		} catch (Exception e) {
 			throw new ModelAccessException("Error initializing JoinTableCollectionFromTargetCollection on " + joinClassName, e);
