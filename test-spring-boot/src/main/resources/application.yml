@@ -1,0 +1,4 @@
+spring:
+  r2dbc:
+    username: sa
+    url: r2dbc:h2:mem:///testdb;DB_CLOSE_DELAY=-1;

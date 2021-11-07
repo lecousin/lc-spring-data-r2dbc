@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import net.lecousin.reactive.data.relational.configuration.LcReactiveDataRelationalConfiguration;
 
 @Configuration
-public abstract class H2Configuration extends LcReactiveDataRelationalConfiguration {
+public class H2Configuration extends LcReactiveDataRelationalConfiguration {
 
 	@Bean
 	@Override

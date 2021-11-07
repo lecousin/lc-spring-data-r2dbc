@@ -53,6 +53,11 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 		return new LcMappingR2dbcConverter(mappingContext, r2dbcCustomConversions, getClient());
 	}
 	
+	@Override
+	public ConnectionFactory connectionFactory() {
+		return null;
+	}
+	
 	private ConnectionFactory getConnectionFactory() {
 		Assert.notNull(context, "ApplicationContext is not yet initialized");
 
@@ -65,7 +70,10 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 			}
 		}
 
-		return connectionFactory();
+		ConnectionFactory factory = connectionFactory();
+		if (factory == null)
+			throw new RuntimeException("No r2dbc connection factory defined");
+		return factory;
 	}
 	
 	private LcReactiveDataRelationalClient getClient() {

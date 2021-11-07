@@ -126,6 +126,28 @@ public class MyApp {
 
 Depending on the database you use, a dedicated configuration class is provided, and you just need to provide a ConnectionFactory, in the same way as a classical Spring Data R2DBC project.
 
+### Using application properties
+
+If you configure the connection using application properties, you just have to import the configuration class in your application class.
+Example for H2:
+
+```java
+@Import(H2Configuration.class)
+```
+
+And configure the connection in application.properties or application.yml:
+
+```yaml
+spring:
+  r2dbc:
+    username: sa
+    url: r2dbc:h2:mem:///testdb;DB_CLOSE_DELAY=-1;
+```
+
+### Using custom connection factory
+
+Another way is to extend the configuration class to provide your own ConnectionFactory
+
 Example for H2 in-memory database:
 
 ```java
