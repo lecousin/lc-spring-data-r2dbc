@@ -46,17 +46,17 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   
-    <spring-boot.version>2.4.3</spring-boot.version>
-    <junit-jupiter.version>5.7.0</junit-jupiter.version>
-    <javassist.version>3.27.0-GA</javassist.version>
-    <commons-lang3.version>3.11</commons-lang3.version>
+    <spring-boot.version>2.5.6</spring-boot.version>
+    <junit-jupiter.version>5.8.1</junit-jupiter.version>
+    <javassist.version>3.28.0-GA</javassist.version>
+    <commons-lang3.version>3.12.0</commons-lang3.version>
     
     <r2dbc-h2.version>0.8.4.RELEASE</r2dbc-h2.version>
-    <r2dbc-postgres.version>0.8.6.RELEASE</r2dbc-postgres.version>
+    <r2dbc-postgres.version>0.8.10.RELEASE</r2dbc-postgres.version>
     <r2dbc-mysql.version>0.8.2.RELEASE</r2dbc-mysql.version>
 
     <!-- Versions to force for dependencies -->    
-    <reactor.version>3.4.1</reactor.version>
+    <reactor.version>3.4.11</reactor.version>
     
     <maven-compiler.version>3.8.0</maven-compiler.version>
     <maven-source.version>3.2.0</maven-source.version>

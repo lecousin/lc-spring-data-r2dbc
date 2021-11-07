@@ -19,7 +19,6 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
-import io.r2dbc.spi.Row;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
@@ -279,7 +278,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			}
 		}
 		
-		List<Row> rows = repoNum.findByLong1(-7L).collectList().block();
+		List<NumericTypes> rows = repoNum.findByLong1(-7L).collectList().block();
 		Assertions.assertEquals(1,  rows.size());
 		
 		list = repoNum.getAllOnlyWithIdAndLong1().collectList().block();
@@ -449,7 +448,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		entity2.setStr("World !");
 		while (System.currentTimeMillis() == creationDateStart)
 			try {
-				Thread.sleep(10);
+				Thread.sleep(100);
 			} catch (InterruptedException e1) {
 				e1.printStackTrace();
 			}
