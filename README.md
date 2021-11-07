@@ -2,7 +2,7 @@
 
 net.lecousin.reactive-data-relational
 [![Maven Central](https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22reactive-data-relational%22%20AND%20a%3A%22core%22)
-[![Javadoc](https://img.shields.io/badge/javadoc-0.4.1-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.4.1)
+[![Javadoc](https://img.shields.io/badge/javadoc-0.4.2-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.4.2)
 
 The goal this library is to provide basic ORM features not covered by [Spring Data R2DBC](https://github.com/spring-projects/spring-data-r2dbc).
 
@@ -55,7 +55,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>h2</artifactId>
-  <version>0.4.1</version>
+  <version>0.4.2</version>
 </dependency>
 ```
 
@@ -65,7 +65,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>postgres</artifactId>
-  <version>0.4.1</version>
+  <version>0.4.2</version>
 </dependency>
 ```
 
@@ -75,7 +75,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>mysql</artifactId>
-  <version>0.4.1</version>
+  <version>0.4.2</version>
 </dependency>
 ```
 
@@ -126,6 +126,28 @@ public class MyApp {
 
 Depending on the database you use, a dedicated configuration class is provided, and you just need to provide a ConnectionFactory, in the same way as a classical Spring Data R2DBC project.
 
+### Using application properties
+
+If you configure the connection using application properties, you just have to import the configuration class in your application class.
+Example for H2:
+
+```java
+@Import(H2Configuration.class)
+```
+
+And configure the connection in application.properties or application.yml:
+
+```yaml
+spring:
+  r2dbc:
+    username: sa
+    url: r2dbc:h2:mem:///testdb;DB_CLOSE_DELAY=-1;
+```
+
+### Using custom connection factory
+
+Another way is to extend the configuration class to provide your own ConnectionFactory
+
 Example for H2 in-memory database:
 
 ```java
@@ -165,7 +187,7 @@ In addition, in order to make sure the initializer is launched before any test c
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>test-junit-5</artifactId>
-  <version>0.4.1</version>
+  <version>0.4.2</version>
   <scope>test</scope>
 </dependency>
 ```
