@@ -446,12 +446,11 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		
 		// update entity2 => version 2
 		entity2.setStr("World !");
-		while (System.currentTimeMillis() == creationDateStart)
-			try {
-				Thread.sleep(100);
-			} catch (InterruptedException e1) {
-				e1.printStackTrace();
-			}
+		try {
+			Thread.sleep(500); // make sure updated timestamp is different from created timestamp
+		} catch (InterruptedException e1) {
+			e1.printStackTrace();
+		}
 		list = repoVersion.saveAll(Arrays.asList(entity1, entity2)).collectList().block();
 		entity1 = list.stream().filter(e -> id1.equals(e.getId())).findFirst().get();
 		entity2 = list.stream().filter(e -> id2.equals(e.getId())).findFirst().get();

@@ -144,6 +144,8 @@ spring:
     url: r2dbc:h2:mem:///testdb;DB_CLOSE_DELAY=-1;
 ```
 
+An example of a basic Spring Boot application is available [here](https://github.com/lecousin/lc-spring-data-r2dbc/tree/master/test-spring-boot)
+
 ### Using custom connection factory
 
 Another way is to extend the configuration class to provide your own ConnectionFactory
@@ -174,8 +176,6 @@ public class H2TestConfiguration extends H2Configuration {
 	
 }
 ```
-
-An example of a basic Spring Boot application is available [here](https://github.com/lecousin/lc-spring-data-r2dbc/tree/master/test-spring-boot)
 
 ## JUnit 5
 
