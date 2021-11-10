@@ -22,7 +22,10 @@ jobs:
     - name: Build
       run: mvn -B compile --file pom.xml
     - name: Install dependencies
-      run: sudo apt-get install -y libaio1 libevent-dev libssl-dev libssl1.0.0
+      run: |
+          sudo echo 'deb http://security.ubuntu.com/ubuntu xenial-security main' | sudo tee -a /etc/apt/sources.list
+          sudo apt-get update -qq
+          sudo apt-get install -y libaio1 libevent-dev libssl-dev libssl1.0.0
     - name: Test and analysis
       run: mvn -B verify --file pom.xml
     - name: Upload to Codecov
