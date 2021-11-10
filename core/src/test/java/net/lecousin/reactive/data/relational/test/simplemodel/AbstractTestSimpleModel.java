@@ -690,10 +690,15 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	@Test
 	public void testUUID() {
 		UUIDEntity e = new UUIDEntity();
-		e.setUuidNonKey(UUID.randomUUID());
+		UUID uuid = UUID.randomUUID();
+		e.setUuidNonKey(uuid);
 		
 		e = lcClient.save(e).block();
 		Assertions.assertNotNull(e.getUuidKey());
+		Assertions.assertEquals(uuid, e.getUuidNonKey());
+		
+		UUIDEntity e2 = SelectQuery.from(UUIDEntity.class, "e").execute(lcClient).single().block();
+		Assertions.assertEquals(uuid, e2.getUuidNonKey());
 	}
 	
 	@Test

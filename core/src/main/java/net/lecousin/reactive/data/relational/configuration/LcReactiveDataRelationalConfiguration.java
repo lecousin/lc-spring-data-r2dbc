@@ -58,6 +58,7 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 		return null;
 	}
 	
+	@SuppressWarnings("java:S112")
 	private ConnectionFactory getConnectionFactory() {
 		Assert.notNull(context, "ApplicationContext is not yet initialized");
 
