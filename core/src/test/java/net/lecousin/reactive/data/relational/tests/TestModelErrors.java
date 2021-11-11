@@ -36,7 +36,7 @@ class TestModelErrors {
 		
 		Assertions.assertNull(ModelUtils.getAsCollection(this));
 		Assertions.assertNull(ModelUtils.getCollectionType(NonEnhancedEntity.class.getDeclaredField("_lcState")));
-		Assertions.assertThrows(MappingException.class, () -> ModelUtils.getCollectionType(NonEnhancedEntity.class.getDeclaredField("_lcState")));
+		Assertions.assertThrows(MappingException.class, () -> ModelUtils.getRequiredCollectionType(NonEnhancedEntity.class.getDeclaredField("_lcState")));
 	}
 
 }
