@@ -19,6 +19,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
+import net.lecousin.reactive.data.relational.model.InvalidEntityStateException;
+import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
@@ -719,5 +721,11 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			// ok
 		}
 		Assertions.assertEquals(0, repoChars.findAll().collectList().block().size());
+	}
+	
+	@Test
+	public void testGetRequiredIdError() {
+		BooleanTypes entity = new BooleanTypes();
+		Assertions.assertThrows(InvalidEntityStateException.class, () -> ModelUtils.getRequiredId(entity, lcClient.getMappingContext().getPersistentEntity(BooleanTypes.class), null));
 	}
 }

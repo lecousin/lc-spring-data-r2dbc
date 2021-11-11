@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -226,7 +227,66 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 		Assertions.assertEquals(1, list1.size());
 		Assertions.assertEquals("1.3", list1.get(0).getValue());
 		Assertions.assertEquals(1, list1.get(0).getLinks().size());
-		Assertions.assertEquals("2.2", list1.get(0).getLinks().iterator().next().getValue());
+		Set<Entity4> links = list1.get(0).getLinks();
+		Entity4 e4 = links.iterator().next();
+		Assertions.assertEquals("2.2", e4.getValue());
+		// test JoinTableCollectionToTargetCollection methods
+		Assertions.assertFalse(links.isEmpty());
+		Assertions.assertTrue(links.contains(e4));
+		Assertions.assertFalse(links.contains(null));
+		Assertions.assertFalse(links.contains(new Object()));
+		Assertions.assertTrue(links.containsAll(Arrays.asList(e4)));
+		Assertions.assertFalse(links.containsAll(Arrays.asList(e4, new Object())));
+		Assertions.assertFalse(links.containsAll(Arrays.asList(new Object(), e4)));
+		Assertions.assertFalse(links.containsAll(Arrays.asList(e4, null)));
+		Assertions.assertEquals(1, links.toArray().length);
+		Assertions.assertEquals(e4, links.toArray()[0]);
+		Assertions.assertEquals(1, links.toArray(new Object[0]).length);
+		Assertions.assertEquals(e4, links.toArray(new Object[10])[0]);
+		Assertions.assertFalse(links.add(e4));
+		Assertions.assertEquals(1, links.size());
+		Assertions.assertFalse(links.remove(new Object()));
+		Assertions.assertEquals(1, links.size());
+		Assertions.assertFalse(links.retainAll(Arrays.asList(e4)));
+		
+		// remove and add link
+		Assertions.assertTrue(list1.get(0).getLinks().remove(list1.get(0).getLinks().iterator().next()));
+		Assertions.assertEquals(0, list1.get(0).getLinks().size());
+		repo3.save(list1.get(0)).block();
+		list1 = repo3.findByEntity3Value("1.3").collectList().block();
+		Assertions.assertEquals(1, list1.size());
+		Assertions.assertEquals(0, list1.get(0).getLinks().size());
+		
+		list1.get(0).getLinks().add(e2_2);
+		repo3.save(list1.get(0)).block();
+		list1 = repo3.findByEntity3Value("1.3").collectList().block();
+		Assertions.assertEquals(1, list1.size());
+		Assertions.assertEquals(1, list1.get(0).getLinks().size());
+
+		list1.get(0).getLinks().removeAll(Arrays.asList(null, list1.get(0).getLinks().iterator().next(), new Object()));
+		repo3.save(list1.get(0)).block();
+		list1 = repo3.findByEntity3Value("1.3").collectList().block();
+		Assertions.assertEquals(1, list1.size());
+		Assertions.assertEquals(0, list1.get(0).getLinks().size());
+		
+		list1.get(0).getLinks().addAll(Arrays.asList(e2_2));
+		repo3.save(list1.get(0)).block();
+		list1 = repo3.findByEntity3Value("1.3").collectList().block();
+		Assertions.assertEquals(1, list1.size());
+		Assertions.assertEquals(1, list1.get(0).getLinks().size());
+
+		list1.get(0).getLinks().retainAll(Arrays.asList(null, new Object()));
+		repo3.save(list1.get(0)).block();
+		list1 = repo3.findByEntity3Value("1.3").collectList().block();
+		Assertions.assertEquals(1, list1.size());
+		Assertions.assertEquals(0, list1.get(0).getLinks().size());
+		
+		list1.get(0).getLinks().add(e2_2);
+		repo3.save(list1.get(0)).block();
+		list1 = repo3.findByEntity3Value("1.3").collectList().block();
+		Assertions.assertEquals(1, list1.size());
+		Assertions.assertEquals(1, list1.get(0).getLinks().size());
+		
 		
 		list1 = repo3.findByEntity3Value("1.5").collectList().block();
 		Assertions.assertEquals(1, list1.size());
