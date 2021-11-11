@@ -15,6 +15,7 @@ import net.lecousin.reactive.data.relational.model.ModelUtils;
 class TestModelErrors {
 
 	public static class NonEnhancedEntity {
+		@SuppressWarnings("unused")
 		private EntityState _lcState;
 	}
 	
