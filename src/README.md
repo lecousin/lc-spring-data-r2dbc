@@ -13,7 +13,7 @@ Spring Data R2DBC states that
 
 > it does NOT offer caching, lazy loading, write behind or many other features of ORM frameworks. This makes Spring Data R2DBC a simple, limited, opinionated object mapper
 
-In another hand, [Hibernate Reactive](https://github.com/hibernate/hibernate-reactive) is not yet released, and not integrated with Spring Data.
+In another hand, [Hibernate Reactive](https://github.com/hibernate/hibernate-reactive) is not integrated with Spring Data.
 
 Waiting for a full ORM (like Hibernate), providing reactive streams to access to a relational database, and being integrated with Spring Data (with repositories...),
 this library aims at providing the most useful features that are really missing from Spring Data R2DBC and that was provided by Spring Data JPA.
@@ -28,6 +28,8 @@ this library aims at providing the most useful features that are really missing 
  - Composite Id
  - Sequence
  - Schema generation, with indexes, foreign key constraints, sequences
+
+Features are detailed with examples in the [wiki section](https://github.com/lecousin/lc-spring-data-r2dbc/wiki)
 
 ## Supported databases
 
