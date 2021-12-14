@@ -17,21 +17,21 @@ import net.lecousin.reactive.data.relational.model.PropertiesSourceRow;
 
 public class LcMappingR2dbcConverter extends MappingR2dbcConverter implements R2dbcConverter {
 
-	
 	private LcReactiveDataRelationalClient client;
 	
 	public LcMappingR2dbcConverter(
-			MappingContext<? extends RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> context,
-			CustomConversions conversions,
-			LcReactiveDataRelationalClient client
-		) {
+		MappingContext<? extends RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> context,
+		CustomConversions conversions
+	) {
 		super(context, conversions);
-		this.client = client;
-		client.setMapper(this);
 	}
 	
 	public LcReactiveDataRelationalClient getLcClient() {
 		return client;
+	}
+	
+	public void setLcClient(LcReactiveDataRelationalClient client) {
+		this.client = client;
 	}
 
 	@Override

@@ -6,12 +6,9 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
-import javax.annotation.PostConstruct;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.reactivestreams.Publisher;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
@@ -45,37 +42,36 @@ public class LcReactiveDataRelationalClient {
 	
 	private static final String QUERY_ENTITY_NAME = "entity";
 	
-	@Autowired
-	private MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext;
-	
-	@Autowired
 	private DatabaseClient client;
-	
-	@Autowired
+	private MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext;
 	private RelationalDatabaseSchemaDialect schemaDialect;
-	
-	@Autowired
 	private LcReactiveDataAccessStrategy dataAccess;
-	
 	private LcMappingR2dbcConverter mapper;
 	
-	@PostConstruct
-	public void init() {
+	public LcReactiveDataRelationalClient(
+		DatabaseClient client,
+		MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext,
+		RelationalDatabaseSchemaDialect schemaDialect,
+		LcReactiveDataAccessStrategy dataAccess,
+		LcMappingR2dbcConverter mapper
+	) {
+		this.client = client;
+		this.mappingContext = mappingContext;
+		this.schemaDialect = schemaDialect;
+		this.dataAccess = dataAccess;
+		this.mapper = mapper;
+		this.mapper.setLcClient(this);
 		// ensure all declared entities have been detected by Spring
 		for (Class<?> type : LcEntityTypeInfo.getClasses())
 			mappingContext.getPersistentEntity(type);
 	}
+
+	public DatabaseClient getSpringClient() {
+		return client;
+	}
 	
 	public LcMappingR2dbcConverter getMapper() {
 		return mapper;
-	}
-
-	public void setMapper(LcMappingR2dbcConverter mapper) {
-		this.mapper = mapper;
-	}
-	
-	public DatabaseClient getSpringClient() {
-		return client;
 	}
 	
 	@SuppressWarnings("java:S1452") // usage of generic wildcard type

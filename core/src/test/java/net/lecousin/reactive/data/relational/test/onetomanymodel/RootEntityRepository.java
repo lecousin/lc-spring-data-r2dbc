@@ -4,6 +4,7 @@ import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepository;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface RootEntityRepository extends LcR2dbcRepository<RootEntity, Long> {
 
@@ -31,6 +32,15 @@ public interface RootEntityRepository extends LcR2dbcRepository<RootEntity, Long
 			.join("root", "list2", "sub2")
 			.join("root", "list3", "sub3")
 			.execute(getLcClient());
+	}
+	
+	default Mono<RootEntity> getOneWithLinkedEntities(long rootId) {
+		return SelectQuery.from(RootEntity.class, "root")
+			.where(Criteria.property("root", "id").is(rootId))
+			.join("root", "list", "sub1")
+			.join("root", "list2", "sub2")
+			.join("root", "list3", "sub3")
+			.execute(getLcClient()).next();
 	}
 
 }

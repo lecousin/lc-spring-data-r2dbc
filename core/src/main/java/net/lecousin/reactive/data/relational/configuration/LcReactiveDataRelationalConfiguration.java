@@ -1,15 +1,18 @@
 package net.lecousin.reactive.data.relational.configuration;
 
-import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.r2dbc.config.AbstractR2dbcConfiguration;
 import org.springframework.data.r2dbc.convert.MappingR2dbcConverter;
 import org.springframework.data.r2dbc.convert.R2dbcConverter;
 import org.springframework.data.r2dbc.convert.R2dbcCustomConversions;
 import org.springframework.data.r2dbc.mapping.R2dbcMappingContext;
+import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
+import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.lang.Nullable;
+import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.util.Assert;
 
 import io.r2dbc.spi.ConnectionFactory;
@@ -35,8 +38,14 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 	}
 	
 	@Bean
-	public LcReactiveDataRelationalClient lcClient() {
-		return new LcReactiveDataRelationalClient();
+	public LcReactiveDataRelationalClient lcClient(
+		DatabaseClient client,
+		MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext,
+		RelationalDatabaseSchemaDialect schemaDialect,
+		LcReactiveDataAccessStrategy dataAccess,
+		LcMappingR2dbcConverter mapper
+	) {
+		return new LcReactiveDataRelationalClient(client, mappingContext, schemaDialect, dataAccess, mapper);
 	}
 	
 	@Bean
@@ -50,7 +59,7 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 	
 	@Override
 	public MappingR2dbcConverter r2dbcConverter(R2dbcMappingContext mappingContext, R2dbcCustomConversions r2dbcCustomConversions) {
-		return new LcMappingR2dbcConverter(mappingContext, r2dbcCustomConversions, getClient());
+		return new LcMappingR2dbcConverter(mappingContext, r2dbcCustomConversions);
 	}
 	
 	@Override
@@ -75,14 +84,6 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 		if (factory == null)
 			throw new RuntimeException("No r2dbc connection factory defined");
 		return factory;
-	}
-	
-	private LcReactiveDataRelationalClient getClient() {
-		try {
-			return context.getBean(LcReactiveDataRelationalClient.class);
-		} catch (NoSuchBeanDefinitionException e) {
-			return lcClient();
-		}
 	}
 	
 }

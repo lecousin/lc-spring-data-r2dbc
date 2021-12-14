@@ -276,7 +276,13 @@ public class SelectExecution<T> {
 			select = ((SelectWhere)select).where(criteria.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
 		}
 		if (entity.hasIdProperty()) {
-			select = ((SelectOrdered)select).orderBy(Column.create(mapping.fieldAliasesByTableAlias.get(query.from.alias).get(entity.getRequiredIdProperty().getName()), mapping.tableByAlias.get(query.from.alias)));
+			select = ((SelectOrdered)select).orderBy(
+				Column.aliased(
+					entity.getRequiredIdProperty().getName(),
+					mapping.tableByAlias.get(query.from.alias),
+					mapping.fieldAliasesByTableAlias.get(query.from.alias).get(entity.getRequiredIdProperty().getName())
+				)
+			);
 		}
 		
 		q.setQuery(select.build());

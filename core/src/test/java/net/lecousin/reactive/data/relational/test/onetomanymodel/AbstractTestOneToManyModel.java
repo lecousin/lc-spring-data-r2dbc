@@ -35,6 +35,10 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 		Assertions.assertEquals("empty", root.getValue());
 		Assertions.assertTrue(root.getList() == null || root.getList().isEmpty());
 		
+		root = repo.getOneWithLinkedEntities(root.getId()).block();
+		Assertions.assertNotNull(root);
+		Assertions.assertTrue(root.getList() == null || root.getList().isEmpty());
+		
 		List<RootEntity> list = repo.findAll().collectList().block();
 		Assertions.assertEquals(1, list.size());
 		root = list.get(0);
@@ -63,6 +67,14 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 		sub.setSubValue("sub1");
 		root.getList().add(sub);
 		root = repo.save(root).block();
+		Assertions.assertEquals("one", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(1, root.getList().size());
+		Assertions.assertEquals("sub1", root.getList().get(0).getSubValue());
+		Assertions.assertEquals(root, root.getList().get(0).getParent());
+		
+		root = repo.getOneWithLinkedEntities(root.getId()).block();
+		Assertions.assertNotNull(root);
 		Assertions.assertEquals("one", root.getValue());
 		Assertions.assertNotNull(root.getList());
 		Assertions.assertEquals(1, root.getList().size());
