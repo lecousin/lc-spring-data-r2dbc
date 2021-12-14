@@ -83,36 +83,11 @@ Add the Maven dependency, depending on your database:
 </dependency>
 ```
 
-## Entities configuration: lc-reactive-data-relational.yaml
-
-You have to declare the list of entity classes in a YAML resource file `lc-reactive-data-relational.yaml` (similar to file `persistence.xml` for JPA).
-The classes are declared under the name `entities`, each level can declare a package, then leaf names are classes. For example:
-
-```yaml
-entities:
-  - net.lecousin.reactive.data.relational.test:
-    - simplemodel:
-      - BooleanTypes
-      - CharacterTypes
-    - onetoonemodel:
-      - MyEntity1
-      - MySubEntity1
-    - onetomanymodel:
-      - RootEntity
-      - SubEntity
-      - SubEntity2
-      - SubEntity3
-```
-
-This file is needed to *enhance* entity classes (using javassist) and support features such as lazy loading.
-
-This enhancement must be done before any entity class is loaded, by using `LcReactiveDataRelationalInitializer.init()` at startup, as described in the next section.
-
 ## Spring Boot configuration
 
 In your Spring Boot application class, you need to:
 - add `@EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)`
-- launch the initializer `LcReactiveDataRelationalInitializer.init()` that will load your `lc-reactive-data-relational.yaml` configuration file, before your application starts.
+- launch the initializer `LcReactiveDataRelationalInitializer.init()` that will add functionalities to your entity classes, before your application starts. This step MUST be done before Spring starts to ensure no entity class is loaded yet in the JVM.
 
 Example:
 
@@ -183,6 +158,30 @@ public class H2TestConfiguration extends H2Configuration {
 	}
 	
 }
+```
+
+### Startup faster by configuring your entities in lc-reactive-data-relational.yaml
+
+By default, when calling `LcReactiveDataRelationalInitializer.init()`, all classes present in the class path are analyzed to find entity classes.
+This can take some time especially if you have many libraries in your class path.
+
+To avoid this, and startup faster your application, you can declare the list of entity classes in a YAML resource file `lc-reactive-data-relational.yaml` (similar to file `persistence.xml` for JPA).
+The classes are declared under the name `entities`, each level can declare a package, then leaf names are classes. For example:
+
+```yaml
+entities:
+  - net.lecousin.reactive.data.relational.test:
+    - simplemodel:
+      - BooleanTypes
+      - CharacterTypes
+    - onetoonemodel:
+      - MyEntity1
+      - MySubEntity1
+    - onetomanymodel:
+      - RootEntity
+      - SubEntity
+      - SubEntity2
+      - SubEntity3
 ```
 
 ## JUnit 5

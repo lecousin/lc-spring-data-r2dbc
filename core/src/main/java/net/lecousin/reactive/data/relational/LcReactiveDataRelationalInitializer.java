@@ -1,7 +1,9 @@
 package net.lecousin.reactive.data.relational;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.LinkedList;
@@ -12,6 +14,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.yaml.snakeyaml.Yaml;
 
+import net.lecousin.reactive.data.relational.enhance.ClassPathScanningEntities;
 import net.lecousin.reactive.data.relational.enhance.Enhancer;
 
 public class LcReactiveDataRelationalInitializer {
@@ -20,8 +23,12 @@ public class LcReactiveDataRelationalInitializer {
 	
 	private static boolean initialized = false;
 	
-	private static class Config {
+	public static class Config {
 		private List<String> entities = new LinkedList<>();
+
+		public List<String> getEntities() {
+			return entities;
+		}
 	}
 	
 	private LcReactiveDataRelationalInitializer() {
@@ -34,17 +41,27 @@ public class LcReactiveDataRelationalInitializer {
 		initialized = true;
 		logger.info("Initializing lc-reactive-data-relational");
 		try {
-			Enumeration<URL> urls = LcReactiveDataRelationalInitializer.class.getClassLoader().getResources("lc-reactive-data-relational.yaml");
-			Config config = new Config();
-			while (urls.hasMoreElements()) {
-				URL url = urls.nextElement();
-				logger.info("Loading configuration from " + url);
-				loadConfiguration(url, config);
+			Config config = loadConfiguration();
+			List<String> entities = config.getEntities();
+			if (entities.isEmpty()) {
+				logger.info("No entities declared in lc-reactive-data-relational.yaml => scan class path");
+				entities = new ArrayList<>(ClassPathScanningEntities.scan());
 			}
-			Enhancer.enhance(config.entities);
+			Enhancer.enhance(entities);
 		} catch (Exception e) {
 			logger.error("Error configuring lc-reactive-data-relational", e);
 		}
+	}
+	
+	public static Config loadConfiguration() throws IOException {
+		Enumeration<URL> urls = LcReactiveDataRelationalInitializer.class.getClassLoader().getResources("lc-reactive-data-relational.yaml");
+		Config config = new Config();
+		while (urls.hasMoreElements()) {
+			URL url = urls.nextElement();
+			logger.info("Loading configuration from " + url);
+			loadConfiguration(url, config);
+		}
+		return config;
 	}
 	
 	private static void loadConfiguration(URL url, Config config) {
