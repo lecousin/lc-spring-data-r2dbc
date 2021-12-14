@@ -2,7 +2,7 @@
 
 net.lecousin.reactive-data-relational
 [![Maven Central](https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22net.lecousin.reactive-data-relational%22%20AND%20a%3A%22core%22)
-[![Javadoc](https://img.shields.io/badge/javadoc-0.4.2-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.4.2)
+[![Javadoc](https://img.shields.io/badge/javadoc-0.5.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.5.0)
 ![Build status](https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml/badge.svg?branch=master)
 [![Codecov](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg)](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master)
 
@@ -39,7 +39,7 @@ Features are detailed with examples in the [wiki section](https://github.com/lec
  
 ## Dependencies
 
- - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.5.6, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
+ - Spring Boot (org.springframework.boot:spring-boot-starter-data-r2dbc) version 2.6.1, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.springframework.boot/spring-boot-starter-data-r2dbc.svg)
  - commons-lang3 version 3.12.0, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.apache.commons/commons-lang3.svg)
  - javassist version 3.28.0-GA, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.javassist/javassist.svg)
 
@@ -59,7 +59,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>h2</artifactId>
-  <version>0.4.2</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -69,7 +69,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>postgres</artifactId>
-  <version>0.4.2</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -79,7 +79,7 @@ Add the Maven dependency, depending on your database:
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>mysql</artifactId>
-  <version>0.4.2</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -195,7 +195,7 @@ In order to make sure the initializer is launched before any test class is loade
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>test-junit-5</artifactId>
-  <version>0.4.2</version>
+  <version>0.5.0</version>
   <scope>test</scope>
 </dependency>
 ```
