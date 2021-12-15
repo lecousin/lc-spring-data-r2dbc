@@ -1,0 +1,2 @@
+/** Test application. */
+package myapp;
