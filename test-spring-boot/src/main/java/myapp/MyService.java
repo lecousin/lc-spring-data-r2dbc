@@ -3,6 +3,7 @@ package myapp;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import myapp.model.MyEntity;
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 
 @Service

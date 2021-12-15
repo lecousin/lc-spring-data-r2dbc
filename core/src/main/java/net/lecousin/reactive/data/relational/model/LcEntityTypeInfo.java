@@ -80,7 +80,7 @@ public class LcEntityTypeInfo {
 	public static LcEntityTypeInfo get(Class<?> clazz) {
 		LcEntityTypeInfo info = cache.get(clazz);
 		if (info == null)
-			throw new ModelAccessException("Unknown entity class " + clazz.getName());
+			throw new ModelAccessException("Unknown entity class " + clazz.getName() + ", known classes are: " + cache.keySet());
 		return info;
 	}
 	

@@ -237,6 +237,17 @@ transparent manner.
 
 Additional methods may be declared in an Entity class to handle lazy loading, documented in the [dedicated section](#lazy-loading).
 
+## Important note for Java > 11
+
+If you use a Java version > 11, the JVM does not allow to modify classes in another package, and this library won't be able to enhance your classes to provide all the functionalities. As a workaround for now, you must explicitly allow it by placing an empty interface named `AllowEnhancer` in every package containing entities.
+
+You can just create it like this:
+
+```java
+public interface AllowEnhancer {
+}
+```
+
 ## Spring Repository
 
 You can use Spring repositories as usual.

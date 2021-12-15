@@ -67,7 +67,7 @@ public final class Enhancer {
 	
 	@SuppressWarnings("java:S1141")
 	private void enhanceClasses(Collection<String> entityClasses) throws ModelException {
-		logger.info("Enhancing " + entityClasses.size() + " entity classes");
+		logger.info("Enhancing " + entityClasses.size() + " entity classe(s)");
 		
 		// read class files
 		loadClasses(entityClasses);
@@ -101,9 +101,14 @@ public final class Enhancer {
 			try {
 	        	Class<?> neighbor = null;
 	        	try {
-	        		neighbor = Enhancer.class.getClassLoader().loadClass(cl.getPackageName() + ".package-info");
+	        		neighbor = Enhancer.class.getClassLoader().loadClass(cl.getPackageName() + ".AllowEnhancer");
 	        	} catch (Exception e) {
 	        		// ignore
+		        	try {
+		        		neighbor = Enhancer.class.getClassLoader().loadClass(cl.getPackageName() + ".package-info");
+		        	} catch (Exception e2) {
+		        		// ignore
+		        	}
 	        	}
 		        Class<?> newClass = neighbor != null ? cl.toClass(neighbor) : cl.toClass();
 		        result.add(newClass);

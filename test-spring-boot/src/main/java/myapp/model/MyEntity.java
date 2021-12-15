@@ -1,4 +1,4 @@
-package myapp;
+package myapp.model;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;

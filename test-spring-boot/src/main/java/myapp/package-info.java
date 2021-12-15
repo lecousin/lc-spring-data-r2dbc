@@ -1,2 +1,0 @@
-/** Test application. */
-package myapp;
