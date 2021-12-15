@@ -49,7 +49,7 @@ Features are detailed with examples in the [wiki section](https://github.com/lec
 
 # Configuration
 
-## Dependency confiuration
+## Dependency configuration
 
 Add the dependency to your project, depending on your database:
 
