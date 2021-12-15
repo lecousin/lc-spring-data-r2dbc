@@ -49,12 +49,13 @@ Features are detailed with examples in the [wiki section](https://github.com/lec
 
 # Configuration
 
-## Maven configuration
+## Dependency confiuration
 
-Add the Maven dependency, depending on your database:
+Add the dependency to your project, depending on your database:
 
 ### H2
 
+Maven
 ```xml
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
@@ -63,8 +64,14 @@ Add the Maven dependency, depending on your database:
 </dependency>
 ```
 
+Gradle
+```groovy
+implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '${project.version}'
+```
+
 ### Postgres
 
+Maven
 ```xml
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
@@ -73,8 +80,14 @@ Add the Maven dependency, depending on your database:
 </dependency>
 ```
 
+Gradle
+```groovy
+implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '${project.version}'
+```
+
 ### MySql
 
+Maven
 ```xml
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
@@ -83,11 +96,16 @@ Add the Maven dependency, depending on your database:
 </dependency>
 ```
 
+Gradle
+```groovy
+implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '${project.version}'
+```
+
 ## Spring Boot configuration
 
 In your Spring Boot application class, you need to:
 - add `@EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)`
-- launch the initializer `LcReactiveDataRelationalInitializer.init()` that will add functionalities to your entity classes, before your application starts. This step MUST be done before Spring starts to ensure no entity class is loaded yet in the JVM.
+- launch the initializer `LcReactiveDataRelationalInitializer.init()` that will add functionalities to your entity classes, before your application starts. This step **MUST** be done before Spring starts to ensure no entity class is loaded yet in the JVM.
 
 Example:
 
