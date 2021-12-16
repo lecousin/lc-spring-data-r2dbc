@@ -12,9 +12,9 @@ jobs:
     strategy:
       matrix:
         os: [ 'ubuntu-latest' ]
-        distribution: [ 'zulu', 'temurin', 'liberica', 'microsoft' ]
-        java: [ '8', '11' ]
-    name: Build with Java ${{ matrix.Java }} (${{ matrix.distribution }})
+        distribution: [ 'zulu', 'temurin', 'liberica' ]
+        java: [ '11', '17' ]
+    name: Build with Java ${{ matrix.java }} (${{ matrix.distribution }})
 
     steps:
     - name: Checkout
