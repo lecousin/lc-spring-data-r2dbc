@@ -19,7 +19,7 @@ class TestEnhancerErrors {
 	@Test
 	void testEnhanceLoadedClass() {
 		String name = LoadedEntity.class.getName();
-		Assertions.assertThrows(ModelException.class, () -> Enhancer.enhance(Arrays.asList(name)));
+		Assertions.assertThrows(Throwable.class, () -> Enhancer.enhance(Arrays.asList(name)));
 		Assertions.assertThrows(ModelException.class, () -> Enhancer.enhance(Arrays.asList("do.not.exist")));
 	}
 	

@@ -63,7 +63,7 @@
     <maven-javadoc.version>3.2.0</maven-javadoc.version>
     <maven-jar.version>3.2.0</maven-jar.version>
     <maven-surefire.version>3.0.0-M5</maven-surefire.version>
-    <maven-jacoco.version>0.8.4</maven-jacoco.version>
+    <maven-jacoco.version>0.8.7</maven-jacoco.version>
     <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
     
     <sonar.projectName>lc-spring-data-r2dbc</sonar.projectName>
