@@ -13,6 +13,7 @@ import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
 import org.springframework.data.relational.core.mapping.Table;
+import org.springframework.util.ClassUtils;
 
 public class ClassPathScanningEntities {
 	
@@ -36,12 +37,31 @@ public class ClassPathScanningEntities {
 				if (annotationMetadata.hasAnnotation(annotationName)) {
 					classes.add(annotationMetadata.getClassName());
 				}
-			} catch (Throwable t) {
+			} catch (@SuppressWarnings("java:S1181") Throwable t) {
 				// ignore
 			}
 		}
 		LOGGER.info("{} entity classes found in {} ms.", classes.size(), System.currentTimeMillis() - startTime);
 		return classes;
+	}
+	
+	public static Class<?> searchNonEntityClass(String packageName) throws IOException {
+		PathMatchingResourcePatternResolver resourceResolver = new PathMatchingResourcePatternResolver();
+		Resource[] classResources = resourceResolver.getResources(ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX + ClassUtils.convertClassNameToResourcePath(packageName) +  "/*.class");
+		SimpleMetadataReaderFactory metadataReaderFactory = new SimpleMetadataReaderFactory();
+		String annotationName = Table.class.getName();
+		for (Resource classResource : classResources) {
+			try {
+				MetadataReader metadataReader = metadataReaderFactory.getMetadataReader(classResource);
+				AnnotationMetadata annotationMetadata = metadataReader.getAnnotationMetadata();
+				if (!annotationMetadata.hasAnnotation(annotationName)) {
+					return ClassPathScanningEntities.class.getClassLoader().loadClass(annotationMetadata.getClassName());
+				}
+			} catch (@SuppressWarnings("java:S1181") Throwable t) {
+				// ignore
+			}
+		}
+		return null;
 	}
 
 }

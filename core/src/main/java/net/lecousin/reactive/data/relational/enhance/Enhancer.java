@@ -96,29 +96,55 @@ public final class Enhancer {
 		}
 		
 		// load classes into JVM
+		List<Class<?>> result = loadIntoJvm(classes.values());
+		
+		// set to cache
+		LcEntityTypeInfo.setClasses(result);
+	}
+	
+	private List<Class<?>> loadIntoJvm(Collection<CtClass> classes) throws ModelException {
 		List<Class<?>> result = new ArrayList<>(classes.size());
-		for (CtClass cl : classes.values()) {
+		Map<String, Class<?>> neighborByPackage = new HashMap<>();
+		for (CtClass cl : classes) {
 			try {
-	        	Class<?> neighbor = null;
-	        	try {
-	        		neighbor = Enhancer.class.getClassLoader().loadClass(cl.getPackageName() + ".AllowEnhancer");
-	        	} catch (Exception e) {
-	        		// ignore
-		        	try {
-		        		neighbor = Enhancer.class.getClassLoader().loadClass(cl.getPackageName() + ".package-info");
-		        	} catch (Exception e2) {
-		        		// ignore
-		        	}
-	        	}
+	        	Class<?> neighbor = neighborByPackage.computeIfAbsent(cl.getPackageName(), this::searchNeighbor);
+	        	if (neighbor == null && getJavaVersion() >= 17)
+	        		logger.error("Starting from Java 17, you must have a non entity class (without @Table annotation) on your entities packages, but we cannot find one in '" + cl.getPackageName() + "': you should add an empty interface 'AllowEnhancer' in the package.");
 		        Class<?> newClass = neighbor != null ? cl.toClass(neighbor) : cl.toClass();
 		        result.add(newClass);
 			} catch (Exception e) {
 				throw new ModelException("Unable to load enhanced class " + cl.getName() + " into JVM", e);
 			}
 		}
-		
-		// set to cache
-		LcEntityTypeInfo.setClasses(result);
+		return result;
+	}
+	
+	private Class<?> searchNeighbor(String packageName) {
+    	Class<?> neighbor = null;
+    	try {
+    		neighbor = Enhancer.class.getClassLoader().loadClass(packageName + ".AllowEnhancer");
+    	} catch (Exception e) {
+    		// ignore
+        	try {
+        		neighbor = Enhancer.class.getClassLoader().loadClass(packageName + ".package-info");
+        	} catch (Exception e2) {
+        		// ignore
+        		try {
+        			neighbor = ClassPathScanningEntities.searchNonEntityClass(packageName);
+        		} catch (Exception e3) {
+        			// ignore
+        		}
+        	}
+    	}
+    	return neighbor;
+	}
+	
+	private static int getJavaVersion() {
+		String s = System.getProperty("java.version");
+		int i = s.indexOf('.');
+		if (i > 0)
+			s = s.substring(0, i);
+		return Integer.parseInt(s);
 	}
 	
 	private void loadClasses(Collection<String> entityClasses) throws ModelException {
