@@ -1,11 +1,19 @@
 package net.lecousin.reactive.data.relational.postgres;
 
+import org.springframework.data.r2dbc.dialect.PostgresDialect;
+import org.springframework.data.r2dbc.dialect.R2dbcDialect;
+
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 
 public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 
+	@Override
+	public boolean isCompatible(R2dbcDialect r2dbcDialect) {
+		return r2dbcDialect.getClass().equals(PostgresDialect.class);
+	}
+	
 	@Override
 	protected void addAutoIncrement(Column col, StringBuilder sql) {
 		// nothing to add

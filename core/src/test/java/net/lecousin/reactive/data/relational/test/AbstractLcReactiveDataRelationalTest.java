@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import javax.annotation.PostConstruct;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.JoinTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.repository.LcR2dbcEntityTemplate;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 
 @DataR2dbcTest
@@ -31,10 +34,17 @@ import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 public abstract class AbstractLcReactiveDataRelationalTest {
 	
 	@Autowired
-	protected LcReactiveDataRelationalClient lcClient;
+	protected LcR2dbcEntityTemplate template;
 	
 	@Autowired
 	protected DatabaseClient springClient;
+	
+	protected LcReactiveDataRelationalClient lcClient;
+	
+	@PostConstruct
+	public void retrieveLcClient() {
+		lcClient = template.getLcClient();
+	}
 	
 	@BeforeEach
 	public void initDatabase() {
@@ -81,7 +91,7 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	
 	@SafeVarargs
 	protected final <T> void expectEntities(Class<T> type, ExpectedEntity<T>... expected) {
-		List<T> found =  SelectQuery.from(type, "entity").execute(lcClient).collectList().block();
+		List<T> found =  SelectQuery.from(type, "entity").execute(template.getLcClient()).collectList().block();
 		Assertions.assertEquals(expected.length, found.size());
 		ArrayList<ExpectedEntity<T>> expectedEntities = new ArrayList<>(expected.length);
 		Collections.addAll(expectedEntities, expected);

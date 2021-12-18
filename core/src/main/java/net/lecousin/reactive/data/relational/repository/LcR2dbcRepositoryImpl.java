@@ -2,9 +2,7 @@ package net.lecousin.reactive.data.relational.repository;
 
 import org.reactivestreams.Publisher;
 import org.springframework.data.r2dbc.convert.R2dbcConverter;
-import org.springframework.data.r2dbc.core.DatabaseClient;
 import org.springframework.data.r2dbc.core.R2dbcEntityOperations;
-import org.springframework.data.r2dbc.core.ReactiveDataAccessStrategy;
 import org.springframework.data.r2dbc.repository.support.SimpleR2dbcRepository;
 import org.springframework.data.relational.repository.query.RelationalEntityInformation;
 
@@ -19,16 +17,9 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	
 	public LcR2dbcRepositoryImpl(RelationalEntityInformation<T, ID> entity, R2dbcEntityOperations entityOperations, R2dbcConverter converter) {
 		super(entity, entityOperations, converter);
+		lcClient = ((LcR2dbcEntityTemplate)entityOperations).getLcClient();
 	}
 
-	public LcR2dbcRepositoryImpl(RelationalEntityInformation<T, ID> entity, DatabaseClient databaseClient, R2dbcConverter converter, ReactiveDataAccessStrategy accessStrategy) {
-		super(entity, databaseClient, converter, accessStrategy);
-	}
-	
-	void setLcClient(LcReactiveDataRelationalClient lcClient) {
-		this.lcClient = lcClient;
-	}
-	
 	@Override
 	public LcReactiveDataRelationalClient getLcClient() {
 		return lcClient;

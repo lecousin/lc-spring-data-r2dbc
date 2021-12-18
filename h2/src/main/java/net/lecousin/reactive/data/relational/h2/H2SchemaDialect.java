@@ -1,6 +1,8 @@
 package net.lecousin.reactive.data.relational.h2;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.r2dbc.dialect.H2Dialect;
+import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -9,6 +11,11 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 
 public class H2SchemaDialect extends RelationalDatabaseSchemaDialect {
 
+	@Override
+	public boolean isCompatible(R2dbcDialect r2dbcDialect) {
+		return r2dbcDialect instanceof H2Dialect;
+	}
+	
 	@Override
 	public Object convertToDataBase(Object value, RelationalPersistentProperty property) {
 		if (value instanceof java.time.OffsetTime)

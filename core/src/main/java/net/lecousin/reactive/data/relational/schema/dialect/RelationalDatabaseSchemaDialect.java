@@ -6,10 +6,12 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
 
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -25,6 +27,16 @@ import net.lecousin.reactive.data.relational.schema.Table;
 	"java:S3400" // we don't want constants
 })
 public abstract class RelationalDatabaseSchemaDialect {
+	
+	public static RelationalDatabaseSchemaDialect getDialect(R2dbcDialect r2dbcDialect) {
+		return ServiceLoader.load(RelationalDatabaseSchemaDialect.class).stream()
+			.map(provider -> provider.get())
+			.filter(dialect -> dialect.isCompatible(r2dbcDialect))
+			.findFirst()
+			.orElseThrow();
+	}
+	
+	public abstract boolean isCompatible(R2dbcDialect r2dbcDialect);
 	
 	public Object convertToDataBase(Object value, RelationalPersistentProperty property) {
 		return value;

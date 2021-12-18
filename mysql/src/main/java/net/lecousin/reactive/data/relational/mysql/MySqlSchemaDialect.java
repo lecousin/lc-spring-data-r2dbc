@@ -3,6 +3,8 @@ package net.lecousin.reactive.data.relational.mysql;
 import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.r2dbc.dialect.MySqlDialect;
+import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -13,6 +15,11 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 
 public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 
+	@Override
+	public boolean isCompatible(R2dbcDialect r2dbcDialect) {
+		return r2dbcDialect.getClass().equals(MySqlDialect.class);
+	}
+	
 	@Override
 	public Object convertToDataBase(Object value, RelationalPersistentProperty property) {
 		if (value instanceof java.time.OffsetTime || value instanceof java.time.ZonedDateTime)

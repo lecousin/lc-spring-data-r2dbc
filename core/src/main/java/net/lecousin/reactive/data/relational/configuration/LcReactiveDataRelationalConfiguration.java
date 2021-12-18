@@ -8,6 +8,8 @@ import org.springframework.data.r2dbc.config.AbstractR2dbcConfiguration;
 import org.springframework.data.r2dbc.convert.MappingR2dbcConverter;
 import org.springframework.data.r2dbc.convert.R2dbcConverter;
 import org.springframework.data.r2dbc.convert.R2dbcCustomConversions;
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+import org.springframework.data.r2dbc.core.ReactiveDataAccessStrategy;
 import org.springframework.data.r2dbc.mapping.R2dbcMappingContext;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
@@ -19,6 +21,7 @@ import io.r2dbc.spi.ConnectionFactory;
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
 import net.lecousin.reactive.data.relational.mapping.LcReactiveDataAccessStrategy;
+import net.lecousin.reactive.data.relational.repository.LcR2dbcEntityTemplate;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 
 /**
@@ -37,19 +40,18 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 		super.setApplicationContext(applicationContext);
 	}
 	
-	@Bean
-	public LcReactiveDataRelationalClient lcClient(
-		DatabaseClient client,
-		MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext,
-		RelationalDatabaseSchemaDialect schemaDialect,
-		LcReactiveDataAccessStrategy dataAccess,
-		LcMappingR2dbcConverter mapper
-	) {
-		return new LcReactiveDataRelationalClient(client, mappingContext, schemaDialect, dataAccess, mapper);
-	}
+	public abstract RelationalDatabaseSchemaDialect schemaDialect();
 	
 	@Bean
-	public abstract RelationalDatabaseSchemaDialect schemaDialect();
+	public LcReactiveDataRelationalClient getLcClient(DatabaseClient databaseClient, ReactiveDataAccessStrategy dataAccessStrategy) {
+		return new LcReactiveDataRelationalClient(
+			databaseClient,
+			(MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty>) dataAccessStrategy.getConverter().getMappingContext(),
+			schemaDialect(),
+			(LcReactiveDataAccessStrategy)dataAccessStrategy,
+			(LcMappingR2dbcConverter) dataAccessStrategy.getConverter()
+		);
+	}
 	
 	@Bean
 	@Override
@@ -60,6 +62,12 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 	@Override
 	public MappingR2dbcConverter r2dbcConverter(R2dbcMappingContext mappingContext, R2dbcCustomConversions r2dbcCustomConversions) {
 		return new LcMappingR2dbcConverter(mappingContext, r2dbcCustomConversions);
+	}
+	
+	@Bean
+	@Override
+	public R2dbcEntityTemplate r2dbcEntityTemplate(DatabaseClient databaseClient, ReactiveDataAccessStrategy dataAccessStrategy) {
+		return new LcR2dbcEntityTemplate(getLcClient(databaseClient, dataAccessStrategy));
 	}
 	
 	@Override
