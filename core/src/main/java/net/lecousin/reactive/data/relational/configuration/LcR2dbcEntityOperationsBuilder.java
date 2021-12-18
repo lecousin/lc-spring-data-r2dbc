@@ -6,7 +6,6 @@ import java.util.List;
 
 import org.springframework.data.convert.CustomConversions.StoreConversions;
 import org.springframework.data.r2dbc.convert.R2dbcCustomConversions;
-import org.springframework.data.r2dbc.core.R2dbcEntityOperations;
 import org.springframework.data.r2dbc.dialect.DialectResolver;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.r2dbc.mapping.R2dbcMappingContext;
@@ -22,7 +21,7 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 
 public abstract class LcR2dbcEntityOperationsBuilder {
 
-	protected R2dbcEntityOperations buildEntityOperations(ConnectionFactory connectionFactory) {
+	protected LcR2dbcEntityTemplate buildEntityOperations(ConnectionFactory connectionFactory) {
 		R2dbcDialect dialect = getDialect(connectionFactory);
 		R2dbcCustomConversions customConversions = buildR2dbcCustomConversions(dialect);
 		R2dbcMappingContext mappingContext = buildMappingContext();

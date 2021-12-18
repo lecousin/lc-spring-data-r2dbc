@@ -3,8 +3,10 @@ package net.lecousin.reactive.data.relational.model;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.data.mapping.MappingException;
 import org.springframework.lang.Nullable;
@@ -86,6 +88,24 @@ public class LcEntityTypeInfo {
 	
 	public static Collection<Class<?>> getClasses() {
 		return cache.keySet();
+	}
+	
+	public static Collection<Class<?>> addGeneratedJoinTables(Collection<Class<?>> classes) {
+		Set<Class<?>> result = new HashSet<>(classes);
+		for (Class<?> c : classes) {
+			LcEntityTypeInfo info = get(c);
+			for (JoinTableInfo joinTable : info.joinTables.values()) {
+				Field field = joinTable.joinForeignTable.field;
+				Class<?> type;
+				if (ModelUtils.isCollection(field))
+					type = ModelUtils.getCollectionType(field);
+				else
+					type = field.getType();
+				if (type != null)
+					result.add(type);
+			}
+		}
+		return result;
 	}
 	
 	@SuppressWarnings({"squid:S3011"})

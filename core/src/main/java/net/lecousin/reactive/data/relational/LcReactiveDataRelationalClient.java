@@ -108,7 +108,7 @@ public class LcReactiveDataRelationalClient {
 	}
 	
 	public RelationalDatabaseSchema buildSchemaFromEntities(Collection<Class<?>> classes) {
-		return new SchemaBuilderFromEntities(this).build(classes);
+		return new SchemaBuilderFromEntities(this).build(LcEntityTypeInfo.addGeneratedJoinTables(classes));
 	}
 	
 	public <T> Mono<T> save(T entity) {
