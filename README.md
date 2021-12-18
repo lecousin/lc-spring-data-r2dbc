@@ -2,7 +2,7 @@
 
 net.lecousin.reactive-data-relational
 [![Maven Central](https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22net.lecousin.reactive-data-relational%22%20AND%20a%3A%22core%22)
-[![Javadoc](https://img.shields.io/badge/javadoc-0.5.2-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.5.2)
+[![Javadoc](https://img.shields.io/badge/javadoc-0.6.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.6.0)
 ![Build status](https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml/badge.svg?branch=master)
 [![Codecov](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg)](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master)
 
@@ -60,13 +60,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>h2</artifactId>
-  <version>0.5.2</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '0.5.2'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '0.6.0'
 ```
 
 ### Postgres
@@ -76,13 +76,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>postgres</artifactId>
-  <version>0.5.2</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '0.5.2'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '0.6.0'
 ```
 
 ### MySql
@@ -92,13 +92,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>mysql</artifactId>
-  <version>0.5.2</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '0.5.2'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '0.6.0'
 ```
 
 ## Spring Boot configuration
@@ -202,6 +202,38 @@ entities:
       - SubEntity3
 ```
 
+### Multiple databases
+
+If you need to connect to multiple databases, the configuration is different. You need to create a `@Configuration` class for each database connection, extending class `LcR2dbcEntityOperationsBuilder`. Instead of declaring `@EnableR2dbcRepositories` on your application, you will declare it to each configuration class.
+
+Here is an example of such a configuration class:
+
+```java
+@Configuration
+@EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class, basePackages = "com.example.book.dao.repository", entityOperationsRef = "bookOperations")
+public class BookConfig extends LcR2dbcEntityOperationsBuilder {
+
+	@Bean
+	@Qualifier("bookDatabaseConnectionFactory")
+	public ConnectionFactory bookDatabaseConnectionFactory(@Value("${database.book}") String databaseUrl) {
+		return ConnectionFactories.get(databaseUrl);
+	}
+	
+	@Bean
+	@Qualifier("bookOperations")
+	public LcR2dbcEntityTemplate bookOperations(@Qualifier("bookDatabaseConnectionFactory") ConnectionFactory connectionFactory) {
+		return buildEntityOperations(connectionFactory);
+	}
+
+}
+```
+
+- define a bean to create a `ConnectionFactory` (here we get a url from the application configuration, but you can create it in another way)
+- define a bean `LcR2dbcEntityTemplate` with the connection factory
+- add the annotation `@EnableR2dbcRepositories` with the packages containing the repositories that will use this database, and the attribute `entityOperationsRef` set to the qualifier of the `LcR2dbcEntityTemplate` bean
+
+A complete example illustrating a Spring Boot application connecting to different database is available in the repository [lc-spring-data-r2dbc-sample](https://github.com/lecousin/lc-spring-data-r2dbc-sample).
+
 ## JUnit 5
 
 For your tests, using JUnit 5, you can use the annotation `@DataR2dbcTest` provided by Spring, and add the annotation `@EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)`.
@@ -212,7 +244,7 @@ In order to make sure the initializer is launched before any test class is loade
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>test-junit-5</artifactId>
-  <version>0.5.2</version>
+  <version>0.6.0</version>
   <scope>test</scope>
 </dependency>
 ```

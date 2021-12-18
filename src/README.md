@@ -202,6 +202,38 @@ entities:
       - SubEntity3
 ```
 
+### Multiple databases
+
+If you need to connect to multiple databases, the configuration is different. You need to create a `@Configuration` class for each database connection, extending class `LcR2dbcEntityOperationsBuilder`. Instead of declaring `@EnableR2dbcRepositories` on your application, you will declare it to each configuration class.
+
+Here is an example of such a configuration class:
+
+```java
+@Configuration
+@EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class, basePackages = "com.example.book.dao.repository", entityOperationsRef = "bookOperations")
+public class BookConfig extends LcR2dbcEntityOperationsBuilder {
+
+	@Bean
+	@Qualifier("bookDatabaseConnectionFactory")
+	public ConnectionFactory bookDatabaseConnectionFactory(@Value("${database.book}") String databaseUrl) {
+		return ConnectionFactories.get(databaseUrl);
+	}
+	
+	@Bean
+	@Qualifier("bookOperations")
+	public LcR2dbcEntityTemplate bookOperations(@Qualifier("bookDatabaseConnectionFactory") ConnectionFactory connectionFactory) {
+		return buildEntityOperations(connectionFactory);
+	}
+
+}
+```
+
+- define a bean to create a `ConnectionFactory` (here we get a url from the application configuration, but you can create it in another way)
+- define a bean `LcR2dbcEntityTemplate` with the connection factory
+- add the annotation `@EnableR2dbcRepositories` with the packages containing the repositories that will use this database, and the attribute `entityOperationsRef` set to the qualifier of the `LcR2dbcEntityTemplate` bean
+
+A complete example illustrating a Spring Boot application connecting to different database is available in the repository [lc-spring-data-r2dbc-sample](https://github.com/lecousin/lc-spring-data-r2dbc-sample).
+
 ## JUnit 5
 
 For your tests, using JUnit 5, you can use the annotation `@DataR2dbcTest` provided by Spring, and add the annotation `@EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)`.
