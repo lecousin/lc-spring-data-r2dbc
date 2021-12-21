@@ -12,6 +12,11 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 public class H2SchemaDialect extends RelationalDatabaseSchemaDialect {
 
 	@Override
+	public String getName() {
+		return "H2";
+	}
+	
+	@Override
 	public boolean isCompatible(R2dbcDialect r2dbcDialect) {
 		return r2dbcDialect instanceof H2Dialect;
 	}
@@ -43,7 +48,10 @@ public class H2SchemaDialect extends RelationalDatabaseSchemaDialect {
 
 	@Override
 	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
-		return "TIMESTAMP WITH TIME ZONE";
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_TIME_PRECISION;
+		return "TIMESTAMP(" + precision + ") WITH TIME ZONE";
 	}
 
 	@Override

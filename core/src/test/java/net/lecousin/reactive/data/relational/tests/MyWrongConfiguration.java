@@ -16,6 +16,11 @@ public class MyWrongConfiguration extends LcReactiveDataRelationalConfiguration 
 			public boolean isCompatible(R2dbcDialect r2dbcDialect) {
 				return true;
 			}
+			
+			@Override
+			public String getName() {
+				return "Fake";
+			}
 		};
 	}
 	

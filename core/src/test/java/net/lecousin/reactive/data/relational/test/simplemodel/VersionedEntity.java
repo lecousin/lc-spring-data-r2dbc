@@ -1,7 +1,5 @@
 package net.lecousin.reactive.data.relational.test.simplemodel;
 
-import java.time.ZonedDateTime;
-
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -36,16 +34,10 @@ public class VersionedEntity {
 	private java.time.LocalTime creationLocalTime;
 	
 	@Column @CreatedDate
-	private java.time.OffsetTime creationOffsetTime;
-	
-	@Column @CreatedDate
 	private java.time.LocalDateTime creationLocalDateTime;
 	
-	@Column @CreatedDate
-	private java.time.ZonedDateTime creationZonedDateTime;
-	
 	@Column @LastModifiedDate
-	private ZonedDateTime modification;
+	private java.time.LocalDateTime modification;
 
 	public Long getId() {
 		return id;
@@ -75,7 +67,7 @@ public class VersionedEntity {
 		return creation;
 	}
 
-	public ZonedDateTime getModification() {
+	public java.time.LocalDateTime getModification() {
 		return modification;
 	}
 
@@ -91,16 +83,8 @@ public class VersionedEntity {
 		return creationLocalTime;
 	}
 
-	public java.time.OffsetTime getCreationOffsetTime() {
-		return creationOffsetTime;
-	}
-
 	public java.time.LocalDateTime getCreationLocalDateTime() {
 		return creationLocalDateTime;
-	}
-
-	public java.time.ZonedDateTime getCreationZonedDateTime() {
-		return creationZonedDateTime;
 	}
 
 }

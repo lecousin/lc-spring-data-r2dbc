@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational.mysql.test;
 
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PostConstruct;
@@ -41,6 +42,7 @@ public class MySqlStarter {
 		    .withUser("auser", "sa")
 		    .withTimeout(2, TimeUnit.MINUTES)
 		    .withCharset(Charset.UTF8)
+		    .withTimeZone(TimeZone.getDefault())
 		    .build();
 		mysql = EmbeddedMysql.anEmbeddedMysql(config).addSchema("test").start();
 		launchVersion = version;

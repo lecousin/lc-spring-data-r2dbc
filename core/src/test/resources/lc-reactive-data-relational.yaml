@@ -5,6 +5,7 @@ entities:
       - BooleanTypes
       - CharacterTypes
       - DateTypes
+      - DateTypesWithTimeZone
       - Entity1WithSequence
       - Entity2WithSequence
       - NumericTypes

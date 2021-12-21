@@ -1,7 +1,12 @@
 package net.lecousin.reactive.data.relational.postgres;
 
+import java.util.Collections;
+
 import org.springframework.data.r2dbc.dialect.PostgresDialect;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
+import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.Expressions;
+import org.springframework.data.relational.core.sql.SimpleFunction;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
@@ -9,6 +14,11 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 
 public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 
+	@Override
+	public String getName() {
+		return "PostgreSQL";
+	}
+	
 	@Override
 	public boolean isCompatible(R2dbcDialect r2dbcDialect) {
 		return r2dbcDialect.getClass().equals(PostgresDialect.class);
@@ -57,12 +67,18 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 	
 	@Override
 	protected String getColumnTypeDateTime(Column col, Class<?> type, ColumnDefinition def) {
-		return "TIMESTAMP";
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_TIME_PRECISION;
+		return "TIMESTAMP(" + precision + ")";
 	}
 	
 	@Override
 	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
-		return "TIMESTAMP WITH TIME ZONE";
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_TIME_PRECISION;
+		return "TIMESTAMP(" + precision + ") WITH TIME ZONE";
 	}
 
 	@Override
@@ -87,5 +103,23 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 	@Override
 	protected void addDefaultRandomUuid(Column col, StringBuilder sql) {
 		sql.append(" DEFAULT UUID_GENERATE_V4()");
+	}
+	
+	@Override
+	public Expression applyFunctionTo(SqlFunction function, Expression expression) {
+		switch (function) {
+		case YEAR: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("YEAR FROM " + expression)));
+		case MONTH: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("MONTH FROM " + expression)));
+		case DAY_OF_MONTH: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("DAY FROM " + expression)));
+		case DAY_OF_YEAR: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("DOY FROM " + expression)));
+		case HOUR: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("HOUR FROM " + expression)));
+		case MINUTE: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("MINUTE FROM " + expression)));
+		case SECOND: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("SECOND FROM " + expression)));
+		case ISO_WEEK: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("WEEK FROM " + expression)));
+		case ISO_DAY_OF_WEEK: return SimpleFunction.create("EXTRACT", Collections.singletonList(Expressions.just("ISODOW FROM " + expression)));
+		default:
+			break;
+		}
+		return super.applyFunctionTo(function, expression);
 	}
 }

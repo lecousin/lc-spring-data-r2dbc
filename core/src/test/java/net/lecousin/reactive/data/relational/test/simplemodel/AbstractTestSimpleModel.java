@@ -3,10 +3,12 @@ package net.lecousin.reactive.data.relational.test.simplemodel;
 import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,7 +52,8 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
-		return Arrays.asList(
+		LinkedList<Class<?>> entities = new LinkedList<>();
+		Collections.addAll(entities,
 			BooleanTypes.class,
 			CharacterTypes.class,
 			DateTypes.class,
@@ -61,6 +64,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			UUIDEntity.class,
 			VersionedEntity.class
 		);
+		if (lcClient.getSchemaDialect().isTimeZoneSupported())
+			entities.add(DateTypesWithTimeZone.class);
+		return entities;
 	}
 	
 	@Test
@@ -374,8 +380,41 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	}
 	
 	@Test
+	public void testStringFunctions() {
+		CharacterTypes e1 = new CharacterTypes();
+		e1.setStr(null);
+		e1.setFixedLengthString("a");
+		CharacterTypes e2 = new CharacterTypes();
+		e2.setStr("Hello");
+		e2.setFixedLengthString("b");
+		CharacterTypes e3 = new CharacterTypes();
+		e3.setStr("World");
+		e3.setFixedLengthString("c");
+		
+		repoChars.saveAll(Arrays.asList(e1, e2, e3)).collectList().block();
+		
+		List<CharacterTypes> list = repoChars.findAll().collectList().block();
+		Assertions.assertEquals(3, list.size());
+		
+		list = SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").is("hello")).execute(lcClient).collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		list = SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").toLowerCase().is("hello")).execute(lcClient).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		Assertions.assertEquals("Hello", list.get(0).getStr());
+		
+		list = SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").toUpperCase().is("hello")).execute(lcClient).collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		list = SelectQuery.from(CharacterTypes.class, "e").where(Criteria.property("e", "str").toUpperCase().is("HELLO")).execute(lcClient).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		Assertions.assertEquals("Hello", list.get(0).getStr());
+	}
+	
+	@Test
 	public void testDates() {
 		java.time.Instant instant = java.time.Instant.now();
+		instant = instant.truncatedTo(ChronoUnit.MILLIS);
 		long epoch = instant.toEpochMilli();
 		Calendar calendar = Calendar.getInstance();
 		calendar.setTimeInMillis(epoch);
@@ -385,20 +424,62 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		int hour = calendar.get(Calendar.HOUR_OF_DAY);
 		int minute = calendar.get(Calendar.MINUTE);
 		int second = calendar.get(Calendar.SECOND);
-		//int millis = calendar.get(Calendar.MILLISECOND);
-		int nano = instant.get(ChronoField.NANO_OF_SECOND);
+		int millis = calendar.get(Calendar.MILLISECOND);
+		int nano = millis * 1000000;
 		
 		DateTypes entity = new DateTypes();
 		entity.setTimeInstant(instant);
 		entity.setTimeLocalDate(java.time.LocalDate.of(year, month, day));
 		entity.setTimeLocalTime(java.time.LocalTime.of(hour, minute, second, nano));
-		entity.setTimeOffsetTime(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)));
 		entity.setTimeLocalDateTime(java.time.LocalDateTime.of(year, month, day, hour, minute, second, nano));
-		entity.setTimeZonedDateTime(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()));
 		
 		entity = repoDate.save(entity).block();
 		
 		entity = repoDate.findAll().blockFirst();
+		Assertions.assertEquals(epoch, entity.getTimeInstant().toEpochMilli());
+		Assertions.assertEquals(year, entity.getTimeLocalDate().getYear());
+		Assertions.assertEquals(month, entity.getTimeLocalDate().getMonthValue());
+		Assertions.assertEquals(day, entity.getTimeLocalDate().getDayOfMonth());
+		Assertions.assertEquals(hour, entity.getTimeLocalTime().getHour());		
+		Assertions.assertEquals(minute, entity.getTimeLocalTime().getMinute());		
+		Assertions.assertEquals(second, entity.getTimeLocalTime().getSecond());		
+		Assertions.assertEquals(nano, entity.getTimeLocalTime().getNano());
+		Assertions.assertEquals(java.time.LocalDateTime.of(year, month, day, hour, minute, second, nano), entity.getTimeLocalDateTime());
+		
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToYear().is(year)).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToYear().is(year + 1)).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToMonth().is(month)).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToMonth().is(month + 1)).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToDayOfMonth().is(calendar.get(Calendar.DAY_OF_MONTH))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToDayOfMonth().is(calendar.get(Calendar.DAY_OF_MONTH) + 1)).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToDayOfYear().is(calendar.get(Calendar.DAY_OF_YEAR))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToDayOfYear().is(calendar.get(Calendar.DAY_OF_YEAR) + 1)).execute(lcClient).blockFirst());
+		// TODO test isoWeek
+	}
+	
+	@Test
+	public void testDatesWithTimzone() {
+		Assumptions.assumeTrue(lcClient.getSchemaDialect().isTimeZoneSupported());
+		java.time.Instant instant = java.time.Instant.now();
+		instant = instant.truncatedTo(ChronoUnit.MILLIS);
+		long epoch = instant.toEpochMilli();
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTimeInMillis(epoch);
+		int hour = calendar.get(Calendar.HOUR_OF_DAY);
+		int minute = calendar.get(Calendar.MINUTE);
+		int second = calendar.get(Calendar.SECOND);
+		int millis = calendar.get(Calendar.MILLISECOND);
+		int nano = millis * 1000000;
+		
+		DateTypesWithTimeZone entity = new DateTypesWithTimeZone();
+		entity.setTimeOffsetTime(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)));
+		entity.setTimeZonedDateTime(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()));
+		
+		entity = lcClient.save(entity).block();
+		
+		entity = SelectQuery.from(DateTypesWithTimeZone.class, "e").execute(lcClient).blockFirst();
+		Assertions.assertEquals(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)), entity.getTimeOffsetTime());
+		Assertions.assertEquals(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()).toEpochSecond(), entity.getTimeZonedDateTime().toEpochSecond());
 	}
 
 	@Test
@@ -423,14 +504,12 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("World", entity2.getStr());
 		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
 		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
-		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
-		Assertions.assertEquals(entity2.getCreation(), entity2.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getModification());
+		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity2.getCreation()), ZoneId.systemDefault()), entity2.getModification());
 		Assertions.assertEquals(entity1.getCreation(), entity1.getCreationInstant().toEpochMilli());
 		Assertions.assertEquals(java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalDate());
 		Assertions.assertEquals(java.time.LocalTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalTime());
-		Assertions.assertEquals(java.time.OffsetTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationOffsetTime());
 		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationLocalDateTime());
-		Assertions.assertEquals(java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getCreationZonedDateTime());
 		final Long id1 = entity1.getId();
 		final Long id2 = entity2.getId();
 		
@@ -443,8 +522,8 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals("World", entity2.getStr());
 		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
 		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
-		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
-		Assertions.assertEquals(entity2.getCreation(), entity2.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getModification());
+		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity2.getCreation()), ZoneId.systemDefault()), entity2.getModification());
 		
 		// update entity2 => version 2
 		entity2.setStr("World !");
@@ -461,10 +540,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals(2, entity2.getVersion());
 		Assertions.assertEquals("World !", entity2.getStr());
 		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
-		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getModification());
 		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
-		Assertions.assertTrue(entity1.getCreation() == entity1.getModification().toInstant().toEpochMilli());
-		Assertions.assertTrue(entity2.getCreation() < entity2.getModification().toInstant().toEpochMilli());
+		Assertions.assertTrue(entity2.getCreation() < entity2.getModification().toInstant(ZoneOffset.UTC).toEpochMilli());
 		
 		
 		list = repoVersion.findAll().collectList().block();
@@ -475,9 +553,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals(2, entity2.getVersion());
 		Assertions.assertEquals("World !", entity2.getStr());
 		Assertions.assertTrue(entity1.getCreation() != null && entity1.getCreation() >= creationDateStart && entity1.getCreation() <= creationDateEnd, "Creation date: " + entity1.getCreation());
-		Assertions.assertEquals(entity1.getCreation(), entity1.getModification().toInstant().toEpochMilli());
+		Assertions.assertEquals(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(entity1.getCreation()), ZoneId.systemDefault()), entity1.getModification());
 		Assertions.assertTrue(entity2.getCreation() != null && entity2.getCreation() >= creationDateStart && entity2.getCreation() <= creationDateEnd, "Creation date: " + entity2.getCreation());
-		Assertions.assertTrue(entity2.getCreation() < entity2.getModification().toInstant().toEpochMilli());
+		Assertions.assertTrue(entity2.getCreation() < entity2.getModification().toInstant(ZoneOffset.UTC).toEpochMilli());
 		
 		// save entity2 with version 1 => error
 		entity2.setVersion(1L);

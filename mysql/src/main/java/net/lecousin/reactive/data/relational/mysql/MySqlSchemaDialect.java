@@ -1,11 +1,14 @@
 package net.lecousin.reactive.data.relational.mysql;
 
+import java.util.Collections;
 import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.r2dbc.dialect.MySqlDialect;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
+import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.SimpleFunction;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
@@ -16,14 +19,17 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 
 	@Override
+	public String getName() {
+		return "MySQL";
+	}
+	
+	@Override
 	public boolean isCompatible(R2dbcDialect r2dbcDialect) {
 		return r2dbcDialect.getClass().equals(MySqlDialect.class);
 	}
 	
 	@Override
 	public Object convertToDataBase(Object value, RelationalPersistentProperty property) {
-		if (value instanceof java.time.OffsetTime || value instanceof java.time.ZonedDateTime)
-			return value.toString();
 		if (value instanceof String) {
 			ColumnDefinition def = property.findAnnotation(ColumnDefinition.class);
 			if (def != null && def.min() > 0 && ((String)value).length() < def.min())
@@ -36,10 +42,6 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	
 	@Override
 	public Object convertFromDataBase(Object value, Class<?> targetType) {
-		if (java.time.OffsetTime.class.equals(targetType))
-			return java.time.OffsetTime.parse((CharSequence)value);
-		if (java.time.ZonedDateTime.class.equals(targetType))
-			return java.time.ZonedDateTime.parse((CharSequence)value);
 		if (UUID.class.equals(targetType))
 			return UUID.fromString((String)value);
 		if (value instanceof Long) {
@@ -67,17 +69,12 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 		}
 		return "VARCHAR(255)";
 	}
+	
+	@Override
+	public boolean isTimeZoneSupported() {
+		return false;
+	}
 
-	@Override
-	protected String getColumnTypeTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
-		return "VARCHAR(24)";
-	}
-	
-	@Override
-	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
-		return "VARCHAR(100)";
-	}
-	
 	@Override
 	protected String getColumnTypeUUID(Column col, Class<?> type, ColumnDefinition def) {
 		return "VARCHAR(36)";
@@ -125,5 +122,17 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	@Override
 	public boolean supportsSequence() {
 		return false;
+	}
+	
+	@Override
+	public Expression applyFunctionTo(SqlFunction function, Expression expression) {
+		switch (function) {
+		case DAY_OF_MONTH: return SimpleFunction.create("DAYOFMONTH", Collections.singletonList(expression));
+		case DAY_OF_YEAR: return SimpleFunction.create("DAYOFYEAR", Collections.singletonList(expression));
+		case ISO_DAY_OF_WEEK: return SimpleFunction.create("DAYOFWEEK", Collections.singletonList(expression));
+		case ISO_WEEK: return SimpleFunction.create("WEEK", Collections.singletonList(expression));
+		default: break;
+		}
+		return super.applyFunctionTo(function, expression);
 	}
 }

@@ -4,6 +4,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 
 @Table
@@ -13,22 +14,19 @@ public class DateTypes {
 	private Long id;
 	
 	@Column
+	@ColumnDefinition(precision = 3) // to milliseconds 
 	private java.time.Instant timeInstant;
 	
 	@Column
 	private java.time.LocalDate timeLocalDate;
 	
 	@Column
+	@ColumnDefinition(precision = 3) // to milliseconds 
 	private java.time.LocalTime timeLocalTime;
 	
 	@Column
-	private java.time.OffsetTime timeOffsetTime;
-	
-	@Column
+	@ColumnDefinition(precision = 3) // to milliseconds 
 	private java.time.LocalDateTime timeLocalDateTime;
-	
-	@Column
-	private java.time.ZonedDateTime timeZonedDateTime;
 
 	public Long getId() {
 		return id;
@@ -62,28 +60,12 @@ public class DateTypes {
 		this.timeLocalTime = timeLocalTime;
 	}
 
-	public java.time.OffsetTime getTimeOffsetTime() {
-		return timeOffsetTime;
-	}
-
-	public void setTimeOffsetTime(java.time.OffsetTime timeOffsetTime) {
-		this.timeOffsetTime = timeOffsetTime;
-	}
-
 	public java.time.LocalDateTime getTimeLocalDateTime() {
 		return timeLocalDateTime;
 	}
 
 	public void setTimeLocalDateTime(java.time.LocalDateTime timeLocalDateTime) {
 		this.timeLocalDateTime = timeLocalDateTime;
-	}
-
-	public java.time.ZonedDateTime getTimeZonedDateTime() {
-		return timeZonedDateTime;
-	}
-
-	public void setTimeZonedDateTime(java.time.ZonedDateTime timeZonedDateTime) {
-		this.timeZonedDateTime = timeZonedDateTime;
 	}
 
 }

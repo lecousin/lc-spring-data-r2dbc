@@ -1,6 +1,11 @@
 package net.lecousin.reactive.data.relational.query.criteria;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+
+import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect.SqlFunction;
 
 public interface Criteria {
 	
@@ -92,6 +97,7 @@ public interface Criteria {
 	public static class PropertyOperand {
 		private String entityName;
 		private String propertyName;
+		private LinkedList<SqlFunction> functionsToApply = new LinkedList<>();;
 		
 		public PropertyOperand(String entityName, String propertyName) {
 			this.entityName = entityName;
@@ -104,6 +110,10 @@ public interface Criteria {
 
 		public String getPropertyName() {
 			return propertyName;
+		}
+		
+		public List<SqlFunction> getFunctionsToApply() {
+			return new ArrayList<>(functionsToApply);
 		}
 		
 		public Criteria is(Object value) {
@@ -184,6 +194,61 @@ public interface Criteria {
 		
 		public Criteria notIn(Collection<?> values) {
 			return new PropertyOperation(this, PropertyOperator.NOT_IN, values);
+		}
+		
+		public PropertyOperand toUpperCase() {
+			functionsToApply.addFirst(SqlFunction.UPPER);
+			return this;
+		}
+		
+		public PropertyOperand toLowerCase() {
+			functionsToApply.addFirst(SqlFunction.LOWER);
+			return this;
+		}
+		
+		public PropertyOperand dateToIsoDayOfWeek() {
+			functionsToApply.addFirst(SqlFunction.ISO_DAY_OF_WEEK);
+			return this;
+		}
+		
+		public PropertyOperand dateToDayOfMonth() {
+			functionsToApply.addFirst(SqlFunction.DAY_OF_MONTH);
+			return this;
+		}
+		
+		public PropertyOperand dateToDayOfYear() {
+			functionsToApply.addFirst(SqlFunction.DAY_OF_YEAR);
+			return this;
+		}
+		
+		public PropertyOperand dateToMonth() {
+			functionsToApply.addFirst(SqlFunction.MONTH);
+			return this;
+		}
+		
+		public PropertyOperand dateToYear() {
+			functionsToApply.addFirst(SqlFunction.YEAR);
+			return this;
+		}
+		
+		public PropertyOperand dateToIsoWeek() {
+			functionsToApply.addFirst(SqlFunction.ISO_WEEK);
+			return this;
+		}
+
+		public PropertyOperand timeToHour() {
+			functionsToApply.addFirst(SqlFunction.HOUR);
+			return this;
+		}
+
+		public PropertyOperand timeToMinute() {
+			functionsToApply.addFirst(SqlFunction.MINUTE);
+			return this;
+		}
+
+		public PropertyOperand timeToSecond() {
+			functionsToApply.addFirst(SqlFunction.SECOND);
+			return this;
 		}
 		
 		@Override

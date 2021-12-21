@@ -21,6 +21,7 @@ import net.lecousin.reactive.data.relational.query.criteria.Criteria.And;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.Or;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.PropertyOperand;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.PropertyOperation;
+import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect.SqlFunction;
 
 public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 	
@@ -49,7 +50,8 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 	public Condition visit(PropertyOperation op) {
 		RelationalPersistentEntity<?> entity = entitiesByAlias.get(op.getLeft().getEntityName());
 		RelationalPersistentProperty property = entity.getRequiredPersistentProperty(op.getLeft().getPropertyName());
-		Column left = Column.create(property.getColumnName(), tablesByAlias.get(op.getLeft().getEntityName()));
+
+		Expression left = toExpression(op.getLeft());
 		
 		switch (op.getOperator()) {
 		case IS_NULL: return Conditions.isNull(left);
@@ -91,12 +93,18 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 	}
 	
 	private Expression toExpression(Object value) {
-		if (value instanceof PropertyOperand) {
-			PropertyOperand p = (PropertyOperand)value;
-			RelationalPersistentEntity<?> rightEntity = entitiesByAlias.get(p.getEntityName());
-			return Column.create(rightEntity.getRequiredPersistentProperty(p.getPropertyName()).getColumnName(), tablesByAlias.get(p.getEntityName()));
-		}
+		if (value instanceof PropertyOperand)
+			return toExpression((PropertyOperand)value);
 		return query.marker(value);
+	}
+	
+	private Expression toExpression(PropertyOperand propertyOperand) {
+		RelationalPersistentEntity<?> rightEntity = entitiesByAlias.get(propertyOperand.getEntityName());
+		Column column = Column.create(rightEntity.getRequiredPersistentProperty(propertyOperand.getPropertyName()).getColumnName(), tablesByAlias.get(propertyOperand.getEntityName()));
+		Expression result = column;
+		for (SqlFunction fct : propertyOperand.getFunctionsToApply())
+			result = query.getClient().getSchemaDialect().applyFunctionTo(fct, result);
+		return result;
 	}
 
 }

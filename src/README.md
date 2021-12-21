@@ -265,7 +265,8 @@ but indicates the link to another class. A foreign table can be used on a collec
 - Annotation `net.lecousin.reactive.data.relational.annotations.JoinTable` can be used for a many to many (n-n) relationship when no additional field is required
 on the join table. The join table will be automatically created with the 2 foreign keys. This allows to join directly between 2 tables with many to many relationship in a
 transparent manner.
-- Annotations `org.springframework.data.annotation.CreatedDate` and `org.springframework.data.annotation.LastModifiedDate` can be used to automatically store respectively the creation date and modification date. It can be used with a column of type `Long`, `Instant`, `LocalDate`, `LocalTime`, `OffsetTime`, `LocalDateTime`, or `ZonedDateTime`.
+- Annotations `org.springframework.data.annotation.CreatedDate` and `org.springframework.data.annotation.LastModifiedDate` can be used to automatically store respectively the creation date and modification date. It can be used with a column of type `Long`, `Instant`, `LocalDate`, `LocalTime` or `LocalDateTime`. `OffsetTime` and `ZonedDateTime` can be used except for MySql that does not support columns with timezone information.
+- Annotation `net.lecousin.reactive.data.relational.annotations.ColumnDefinition` can be used to specify constraints for schema generation.
 
 Additional methods may be declared in an Entity class to handle lazy loading, documented in the [dedicated section](#lazy-loading).
 

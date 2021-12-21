@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.schema.dialect;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -13,6 +14,8 @@ import java.util.UUID;
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
+import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.SimpleFunction;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.schema.Column;
@@ -28,6 +31,10 @@ import net.lecousin.reactive.data.relational.schema.Table;
 })
 public abstract class RelationalDatabaseSchemaDialect {
 	
+	public static final int DEFAULT_FLOATING_POINT_PRECISION = 10;
+	public static final int DEFAULT_FLOATING_POINT_SCALE = 2;
+	public static final int DEFAULT_TIME_PRECISION = 3;
+	
 	public static RelationalDatabaseSchemaDialect getDialect(R2dbcDialect r2dbcDialect) {
 		return ServiceLoader.load(RelationalDatabaseSchemaDialect.class).stream()
 			.map(provider -> provider.get())
@@ -35,6 +42,8 @@ public abstract class RelationalDatabaseSchemaDialect {
 			.findFirst()
 			.orElseThrow();
 	}
+	
+	public abstract String getName();
 	
 	public abstract boolean isCompatible(R2dbcDialect r2dbcDialect);
 	
@@ -82,7 +91,11 @@ public abstract class RelationalDatabaseSchemaDialect {
 			return getColumnTypeTimestamp(col, type, def);
 		if (UUID.class.equals(type))
 			return getColumnTypeUUID(col, type, def);
-		throw new SchemaException("Column type not supported: " + type.getName() + " for column " + col.getName());
+		throw new SchemaException("Column type not supported: " + type.getName() + " for column " + col.getName() + " with " + getName());
+	}
+	
+	public boolean isTimeZoneSupported() {
+		return true;
 	}
 
 	protected String getColumnTypeBoolean(Column col, Class<?> type, ColumnDefinition def) {
@@ -114,8 +127,12 @@ public abstract class RelationalDatabaseSchemaDialect {
 	}
 	
 	protected String getColumnTypeBigDecimal(Column col, Class<?> type, ColumnDefinition def) {
-		int precision = def != null ? def.precision() : ColumnDefinition.DEFAULT_PRECISION;
-		int scale = def != null ? def.scale() : ColumnDefinition.DEFAULT_SCALE;
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_FLOATING_POINT_PRECISION;
+		int scale = def != null ? def.scale() : -1;
+		if (scale < 0)
+			scale = DEFAULT_FLOATING_POINT_SCALE;
 		return "DECIMAL(" + precision + "," + scale + ")";
 	}
 	
@@ -138,7 +155,10 @@ public abstract class RelationalDatabaseSchemaDialect {
 	}
 
 	protected String getColumnTypeTimestamp(Column col, Class<?> type, ColumnDefinition def) {
-		return "TIMESTAMP";
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_TIME_PRECISION;
+		return "TIMESTAMP(" + precision + ")";
 	}
 
 	protected String getColumnTypeDate(Column col, Class<?> type, ColumnDefinition def) {
@@ -146,19 +166,35 @@ public abstract class RelationalDatabaseSchemaDialect {
 	}
 
 	protected String getColumnTypeTime(Column col, Class<?> type, ColumnDefinition def) {
-		return "TIME";
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_TIME_PRECISION;
+		return "TIME(" + precision + ")";
 	}
 
 	protected String getColumnTypeTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
-		return "TIME WITH TIME ZONE";
+		if (!isTimeZoneSupported())
+			throw new SchemaException("Time with timezone not supported by " + getName() + " for column " + col.getName() + " on type " + type.getName());
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_TIME_PRECISION;
+		return "TIME(" + precision + ") WITH TIME ZONE";
 	}
 
 	protected String getColumnTypeDateTime(Column col, Class<?> type, ColumnDefinition def) {
-		return "DATETIME";
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_TIME_PRECISION;
+		return "DATETIME(" + precision + ")";
 	}
 
 	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
-		return "DATETIME WITH TIME ZONE";
+		if (!isTimeZoneSupported())
+			throw new SchemaException("DateTime with timezone not supported by " + getName() + " for column " + col.getName() + " on type " + type.getName());
+		int precision = def != null ? def.precision() : -1;
+		if (precision < 0)
+			precision = DEFAULT_TIME_PRECISION;
+		return "DATETIME(" + precision + ") WITH TIME ZONE";
 	}
 
 	protected String getColumnTypeUUID(Column col, Class<?> type, ColumnDefinition def) {
@@ -431,5 +467,27 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public String sequenceNextValueFunctionName() {
 		return "NEXTVAL";
+	}
+	
+	public enum SqlFunction {
+		UPPER, LOWER,
+		ISO_DAY_OF_WEEK, DAY_OF_MONTH, DAY_OF_YEAR, MONTH, YEAR, ISO_WEEK, HOUR, MINUTE, SECOND
+	}
+	
+	public Expression applyFunctionTo(SqlFunction function, Expression expression) {
+		switch (function) {
+		case DAY_OF_MONTH: return SimpleFunction.create("DAY_OF_MONTH", Collections.singletonList(expression));
+		case DAY_OF_YEAR: return SimpleFunction.create("DAY_OF_YEAR", Collections.singletonList(expression));
+		case HOUR: return SimpleFunction.create("HOUR", Collections.singletonList(expression));
+		case ISO_DAY_OF_WEEK: return SimpleFunction.create("ISO_DAY_OF_WEEK", Collections.singletonList(expression));
+		case ISO_WEEK: return SimpleFunction.create("ISO_WEEK", Collections.singletonList(expression));
+		case LOWER: return SimpleFunction.create("LOWER", Collections.singletonList(expression));
+		case MINUTE: return SimpleFunction.create("MINUTE", Collections.singletonList(expression));
+		case MONTH: return SimpleFunction.create("MONTH", Collections.singletonList(expression));
+		case SECOND: return SimpleFunction.create("SECOND", Collections.singletonList(expression));
+		case UPPER: return SimpleFunction.create("UPPER", Collections.singletonList(expression));
+		case YEAR: return SimpleFunction.create("YEAR", Collections.singletonList(expression));
+		}
+		throw new RuntimeException("Unknown SQL function: " + function);
 	}
 }
