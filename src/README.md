@@ -232,7 +232,7 @@ public class BookConfig extends LcR2dbcEntityOperationsBuilder {
 - define a bean `LcR2dbcEntityTemplate` with the connection factory
 - add the annotation `@EnableR2dbcRepositories` with the packages containing the repositories that will use this database, and the attribute `entityOperationsRef` set to the qualifier of the `LcR2dbcEntityTemplate` bean
 
-A complete example illustrating a Spring Boot application connecting to different database is available in the repository [lc-spring-data-r2dbc-sample](https://github.com/lecousin/lc-spring-data-r2dbc-sample).
+A complete example illustrating a Spring Boot application connecting to different databases is available in the repository [lc-spring-data-r2dbc-sample](https://github.com/lecousin/lc-spring-data-r2dbc-sample).
 
 ## JUnit 5
 
@@ -399,6 +399,15 @@ public interface RootEntityRepository extends LcR2dbcRepository<RootEntity, Long
 		.where(Criteria.property("sub", "subValue").is(value)) // WHERE sub.subValue = :value
 		.execute(getLcClient());
 	}
+	
+	/** Count RootEntity with a sub-entity having the given value. */
+	default Mono<Long> findBySubValue(String value) {
+		return SelectQuery
+		.from(RootEntity.class, "entity")                      // SELECT entity FROM RootEntity AS entity
+		.join("entity", "list", "sub")                         // JOIN entity.list AS sub
+		.where(Criteria.property("sub", "subValue").is(value)) // WHERE sub.subValue = :value
+		.executeCount(getLcClient());
+	}
 
 	/** Search RootEntity having the same value as one of its sub-entities. */	
 	default Flux<RootEntity> havingSubValueEqualsToValue() {
@@ -424,3 +433,9 @@ public interface RootEntityRepository extends LcR2dbcRepository<RootEntity, Long
 
 You can note the method `getLcClient()` needed to execute requests, which is automatically available if your repository extends `LcR2dbcRepository`.
 If you don't need it, your repository can just extend the `R2dbcRepository` base interface of Spring.
+
+Note that `SelectQuery` can be used anywhere, not only in a repository.
+
+# Example Application
+
+A complete example illustrating a Spring Boot application connecting to different databases is available in the repository [lc-spring-data-r2dbc-sample](https://github.com/lecousin/lc-spring-data-r2dbc-sample), and comes with an Angular GUI to test it.

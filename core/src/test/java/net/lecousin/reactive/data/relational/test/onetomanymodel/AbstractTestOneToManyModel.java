@@ -819,7 +819,7 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 
 	
 	@Test
-	public void testOrderBy() {
+	public void testOrderByOnRoot() {
 		RootEntity root1 = new RootEntity();
 		root1.setValue("root1");
 		RootEntity root2 = new RootEntity();
@@ -853,16 +853,68 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 
 		repo.saveAll(Arrays.asList(root1, root2, root3)).blockLast();
 		
-		List<RootEntity> list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("value", true).execute(lcClient).collectList().block();
+		List<RootEntity> list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("root", "value", true).execute(lcClient).collectList().block();
 		Assertions.assertEquals(3, list.size());
 		Assertions.assertEquals("root1", list.get(0).getValue());
 		Assertions.assertEquals("root2", list.get(1).getValue());
 		Assertions.assertEquals("root3", list.get(2).getValue());
 
-		list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("value", false).execute(lcClient).collectList().block();
+		list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("root", "value", false).execute(lcClient).collectList().block();
 		Assertions.assertEquals(3, list.size());
 		Assertions.assertEquals("root3", list.get(0).getValue());
 		Assertions.assertEquals("root2", list.get(1).getValue());
 		Assertions.assertEquals("root1", list.get(2).getValue());
+	}
+	
+	@Test
+	public void testOrderByOnSubEntity() {
+		RootEntity root1 = new RootEntity();
+		root1.setValue("abcd");
+		RootEntity root2 = new RootEntity();
+		root2.setValue("efgh");
+		RootEntity root3 = new RootEntity();
+		root3.setValue("abgh");
+		
+		SubEntity sub1_1 = new SubEntity();
+		sub1_1.setSubValue("hello");
+		SubEntity sub1_2 = new SubEntity();
+		sub1_2.setSubValue("world");
+		SubEntity sub1_3 = new SubEntity();
+		sub1_3.setSubValue("hello world");
+		root1.setList(Arrays.asList(sub1_1, sub1_2, sub1_3));
+		
+		SubEntity sub2_1 = new SubEntity();
+		sub2_1.setSubValue("y");
+		SubEntity sub2_2 = new SubEntity();
+		sub2_2.setSubValue("b");
+		SubEntity sub2_3 = new SubEntity();
+		sub2_3.setSubValue("m");
+		root2.setList(Arrays.asList(sub2_1, sub2_2, sub2_3));
+		
+		SubEntity sub3_1 = new SubEntity();
+		sub3_1.setSubValue("z");
+		SubEntity sub3_2 = new SubEntity();
+		sub3_2.setSubValue("a");
+		SubEntity sub3_3 = new SubEntity();
+		sub3_3.setSubValue("m");
+		root3.setList(Arrays.asList(sub3_1, sub3_2, sub3_3));
+
+		repo.saveAll(Arrays.asList(root1, root2, root3)).blockLast();
+
+		List<RootEntity> list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("sub", "subValue", true).execute(lcClient).collectList().block();
+		Assertions.assertEquals(3, list.size());
+		Assertions.assertEquals("abgh", list.get(0).getValue());
+		Assertions.assertEquals(3, list.get(0).getList().size());
+		Assertions.assertEquals("efgh", list.get(1).getValue());
+		Assertions.assertEquals(3, list.get(1).getList().size());
+		Assertions.assertEquals("abcd", list.get(2).getValue());
+		Assertions.assertEquals(3, list.get(2).getList().size());
+		
+		list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").where(Criteria.property("root", "value").like("ab%")).orderBy("sub", "subValue", false).execute(lcClient).collectList().block();
+		Assertions.assertEquals(2, list.size());
+		Assertions.assertEquals("abgh", list.get(0).getValue());
+		Assertions.assertEquals(3, list.get(0).getList().size());
+		Assertions.assertEquals("abcd", list.get(1).getValue());
+		Assertions.assertEquals(3, list.get(1).getList().size());
 	}
 }

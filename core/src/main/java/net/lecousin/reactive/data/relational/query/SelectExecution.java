@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.apache.commons.lang3.StringUtils;
@@ -49,7 +50,7 @@ import net.lecousin.reactive.data.relational.query.criteria.CriteriaVisitor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
+import reactor.util.function.Tuple3;
 
 public class SelectExecution<T> {
 	
@@ -91,7 +92,7 @@ public class SelectExecution<T> {
 			.from(mapping.tableByAlias.get(query.from.alias));
 		
 		for (TableReference join : query.joins) {
-			if (!needsTableForPreSelect(join))
+			if (!needsTableForPreSelect(join, false))
 				continue;
 			select = join(select, join, mapping);
 		}
@@ -113,7 +114,7 @@ public class SelectExecution<T> {
 			return false;
 		if (query.limit > 0)
 			return true;
-		return hasConditionOnManyEntity();
+		return hasOrderByOnSubEntity() || hasConditionOnManyEntity();
 	}
 	
 	private boolean hasJoinMany() {
@@ -140,6 +141,15 @@ public class SelectExecution<T> {
 			if (isMany(table))
 				return true;
 			table = table.source;
+		}
+		return false;
+	}
+	
+	private boolean hasOrderByOnSubEntity() {
+		for (Tuple3<String, String, Boolean> order : query.orderBy) {
+			TableReference table = query.tableAliases.get(order.getT1());
+			if (table != query.from)
+				return true;
 		}
 		return false;
 	}
@@ -173,7 +183,14 @@ public class SelectExecution<T> {
 		return false;
 	}
 	
-	private boolean needsTableForPreSelect(TableReference table) {
+	private boolean needsTableForPreSelect(TableReference table, boolean includeOrderBy) {
+		if (includeOrderBy) {
+			for (Tuple3<String, String, Boolean> order : query.orderBy) {
+				TableReference t = query.tableAliases.get(order.getT1());
+				if (table == t)
+					return true;
+			}
+		}
 		if (query.where == null)
 			return false;
 		Boolean found = query.where.accept(new CriteriaVisitor.SearchVisitor() {
@@ -199,8 +216,9 @@ public class SelectExecution<T> {
 			.map(row -> row.values().iterator().next())
 			.buffer(100)
 			.flatMap(ids -> {
+				logger.debug("Pre-selected ids bunch: " + Objects.toString(ids));
 				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getIdProperty().getName();
-				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false).execute().fetch().all();
+				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false, false).execute().fetch().all();
 				return Flux.create((Consumer<FluxSink<T>>)sink ->
 					fromDb.doOnComplete(() -> handleRow(null, sink, mapping))
 						.subscribe(row -> handleRow(row, sink, mapping))
@@ -228,7 +246,7 @@ public class SelectExecution<T> {
 	
 	private Flux<T> executeWithoutPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
-		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true).execute().fetch().all();
+		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true, true).execute().fetch().all();
 		return Flux.create(sink ->
 			fromDb.doOnComplete(() -> handleRow(null, sink, mapping))
 				.subscribe(row -> handleRow(row, sink, mapping))
@@ -292,8 +310,7 @@ public class SelectExecution<T> {
 		return mapping;
 	}
 	
-	private SqlQuery<Select> buildFinalSql(SelectMapping mapping, Criteria criteria, boolean applyLimitAndOrderBy) {
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+	private SqlQuery<Select> buildFinalSql(SelectMapping mapping, Criteria criteria, boolean applyLimitAndOrderBy, boolean orderById) {
 		
 		List<Column> selectFields = new ArrayList<>(mapping.fields.size());
 		for (SelectField field : mapping.fields)
@@ -312,14 +329,29 @@ public class SelectExecution<T> {
 		if (criteria != null) {
 			select = ((SelectWhere)select).where(criteria.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
 		}
-		if (entity.hasIdProperty()) {
-			select = ((SelectOrdered)select).orderBy(
-				Column.aliased(
-					entity.getRequiredIdProperty().getName(),
-					mapping.tableByAlias.get(query.from.alias),
-					mapping.fieldAliasesByTableAlias.get(query.from.alias).get(entity.getRequiredIdProperty().getName())
-				)
-			);
+		if (orderById) {
+			RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+			if (entity.hasIdProperty()) {
+				select = ((SelectOrdered)select).orderBy(
+					Column.aliased(
+						entity.getRequiredIdProperty().getName(),
+						mapping.tableByAlias.get(query.from.alias),
+						mapping.fieldAliasesByTableAlias.get(query.from.alias).get(entity.getRequiredIdProperty().getName())
+					)
+				);
+			} else if (entity.isAnnotationPresent(CompositeId.class)) {
+				String[] properties = entity.getRequiredAnnotation(CompositeId.class).properties();
+				Column[] columns = new Column[properties.length];
+				for (int i = 0; i < properties.length; ++i) {
+					RelationalPersistentProperty property = entity.getRequiredPersistentProperty(properties[i]);
+					columns[i] = Column.aliased(
+						property.getName(),
+						mapping.tableByAlias.get(query.from.alias),
+						mapping.fieldAliasesByTableAlias.get(query.from.alias).get(property.getName())
+					);
+				}
+				select = ((SelectOrdered)select).orderBy(columns);
+			}
 		}
 		
 		q.setQuery(select.build());
@@ -336,10 +368,11 @@ public class SelectExecution<T> {
 	private BuildSelect addOrderBy(BuildSelect select) {
 		if (!query.orderBy.isEmpty()) {
 			List<OrderByField> list = new ArrayList<>(query.orderBy.size());
-			for (Tuple2<String, Boolean> orderBy : query.orderBy) {
-				RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
-				RelationalPersistentProperty p = e.getRequiredPersistentProperty(orderBy.getT1());
-				OrderByField o = OrderByField.from(Column.create(p.getColumnName(), Table.create(e.getTableName()).as(query.from.alias)), orderBy.getT2().booleanValue() ? Direction.ASC : Direction.DESC);
+			for (Tuple3<String, String, Boolean> orderBy : query.orderBy) {
+				TableReference table = query.tableAliases.get(orderBy.getT1());
+				RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(table.targetType);
+				RelationalPersistentProperty p = e.getRequiredPersistentProperty(orderBy.getT2());
+				OrderByField o = OrderByField.from(Column.create(p.getColumnName(), Table.create(e.getTableName()).as(table.alias)), orderBy.getT3().booleanValue() ? Direction.ASC : Direction.DESC);
 				list.add(o);
 			}
 			return ((SelectFromAndOrderBy)select).orderBy(list);
@@ -351,6 +384,48 @@ public class SelectExecution<T> {
 	private SqlQuery<Select> buildDistinctRootIdSql(SelectMapping mapping) {
 		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
+		if (hasOrderByOnSubEntity()) {
+			// we need a group by query to handle order by correctly
+			BuildSelect select = Select.builder()
+				.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
+				.from(mapping.tableByAlias.get(query.from.alias))
+				;
+			select = addLimit(select);
+			
+			for (TableReference join : query.joins) {
+				if (!needsTableForPreSelect(join, true))
+					continue;
+				select = join(select, join, mapping);
+			}
+
+			SqlQuery<Select> q = new SqlQuery<>(client) {
+				@Override
+				protected String finalizeQuery(String sql) {
+					StringBuilder s = new StringBuilder(sql);
+					s.append(" GROUP BY ").append(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)));
+					s.append(" ORDER BY ");
+					for (Tuple3<String, String, Boolean> orderBy : query.orderBy) {
+						TableReference table = query.tableAliases.get(orderBy.getT1());
+						RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(table.targetType);
+						RelationalPersistentProperty p = e.getRequiredPersistentProperty(orderBy.getT2());
+						Column col = Column.create(p.getColumnName(), Table.create(e.getTableName()).as(table.alias));
+						if (orderBy.getT3().booleanValue()) {
+							s.append("MIN(").append(col).append(") ASC");
+						} else {
+							s.append("MAX(").append(col).append(") DESC");
+						}
+					}
+					return s.toString();
+				}
+			};
+			if (query.where != null) {
+				select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
+			}
+			
+			q.setQuery(select.build());
+			return q;
+		}
+		
 		BuildSelect select = Select.builder()
 			.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
 			.distinct()
@@ -359,7 +434,7 @@ public class SelectExecution<T> {
 		select = addOrderBy(select);
 		
 		for (TableReference join : query.joins) {
-			if (!needsTableForPreSelect(join))
+			if (!needsTableForPreSelect(join, true))
 				continue;
 			select = join(select, join, mapping);
 		}

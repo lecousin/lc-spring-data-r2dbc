@@ -19,7 +19,7 @@ import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
+import reactor.util.function.Tuple3;
 import reactor.util.function.Tuples;
 
 public class SelectQuery<T> {
@@ -46,7 +46,7 @@ public class SelectQuery<T> {
 	Criteria where = null;
 	long offset = 0;
 	long limit = -1;
-	List<Tuple2<String, Boolean>> orderBy = new LinkedList<>();
+	List<Tuple3<String, String, Boolean>> orderBy = new LinkedList<>();
 	
 	private SelectQuery(Class<T> type, String alias) {
 		from = new TableReference(null, null, type, alias);
@@ -79,8 +79,8 @@ public class SelectQuery<T> {
 		return this;
 	}
 	
-	public SelectQuery<T> orderBy(String rootPropertyName, boolean ascending) {
-		this.orderBy.add(Tuples.of(rootPropertyName, Boolean.valueOf(ascending)));
+	public SelectQuery<T> orderBy(String entityName, String propertyName, boolean ascending) {
+		this.orderBy.add(Tuples.of(entityName, propertyName, Boolean.valueOf(ascending)));
 		return this;
 	}
 	
@@ -135,21 +135,21 @@ public class SelectQuery<T> {
 	@Override
 	public String toString() {
 		StringBuilder s = new StringBuilder();
-		s.append("Select from ").append(from.targetType.getSimpleName()).append(" as ").append(from.alias);
+		s.append("SELECT FROM ").append(from.targetType.getSimpleName()).append(" AS ").append(from.alias);
 		for (TableReference join : joins) {
-			s.append(" join ");
+			s.append(" JOIN ");
 			if (join.targetType != null)
-				s.append(join.targetType.getSimpleName()).append(" as ");
+				s.append(join.targetType.getSimpleName()).append(" AS ");
 			s.append(join.alias);
 		}
 		if (where != null)
-			s.append(" where ").append(where.toString());
+			s.append(" WHERE ").append(where.toString());
 		if (limit > 0)
-			s.append(" limit ").append(offset).append(',').append(limit);
+			s.append(" LIMIT ").append(offset).append(',').append(limit);
 		if (!orderBy.isEmpty()) {
-			s.append(" order by ");
-			for (Tuple2<String, Boolean> o : orderBy)
-				s.append(o.getT1()).append(o.getT2().booleanValue() ? " ASC" : " DESC");
+			s.append(" ORDER BY ");
+			for (Tuple3<String, String, Boolean> o : orderBy)
+				s.append(o.getT1()).append('.').append(o.getT2()).append(o.getT3().booleanValue() ? " ASC" : " DESC");
 		}
 		return s.toString();
 	}

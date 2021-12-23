@@ -50,6 +50,10 @@ public class SqlQuery<T> {
 		bindings.add(Pair.of(marker, value));
 		return SQL.bindMarker(marker.getPlaceholder());
 	}
+	
+	protected String finalizeQuery(String query) {
+		return query;
+	}
 
 	public GenericExecuteSpec execute() {
 		PreparedOperation<T> operation = new PreparedOperation<T>() {
@@ -70,13 +74,13 @@ public class SqlQuery<T> {
 				RenderContext renderContext = client.getDataAccess().getStatementMapper().getRenderContext();
 				SqlRenderer renderer = renderContext != null ? SqlRenderer.create(renderContext) : SqlRenderer.create();
 				if (query instanceof Select)
-					return renderer.render((Select)query);
+					return finalizeQuery(renderer.render((Select)query));
 				if (query instanceof Insert)
-					return renderer.render((Insert)query);
+					return finalizeQuery(renderer.render((Insert)query));
 				if (query instanceof Update)
-					return renderer.render((Update)query);
+					return finalizeQuery(renderer.render((Update)query));
 				if (query instanceof Delete)
-					return renderer.render((Delete)query);
+					return finalizeQuery(renderer.render((Delete)query));
 				throw new IllegalArgumentException("Unexpected query type: " + query.getClass().getName());
 			}
 		};
