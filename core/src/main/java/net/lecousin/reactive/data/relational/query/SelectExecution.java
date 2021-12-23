@@ -209,7 +209,7 @@ public class SelectExecution<T> {
 		if (includeOrderBy) {
 			for (Tuple3<String, String, Boolean> order : query.orderBy) {
 				TableReference t = query.tableAliases.get(order.getT1());
-				if (table == t)
+				if (isSourceFor(table, t))
 					return true;
 			}
 		}
