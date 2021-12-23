@@ -876,6 +876,10 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 		Assertions.assertEquals("root3", list.get(0).getValue());
 		Assertions.assertEquals("root2", list.get(1).getValue());
 		Assertions.assertEquals("root1", list.get(2).getValue());
+
+		list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("root", "value", false).limit(0, 1).execute(lcClient).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		Assertions.assertEquals("root3", list.get(0).getValue());
 	}
 	
 	@Test
@@ -928,5 +932,10 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 		Assertions.assertEquals(3, list.get(0).getList().size());
 		Assertions.assertEquals("abcd", list.get(1).getValue());
 		Assertions.assertEquals(3, list.get(1).getList().size());
+		
+		list = SelectQuery.from(RootEntity.class, "root").join("root", "list", "sub").orderBy("sub", "subValue", true).limit(1, 1).execute(lcClient).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		Assertions.assertEquals("efgh", list.get(0).getValue());
+		Assertions.assertEquals(3, list.get(0).getList().size());
 	}
 }

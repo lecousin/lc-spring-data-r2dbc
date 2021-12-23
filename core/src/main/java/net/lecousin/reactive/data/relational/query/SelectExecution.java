@@ -406,13 +406,12 @@ public class SelectExecution<T> {
 	private SqlQuery<Select> buildDistinctRootIdSql(SelectMapping mapping) {
 		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
-		if (hasOrderByOnSubEntityOrOrderByWithConditionOnSubEntity()) {
+		if ((query.limit > 0 && !query.orderBy.isEmpty()) || hasOrderByOnSubEntityOrOrderByWithConditionOnSubEntity()) {
 			// we need a group by query to handle order by correctly
 			BuildSelect select = Select.builder()
 				.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
 				.from(mapping.tableByAlias.get(query.from.alias))
 				;
-			select = addLimit(select);
 			
 			for (TableReference join : query.joins) {
 				if (!needsTableForPreSelect(join, true))
@@ -436,6 +435,9 @@ public class SelectExecution<T> {
 						} else {
 							s.append("MAX(").append(col).append(") DESC");
 						}
+					}
+					if (query.limit > 0) {
+						s.append(" LIMIT ").append(query.limit).append(" OFFSET ").append(query.offset);
 					}
 					return s.toString();
 				}
