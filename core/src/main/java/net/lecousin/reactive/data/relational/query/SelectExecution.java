@@ -2,6 +2,7 @@ package net.lecousin.reactive.data.relational.query;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -18,6 +19,8 @@ import org.springframework.data.mapping.MappingException;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Column;
+import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.Functions;
 import org.springframework.data.relational.core.sql.OrderByField;
 import org.springframework.data.relational.core.sql.Select;
 import org.springframework.data.relational.core.sql.SelectBuilder.BuildSelect;
@@ -26,10 +29,12 @@ import org.springframework.data.relational.core.sql.SelectBuilder.SelectFromAndO
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectJoin;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectOrdered;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectWhere;
+import org.springframework.data.relational.core.sql.SimpleFunction;
 import org.springframework.data.relational.core.sql.Table;
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
+import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
@@ -67,6 +72,40 @@ public class SelectExecution<T> {
 			.flatMapMany(needsPreSelect -> needsPreSelect.booleanValue() ? executeWithPreSelect() : executeWithoutPreSelect())
 			.checkpoint(query.toString())
 			;
+	}
+	
+	public Mono<Long> executeCount() {
+		query.setJoinsTargetType(client.getMapper());
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		SelectMapping mapping = buildSelectMapping();
+		List<Expression> idColumns;
+		if (entity.hasIdProperty())
+			idColumns = Collections.singletonList(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)));
+		else if (entity.isAnnotationPresent(CompositeId.class)) {
+			String[] properties = entity.getRequiredAnnotation(CompositeId.class).properties();
+			idColumns = new ArrayList<>(properties.length);
+			for (String property : properties)
+				idColumns.add(Column.create(entity.getRequiredPersistentProperty(property).getColumnName(), mapping.tableByAlias.get(query.from.alias)));
+		} else
+			throw new IllegalArgumentException("Cannot count distinct entities without an Id column or a CompoisteId");
+		BuildSelect select = Select.builder()
+			.select(Functions.count(SimpleFunction.create("DISTINCT", idColumns)))
+			.from(mapping.tableByAlias.get(query.from.alias));
+		
+		for (TableReference join : query.joins) {
+			if (!needsTableForPreSelect(join))
+				continue;
+			select = join(select, join, mapping);
+		}
+
+		SqlQuery<Select> q = new SqlQuery<>(client);
+		if (query.where != null) {
+			select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
+		}
+		
+		q.setQuery(select.build());
+
+		return q.execute().fetch().one().map(m -> (Long) m.values().iterator().next());
 	}
 	
 	private boolean needsPreSelectIds() {

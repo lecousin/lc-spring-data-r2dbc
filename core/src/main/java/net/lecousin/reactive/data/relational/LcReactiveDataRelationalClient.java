@@ -245,6 +245,10 @@ public class LcReactiveDataRelationalClient {
 		return new SelectExecution<T>(query, this, reader).execute();
 	}
 	
+	public Mono<Long> executeCount(SelectQuery<?> query) {
+		return new SelectExecution<>(query, this, null).executeCount();
+	}
+	
 	public <T> Mono<Void> delete(T entity) {
 		try {
 			@SuppressWarnings("unchecked")

@@ -18,6 +18,7 @@ import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
@@ -89,6 +90,10 @@ public class SelectQuery<T> {
 
 	public Flux<T> execute(LcReactiveDataRelationalClient client, LcEntityReader reader) {
 		return client.execute(this, reader);
+	}
+	
+	public Mono<Long> executeCount(LcReactiveDataRelationalClient client) {
+		return client.executeCount(this);
 	}
 	
 	

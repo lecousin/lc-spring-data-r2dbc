@@ -86,8 +86,12 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	
 	@SafeVarargs
 	protected final <T> void expectEntities(Class<T> type, ExpectedEntity<T>... expected) {
-		List<T> found =  SelectQuery.from(type, "entity").execute(template.getLcClient()).collectList().block();
+		SelectQuery<T> selectAll = SelectQuery.from(type, "entity");
+		List<T> found =  selectAll.execute(template.getLcClient()).collectList().block();
 		Assertions.assertEquals(expected.length, found.size());
+		Long count = selectAll.executeCount(lcClient).block();
+		Assertions.assertNotNull(count);
+		Assertions.assertEquals(expected.length, count.intValue());
 		ArrayList<ExpectedEntity<T>> expectedEntities = new ArrayList<>(expected.length);
 		Collections.addAll(expectedEntities, expected);
 		StringBuilder error = new StringBuilder();

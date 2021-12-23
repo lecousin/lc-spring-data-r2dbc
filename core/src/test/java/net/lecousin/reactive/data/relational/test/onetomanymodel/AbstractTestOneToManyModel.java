@@ -799,7 +799,7 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 		
 		repo.saveAll(Arrays.asList(root1, root2, root3)).collectList().block();
 
-		List<SubEntity> subs =
+		SelectQuery<SubEntity> q =
 			SelectQuery.from(SubEntity.class, "sub1")
 			.join("sub1", "parent", "root")
 			.join("root", "list3", "sub3")
@@ -807,12 +807,14 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 				Criteria.property("sub3", "subValue").isNotNull()
 				.and(Criteria.property("root", "value").like("%o%"))
 				.and(Criteria.property("sub1", "subValue").like("%.2").or(Criteria.property("sub3", "subValue").is("3.1")))
-			)
+			);
+		List<SubEntity> subs = q
 			.execute(lcClient)
 			.collectList().block();
 		Assertions.assertEquals(2, subs.size());
 		Assertions.assertTrue(subs.stream().anyMatch(sub -> "1.1".equals(sub.getSubValue())));
 		Assertions.assertTrue(subs.stream().anyMatch(sub -> "1.2".equals(sub.getSubValue())));
+		Assertions.assertEquals(2, q.executeCount(lcClient).block());
 	}
 
 	

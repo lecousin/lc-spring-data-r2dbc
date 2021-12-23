@@ -2,10 +2,12 @@ package net.lecousin.reactive.data.relational.test.model1;
 
 import org.springframework.data.relational.core.mapping.Table;
 
+import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey.OnForeignDeleted;
 
 @Table
+@CompositeId(indexName = "employee_pk", properties = { "company", "person" })
 public class Employee {
 
 	@ForeignKey(optional = false, onForeignDeleted = OnForeignDeleted.DELETE)

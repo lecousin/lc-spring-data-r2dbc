@@ -133,6 +133,7 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 		
 		list1 = repo1.findByLinkedEntity1Value("1.1").collectList().block();
 		Assertions.assertEquals(4, list1.size());
+		Assertions.assertEquals(4, repo1.countByLinkedEntity1Value("1.1").block());
 		
 		Assertions.assertEquals(5, SelectQuery.from(Entity1.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(3, SelectQuery.from(Entity2.class, "entity").execute(lcClient).collectList().block().size());
