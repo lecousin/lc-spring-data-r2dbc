@@ -20,7 +20,6 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentEnti
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Expression;
-import org.springframework.data.relational.core.sql.Functions;
 import org.springframework.data.relational.core.sql.OrderByField;
 import org.springframework.data.relational.core.sql.Select;
 import org.springframework.data.relational.core.sql.SelectBuilder.BuildSelect;
@@ -29,7 +28,6 @@ import org.springframework.data.relational.core.sql.SelectBuilder.SelectFromAndO
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectJoin;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectOrdered;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectWhere;
-import org.springframework.data.relational.core.sql.SimpleFunction;
 import org.springframework.data.relational.core.sql.Table;
 import org.springframework.lang.Nullable;
 
@@ -89,7 +87,7 @@ public class SelectExecution<T> {
 		} else
 			throw new IllegalArgumentException("Cannot count distinct entities without an Id column or a CompoisteId");
 		BuildSelect select = Select.builder()
-			.select(Functions.count(SimpleFunction.create("DISTINCT", idColumns)))
+			.select(client.getSchemaDialect().countDistinct(idColumns))
 			.from(mapping.tableByAlias.get(query.from.alias));
 		
 		for (TableReference join : query.joins) {

@@ -1,6 +1,8 @@
 package net.lecousin.reactive.data.relational.mysql;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
@@ -8,6 +10,8 @@ import org.springframework.data.r2dbc.dialect.MySqlDialect;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.Functions;
+import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.SimpleFunction;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -134,5 +138,21 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 		default: break;
 		}
 		return super.applyFunctionTo(function, expression);
+	}
+	
+	@Override
+	public Expression countDistinct(List<Expression> expressions) {
+		if (expressions.size() == 1)
+			return super.countDistinct(expressions);
+		List<Expression> concat = new ArrayList<>(expressions.size() * 2);
+		boolean first = true;
+		for (Expression e : expressions) {
+			if (first)
+				first = false;
+			else
+				concat.add(SQL.literalOf("_"));
+			concat.add(e);
+		}
+		return Functions.count(SimpleFunction.create("DISTINCT", Collections.singletonList(SimpleFunction.create("CONCAT", concat))));
 	}
 }

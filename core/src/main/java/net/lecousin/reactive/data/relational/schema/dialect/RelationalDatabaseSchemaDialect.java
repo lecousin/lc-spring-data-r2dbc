@@ -15,6 +15,7 @@ import org.apache.commons.lang3.mutable.MutableObject;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.Functions;
 import org.springframework.data.relational.core.sql.SimpleFunction;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
@@ -489,5 +490,9 @@ public abstract class RelationalDatabaseSchemaDialect {
 		case YEAR: return SimpleFunction.create("YEAR", Collections.singletonList(expression));
 		}
 		throw new RuntimeException("Unknown SQL function: " + function);
+	}
+	
+	public Expression countDistinct(List<Expression> expressions) {
+		return Functions.count(SimpleFunction.create("DISTINCT", expressions));
 	}
 }
