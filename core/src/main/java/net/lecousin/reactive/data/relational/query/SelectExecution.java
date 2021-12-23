@@ -114,7 +114,7 @@ public class SelectExecution<T> {
 			return false;
 		if (query.limit > 0)
 			return true;
-		return hasOrderByOnSubEntity() || hasConditionOnManyEntity();
+		return hasOrderByOnSubEntityOrOrderByWithConditionOnSubEntity() || hasConditionOnManyEntity();
 	}
 	
 	private boolean hasJoinMany() {
@@ -145,13 +145,35 @@ public class SelectExecution<T> {
 		return false;
 	}
 	
-	private boolean hasOrderByOnSubEntity() {
+	private boolean hasOrderByOnSubEntityOrOrderByWithConditionOnSubEntity() {
+		if (query.orderBy.isEmpty())
+			return false;
 		for (Tuple3<String, String, Boolean> order : query.orderBy) {
 			TableReference table = query.tableAliases.get(order.getT1());
 			if (table != query.from)
 				return true;
 		}
-		return false;
+		return hasConditionOnSubEntity();
+	}
+	
+	private boolean hasConditionOnSubEntity() {
+		if (query.where == null)
+			return false;
+		Boolean found = query.where.accept(new CriteriaVisitor.SearchVisitor() {
+			@Override
+			public Boolean visit(PropertyOperation op) {
+				TableReference table = query.tableAliases.get(op.getLeft().getEntityName());
+				if (table != query.from)
+					return Boolean.TRUE;
+				if (op.getValue() instanceof PropertyOperand) {
+					table = query.tableAliases.get(((PropertyOperand)op.getValue()).getEntityName());
+					if (table != query.from)
+						return Boolean.TRUE;
+				}
+				return Boolean.FALSE;
+			}
+		});
+		return found.booleanValue();
 	}
 	
 	private boolean hasConditionOnManyEntity() {
@@ -384,7 +406,7 @@ public class SelectExecution<T> {
 	private SqlQuery<Select> buildDistinctRootIdSql(SelectMapping mapping) {
 		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		
-		if (hasOrderByOnSubEntity()) {
+		if (hasOrderByOnSubEntityOrOrderByWithConditionOnSubEntity()) {
 			// we need a group by query to handle order by correctly
 			BuildSelect select = Select.builder()
 				.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
