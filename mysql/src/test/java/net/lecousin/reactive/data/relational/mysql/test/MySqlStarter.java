@@ -41,7 +41,7 @@ public class MySqlStarter {
 		    .withPort(getPort())
 		    .withUser("auser", "sa")
 		    .withTimeout(2, TimeUnit.MINUTES)
-		    .withCharset(Charset.UTF8)
+		    .withCharset(Charset.aCharset("utf8", "utf8_bin"))
 		    .withTimeZone(TimeZone.getDefault())
 		    .build();
 		mysql = EmbeddedMysql.anEmbeddedMysql(config).addSchema("test").start();

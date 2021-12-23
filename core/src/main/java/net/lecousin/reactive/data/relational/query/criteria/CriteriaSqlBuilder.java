@@ -25,9 +25,9 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 
 public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 	
-	private Map<String, RelationalPersistentEntity<?>> entitiesByAlias;
-	private Map<String, Table> tablesByAlias;
-	private SqlQuery<?> query;
+	protected Map<String, RelationalPersistentEntity<?>> entitiesByAlias;
+	protected Map<String, Table> tablesByAlias;
+	protected SqlQuery<?> query;
 
 	public CriteriaSqlBuilder(Map<String, RelationalPersistentEntity<?>> entitiesByAlias, Map<String, Table> tablesByAlias, SqlQuery<?> query) {
 		this.entitiesByAlias = entitiesByAlias;
@@ -92,13 +92,13 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 		}
 	}
 	
-	private Expression toExpression(Object value) {
+	protected Expression toExpression(Object value) {
 		if (value instanceof PropertyOperand)
 			return toExpression((PropertyOperand)value);
 		return query.marker(value);
 	}
 	
-	private Expression toExpression(PropertyOperand propertyOperand) {
+	protected Expression toExpression(PropertyOperand propertyOperand) {
 		RelationalPersistentEntity<?> rightEntity = entitiesByAlias.get(propertyOperand.getEntityName());
 		Column column = Column.create(rightEntity.getRequiredPersistentProperty(propertyOperand.getPropertyName()).getColumnName(), tablesByAlias.get(propertyOperand.getEntityName()));
 		Expression result = column;
