@@ -22,11 +22,10 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.JoinTableInfo;
-import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcEntityTemplate;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
+import net.lecousin.reactive.data.relational.test.simplemodel.DateTypesWithTimeZone;
 
 @DataR2dbcTest
 @EnableAutoConfiguration
@@ -49,21 +48,17 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	@BeforeEach
 	public void initDatabase() {
 		Collection<Class<?>> usedEntities = usedEntities();
-		RelationalDatabaseSchema schema;
-		if (usedEntities == null) {
-			schema = lcClient.buildSchemaFromEntities();
-		} else {
-			List<Class<?>> entities = new LinkedList<>(usedEntities);
-			for (Class<?> cl : usedEntities) {
-				for (JoinTableInfo jt : LcEntityTypeInfo.get(cl).getJoinTables()) {
-					Class<?> c = ModelUtils.getCollectionType(jt.getJoinForeignTable().getField());
-					if (!entities.contains(c))
-						entities.add(c);
-				}
-			}
-			schema = lcClient.buildSchemaFromEntities(entities);
-		}
+		if (usedEntities == null)
+			usedEntities = getAllCompatibleEntities();
+		RelationalDatabaseSchema schema = lcClient.buildSchemaFromEntities(usedEntities);
 		lcClient.dropCreateSchemaContent(schema).block();
+	}
+	
+	protected Collection<Class<?>> getAllCompatibleEntities() {
+		Collection<Class<?>> entities = new LinkedList<>(LcEntityTypeInfo.getClasses());
+		if (!lcClient.getSchemaDialect().isTimeZoneSupported())
+			entities.remove(DateTypesWithTimeZone.class);
+		return entities;
 	}
 	
 	protected Collection<Class<?>> usedEntities() {

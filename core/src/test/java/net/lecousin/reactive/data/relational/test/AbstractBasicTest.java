@@ -1,6 +1,8 @@
 package net.lecousin.reactive.data.relational.test;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Test;
@@ -12,7 +14,6 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentEnti
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.enhance.Enhancer;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.ModelException;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.schema.Column;
@@ -26,9 +27,16 @@ import net.lecousin.reactive.data.relational.schema.dialect.SchemaStatements;
 @EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)
 public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelationalTest {
 
+	@Override
+	protected Collection<Class<?>> usedEntities() {
+		return new LinkedList<>();
+	}
+	
 	@Test
 	public void testEnhanceAgain() throws Exception {
-		Enhancer.enhance(Arrays.asList(LcEntityTypeInfo.getClasses().iterator().next().getName()));
+		Collection<Class<?>> entities = getAllCompatibleEntities();
+		Enhancer.enhance(Arrays.asList(entities.iterator().next().getName()));
+		Enhancer.enhance(Arrays.asList(entities.iterator().next().getName()));
 	}
 	
 	@Test
@@ -65,13 +73,13 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	
 	@Test
 	public void testPrintSchema() {
-		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(LcEntityTypeInfo.getClasses());
+		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(getAllCompatibleEntities());
 		lcClient.getSchemaDialect().createSchemaContent(schema).print(System.out);
 	}
 	
 	@Test
 	public void testSchema() {
-		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(LcEntityTypeInfo.getClasses());
+		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(getAllCompatibleEntities());
 		try {
 			schema.getTable("Toto");
 			throw new AssertionError();
@@ -103,7 +111,7 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	
 	@Test
 	public void testSchemaDialect() {
-		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(LcEntityTypeInfo.getClasses());
+		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(getAllCompatibleEntities());
 		Table table = schema.getTable("basic");
 		Column col = table.getColumn("str");
 		try {
