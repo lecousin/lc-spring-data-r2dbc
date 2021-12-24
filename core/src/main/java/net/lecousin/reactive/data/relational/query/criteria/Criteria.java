@@ -22,7 +22,7 @@ public interface Criteria {
 	static PropertyOperand property(String entityName, String propertyName) {
 		return new PropertyOperand(entityName, propertyName);
 	}
-	
+
 	public static class And implements Criteria {
 		private Criteria left;
 		private Criteria right;
@@ -31,6 +31,11 @@ public interface Criteria {
 			this.left = left;
 			this.right = right;
 		}
+
+		@Override
+		public <T> T accept(CriteriaVisitor<T> visitor) {
+			return visitor.visit(this);
+		}
 		
 		public Criteria getLeft() {
 			return left;
@@ -38,11 +43,6 @@ public interface Criteria {
 
 		public Criteria getRight() {
 			return right;
-		}
-
-		@Override
-		public <T> T accept(CriteriaVisitor<T> visitor) {
-			return visitor.visit(this);
 		}
 		
 		@Override
@@ -97,7 +97,7 @@ public interface Criteria {
 	public static class PropertyOperand {
 		private String entityName;
 		private String propertyName;
-		private LinkedList<SqlFunction> functionsToApply = new LinkedList<>();;
+		private LinkedList<SqlFunction> functionsToApply = new LinkedList<>();
 		
 		public PropertyOperand(String entityName, String propertyName) {
 			this.entityName = entityName;

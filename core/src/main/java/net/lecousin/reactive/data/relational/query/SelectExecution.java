@@ -404,52 +404,11 @@ public class SelectExecution<T> {
 
 	
 	private SqlQuery<Select> buildDistinctRootIdSql(SelectMapping mapping) {
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
-		
-		if ((query.limit > 0 && !query.orderBy.isEmpty()) || hasOrderByOnSubEntityOrOrderByWithConditionOnSubEntity()) {
+		if ((query.limit > 0 && !query.orderBy.isEmpty()) || hasOrderByOnSubEntityOrOrderByWithConditionOnSubEntity())
 			// we need a group by query to handle order by correctly
-			BuildSelect select = Select.builder()
-				.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
-				.from(mapping.tableByAlias.get(query.from.alias))
-				;
-			
-			for (TableReference join : query.joins) {
-				if (!needsTableForPreSelect(join, true))
-					continue;
-				select = join(select, join, mapping);
-			}
-
-			SqlQuery<Select> q = new SqlQuery<>(client) {
-				@Override
-				protected String finalizeQuery(String sql) {
-					StringBuilder s = new StringBuilder(sql);
-					s.append(" GROUP BY ").append(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)));
-					s.append(" ORDER BY ");
-					for (Tuple3<String, String, Boolean> orderBy : query.orderBy) {
-						TableReference table = query.tableAliases.get(orderBy.getT1());
-						RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(table.targetType);
-						RelationalPersistentProperty p = e.getRequiredPersistentProperty(orderBy.getT2());
-						Column col = Column.create(p.getColumnName(), Table.create(e.getTableName()).as(table.alias));
-						if (orderBy.getT3().booleanValue()) {
-							s.append("MIN(").append(col).append(") ASC");
-						} else {
-							s.append("MAX(").append(col).append(") DESC");
-						}
-					}
-					if (query.limit > 0) {
-						s.append(" LIMIT ").append(query.limit).append(" OFFSET ").append(query.offset);
-					}
-					return s.toString();
-				}
-			};
-			if (query.where != null) {
-				select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
-			}
-			
-			q.setQuery(select.build());
-			return q;
-		}
+			return buildDistinctRootIdSqlUsingGroupBy(mapping);
 		
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
 		BuildSelect select = Select.builder()
 			.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
 			.distinct()
@@ -464,6 +423,50 @@ public class SelectExecution<T> {
 		}
 
 		SqlQuery<Select> q = new SqlQuery<>(client);
+		if (query.where != null) {
+			select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
+		}
+		
+		q.setQuery(select.build());
+		return q;
+	}
+	
+	private SqlQuery<Select> buildDistinctRootIdSqlUsingGroupBy(SelectMapping mapping) {
+		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		BuildSelect select = Select.builder()
+			.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
+			.from(mapping.tableByAlias.get(query.from.alias))
+			;
+		
+		for (TableReference join : query.joins) {
+			if (!needsTableForPreSelect(join, true))
+				continue;
+			select = join(select, join, mapping);
+		}
+
+		SqlQuery<Select> q = new SqlQuery<>(client) {
+			@Override
+			protected String finalizeQuery(String sql) {
+				StringBuilder s = new StringBuilder(sql);
+				s.append(" GROUP BY ").append(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)));
+				s.append(" ORDER BY ");
+				for (Tuple3<String, String, Boolean> orderBy : query.orderBy) {
+					TableReference table = query.tableAliases.get(orderBy.getT1());
+					RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(table.targetType);
+					RelationalPersistentProperty p = e.getRequiredPersistentProperty(orderBy.getT2());
+					Column col = Column.create(p.getColumnName(), Table.create(e.getTableName()).as(table.alias));
+					if (orderBy.getT3().booleanValue()) {
+						s.append("MIN(").append(col).append(") ASC");
+					} else {
+						s.append("MAX(").append(col).append(") DESC");
+					}
+				}
+				if (query.limit > 0) {
+					s.append(" LIMIT ").append(query.limit).append(" OFFSET ").append(query.offset);
+				}
+				return s.toString();
+			}
+		};
 		if (query.where != null) {
 			select = ((SelectWhere)select).where(query.where.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
 		}

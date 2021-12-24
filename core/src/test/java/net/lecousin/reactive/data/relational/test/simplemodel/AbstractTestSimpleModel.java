@@ -454,7 +454,16 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToDayOfMonth().is(calendar.get(Calendar.DAY_OF_MONTH) + 1)).execute(lcClient).blockFirst());
 		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToDayOfYear().is(calendar.get(Calendar.DAY_OF_YEAR))).execute(lcClient).blockFirst());
 		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToDayOfYear().is(calendar.get(Calendar.DAY_OF_YEAR) + 1)).execute(lcClient).blockFirst());
-		// TODO test isoWeek
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").timeToHour().is(hour)).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").timeToHour().is(hour + 1)).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").timeToMinute().is(minute)).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").timeToMinute().is(minute + 1)).execute(lcClient).blockFirst());
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").timeToSecond().is(second)).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").timeToSecond().is(second + 1)).execute(lcClient).blockFirst());
+		calendar.setMinimalDaysInFirstWeek(4);
+		calendar.setFirstDayOfWeek(Calendar.MONDAY);
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToIsoWeek().is(calendar.get(Calendar.WEEK_OF_YEAR))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToIsoWeek().is(calendar.get(Calendar.WEEK_OF_YEAR) + 1)).execute(lcClient).blockFirst());
 	}
 	
 	@Test

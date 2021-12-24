@@ -8,6 +8,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.ServiceLoader.Provider;
 import java.util.Set;
 import java.util.UUID;
 
@@ -38,7 +39,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public static RelationalDatabaseSchemaDialect getDialect(R2dbcDialect r2dbcDialect) {
 		return ServiceLoader.load(RelationalDatabaseSchemaDialect.class).stream()
-			.map(provider -> provider.get())
+			.map(Provider::get)
 			.filter(dialect -> dialect.isCompatible(r2dbcDialect))
 			.findFirst()
 			.orElseThrow();
@@ -92,7 +93,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 			return getColumnTypeTimestamp(col, type, def);
 		if (UUID.class.equals(type))
 			return getColumnTypeUUID(col, type, def);
-		throw new SchemaException("Column type not supported: " + type.getName() + " for column " + col.getName() + " with " + getName());
+		throw new SchemaException("Column type not supported: " + type.getName() + " on column " + col.getName() + " with " + getName());
 	}
 	
 	public boolean isTimeZoneSupported() {
@@ -489,7 +490,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 		case UPPER: return SimpleFunction.create("UPPER", Collections.singletonList(expression));
 		case YEAR: return SimpleFunction.create("YEAR", Collections.singletonList(expression));
 		}
-		throw new RuntimeException("Unknown SQL function: " + function);
+		throw new SchemaException("Unknown SQL function: " + function);
 	}
 	
 	public Expression countDistinct(List<Expression> expressions) {
