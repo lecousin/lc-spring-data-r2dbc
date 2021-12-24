@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.mysql;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +11,7 @@ import org.springframework.data.r2dbc.dialect.MySqlDialect;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.Expressions;
 import org.springframework.data.relational.core.sql.Functions;
 import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.SimpleFunction;
@@ -133,8 +135,9 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 		switch (function) {
 		case DAY_OF_MONTH: return SimpleFunction.create("DAYOFMONTH", Collections.singletonList(expression));
 		case DAY_OF_YEAR: return SimpleFunction.create("DAYOFYEAR", Collections.singletonList(expression));
-		case ISO_DAY_OF_WEEK: return SimpleFunction.create("DAYOFWEEK", Collections.singletonList(expression));
-		case ISO_WEEK: return SimpleFunction.create("WEEK", Collections.singletonList(expression));
+		case ISO_WEEK: return SimpleFunction.create("WEEK", Arrays.asList(expression, SQL.literalOf(3)));
+		case ISO_DAY_OF_WEEK: 
+			return Expressions.just("(" + SimpleFunction.create("WEEKDAY", Collections.singletonList(expression)) + " + 1)");
 		default: break;
 		}
 		return super.applyFunctionTo(function, expression);
