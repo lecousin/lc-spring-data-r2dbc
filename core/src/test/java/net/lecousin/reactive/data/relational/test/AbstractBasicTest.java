@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.data.mapping.context.MappingContext;
@@ -21,6 +22,7 @@ import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
 import net.lecousin.reactive.data.relational.schema.SchemaBuilderFromEntities;
 import net.lecousin.reactive.data.relational.schema.SchemaException;
 import net.lecousin.reactive.data.relational.schema.Table;
+import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 import net.lecousin.reactive.data.relational.schema.dialect.SchemaStatement;
 import net.lecousin.reactive.data.relational.schema.dialect.SchemaStatements;
 
@@ -30,6 +32,15 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	@Override
 	protected Collection<Class<?>> usedEntities() {
 		return new LinkedList<>();
+	}
+	
+	protected abstract Class<? extends RelationalDatabaseSchemaDialect> expectedDialect();
+	
+	@Test
+	public void testDialect() {
+		Assertions.assertEquals(expectedDialect(), lcClient.getSchemaDialect().getClass());
+		Assertions.assertEquals(expectedDialect(), RelationalDatabaseSchemaDialect.getDialect(lcClient.getDialect()).getClass());
+		Assertions.assertTrue(lcClient.getSchemaDialect().isCompatible(lcClient.getDialect()));
 	}
 	
 	@Test

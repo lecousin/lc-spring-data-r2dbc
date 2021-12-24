@@ -93,6 +93,8 @@ public abstract class AbstractTestModel1 extends AbstractLcReactiveDataRelationa
 		);
 		Assertions.assertEquals(7, SelectQuery.from(PostalAddress.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(5, SelectQuery.from(Site.class, "entity").execute(lcClient).collectList().block().size());
+		
+		Assertions.assertEquals(3, SelectQuery.from(Company.class, "company").join("company", "sites", "site").join("company", "employees", "employee").executeCount(lcClient).block());
 	}
 	
 	private static Person createPerson(String firstName, String lastName, PostalAddress address) {

@@ -8,8 +8,10 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
@@ -464,6 +466,16 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		calendar.setFirstDayOfWeek(Calendar.MONDAY);
 		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToIsoWeek().is(calendar.get(Calendar.WEEK_OF_YEAR))).execute(lcClient).blockFirst());
 		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToIsoWeek().is(calendar.get(Calendar.WEEK_OF_YEAR) + 1)).execute(lcClient).blockFirst());
+		Map<Integer, Integer> isoDow = new HashMap<>();
+		isoDow.put(Calendar.MONDAY, 1);
+		isoDow.put(Calendar.TUESDAY, 2);
+		isoDow.put(Calendar.WEDNESDAY, 3);
+		isoDow.put(Calendar.THURSDAY, 4);
+		isoDow.put(Calendar.FRIDAY, 5);
+		isoDow.put(Calendar.SATURDAY, 6);
+		isoDow.put(Calendar.SUNDAY, 7);
+		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToIsoDayOfWeek().is(isoDow.get(calendar.get(Calendar.DAY_OF_WEEK)))).execute(lcClient).blockFirst());
+		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToIsoDayOfWeek().is(isoDow.get(calendar.get(Calendar.DAY_OF_WEEK)) + 1)).execute(lcClient).blockFirst());
 	}
 	
 	@Test
