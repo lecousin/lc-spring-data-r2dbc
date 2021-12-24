@@ -2,7 +2,7 @@
 
 net.lecousin.reactive-data-relational
 [![Maven Central](https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22net.lecousin.reactive-data-relational%22%20AND%20a%3A%22core%22)
-[![Javadoc](https://img.shields.io/badge/javadoc-0.6.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.6.0)
+[![Javadoc](https://img.shields.io/badge/javadoc-0.7.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.7.0)
 ![Build status](https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml/badge.svg?branch=master)
 [![Codecov](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg)](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master)
 
@@ -60,13 +60,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>h2</artifactId>
-  <version>0.6.0</version>
+  <version>0.7.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '0.6.0'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '0.7.0'
 ```
 
 ### Postgres
@@ -76,13 +76,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>postgres</artifactId>
-  <version>0.6.0</version>
+  <version>0.7.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '0.6.0'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '0.7.0'
 ```
 
 ### MySql
@@ -92,13 +92,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>mysql</artifactId>
-  <version>0.6.0</version>
+  <version>0.7.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '0.6.0'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '0.7.0'
 ```
 
 ## Spring Boot configuration
@@ -232,7 +232,7 @@ public class BookConfig extends LcR2dbcEntityOperationsBuilder {
 - define a bean `LcR2dbcEntityTemplate` with the connection factory
 - add the annotation `@EnableR2dbcRepositories` with the packages containing the repositories that will use this database, and the attribute `entityOperationsRef` set to the qualifier of the `LcR2dbcEntityTemplate` bean
 
-A complete example illustrating a Spring Boot application connecting to different database is available in the repository [lc-spring-data-r2dbc-sample](https://github.com/lecousin/lc-spring-data-r2dbc-sample).
+A complete example illustrating a Spring Boot application connecting to different databases is available in the repository [lc-spring-data-r2dbc-sample](https://github.com/lecousin/lc-spring-data-r2dbc-sample).
 
 ## JUnit 5
 
@@ -244,7 +244,7 @@ In order to make sure the initializer is launched before any test class is loade
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>test-junit-5</artifactId>
-  <version>0.6.0</version>
+  <version>0.7.0</version>
   <scope>test</scope>
 </dependency>
 ```
@@ -265,7 +265,8 @@ but indicates the link to another class. A foreign table can be used on a collec
 - Annotation `net.lecousin.reactive.data.relational.annotations.JoinTable` can be used for a many to many (n-n) relationship when no additional field is required
 on the join table. The join table will be automatically created with the 2 foreign keys. This allows to join directly between 2 tables with many to many relationship in a
 transparent manner.
-- Annotations `org.springframework.data.annotation.CreatedDate` and `org.springframework.data.annotation.LastModifiedDate` can be used to automatically store respectively the creation date and modification date. It can be used with a column of type `Long`, `Instant`, `LocalDate`, `LocalTime`, `OffsetTime`, `LocalDateTime`, or `ZonedDateTime`.
+- Annotations `org.springframework.data.annotation.CreatedDate` and `org.springframework.data.annotation.LastModifiedDate` can be used to automatically store respectively the creation date and modification date. It can be used with a column of type `Long`, `Instant`, `LocalDate`, `LocalTime` or `LocalDateTime`. `OffsetTime` and `ZonedDateTime` can be used except for MySql that does not support columns with timezone information.
+- Annotation `net.lecousin.reactive.data.relational.annotations.ColumnDefinition` can be used to specify constraints for schema generation.
 
 Additional methods may be declared in an Entity class to handle lazy loading, documented in the [dedicated section](#lazy-loading).
 
@@ -398,6 +399,15 @@ public interface RootEntityRepository extends LcR2dbcRepository<RootEntity, Long
 		.where(Criteria.property("sub", "subValue").is(value)) // WHERE sub.subValue = :value
 		.execute(getLcClient());
 	}
+	
+	/** Count RootEntity with a sub-entity having the given value. */
+	default Mono<Long> findBySubValue(String value) {
+		return SelectQuery
+		.from(RootEntity.class, "entity")                      // SELECT entity FROM RootEntity AS entity
+		.join("entity", "list", "sub")                         // JOIN entity.list AS sub
+		.where(Criteria.property("sub", "subValue").is(value)) // WHERE sub.subValue = :value
+		.executeCount(getLcClient());
+	}
 
 	/** Search RootEntity having the same value as one of its sub-entities. */	
 	default Flux<RootEntity> havingSubValueEqualsToValue() {
@@ -423,3 +433,9 @@ public interface RootEntityRepository extends LcR2dbcRepository<RootEntity, Long
 
 You can note the method `getLcClient()` needed to execute requests, which is automatically available if your repository extends `LcR2dbcRepository`.
 If you don't need it, your repository can just extend the `R2dbcRepository` base interface of Spring.
+
+Note that `SelectQuery` can be used anywhere, not only in a repository.
+
+# Example Application
+
+A complete example illustrating a Spring Boot application connecting to different databases is available in the repository [lc-spring-data-r2dbc-sample](https://github.com/lecousin/lc-spring-data-r2dbc-sample), and comes with an Angular GUI to test it.
