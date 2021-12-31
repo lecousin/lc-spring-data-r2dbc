@@ -72,6 +72,8 @@ public class SqlQuery<T> {
 			public String toQuery() {
 				Assert.notNull(query, "Query must be set");
 				RenderContext renderContext = client.getDataAccess().getStatementMapper().getRenderContext();
+				if (query instanceof InsertMultiple)
+					return finalizeQuery(((InsertMultiple)query).render(renderContext));
 				SqlRenderer renderer = renderContext != null ? SqlRenderer.create(renderContext) : SqlRenderer.create();
 				if (query instanceof Select)
 					return finalizeQuery(renderer.render((Select)query));
