@@ -496,4 +496,8 @@ public abstract class RelationalDatabaseSchemaDialect {
 	public Expression countDistinct(List<Expression> expressions) {
 		return Functions.count(SimpleFunction.create("DISTINCT", expressions));
 	}
+	
+	public boolean isMultipleInsertSupported() {
+		return true;
+	}
 }

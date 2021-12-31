@@ -25,6 +25,7 @@ import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Condition;
 import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.Insert;
 import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.SimpleFunction;
 import org.springframework.data.relational.core.sql.SqlIdentifier;
@@ -193,34 +194,45 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 	@Override
 	protected Mono<Void> doRequests(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests) {
 		List<Publisher<?>> statements = new LinkedList<>();
+		boolean multipleInsertSupported = op.lcClient.getSchemaDialect().isMultipleInsertSupported();
 		List<SaveRequest> toInsert = new LinkedList<>();
 		for (SaveRequest request : requests) {
-			if (!request.state.isPersisted())
-				toInsert.add(request);
-			else
+			if (!request.state.isPersisted()) {
+				if (!multipleInsertSupported)
+					statements.add(doInsertSingle(op, request));
+				else
+					toInsert.add(request);
+			} else
 				statements.add(doUpdate(op, request));
 		}
 		if (!toInsert.isEmpty()) {
-			if (toInsert.size() <= 100)
-				statements.add(doInsert(op, entityType, toInsert));
-			else {
+			if (toInsert.size() <= 100) {
+				if (toInsert.size() == 1)
+					statements.add(doInsertSingle(op, toInsert.get(0)));
+				else
+					statements.add(doInsertMultiple(op, entityType, toInsert));
+			} else {
 				List<SaveRequest> sub = new ArrayList<>(100);
 				for (SaveRequest request : toInsert) {
 					sub.add(request);
 					if (sub.size() == 100) {
-						statements.add(doInsert(op, entityType, sub));
+						statements.add(doInsertMultiple(op, entityType, sub));
 						sub = new ArrayList<>(100);
 					}
 				}
-				if (!sub.isEmpty())
-					statements.add(doInsert(op, entityType, sub));
+				if (!sub.isEmpty()) {
+					if (sub.size() == 1)
+						statements.add(doInsertSingle(op, sub.get(0)));
+					else
+						statements.add(doInsertMultiple(op, entityType, sub));
+				}
 			}
 		}
 		return Mono.when(statements);
 	}
 	
 	@SuppressWarnings({"java:S1612", "java:S3776"}) // cannot do it
-	private static Flux<Object> doInsert(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests) {
+	private static Flux<Object> doInsertMultiple(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests) {
 		return Mono.fromCallable(() -> {
 			SqlQuery<InsertMultiple> query = new SqlQuery<>(op.lcClient);
 			// table
@@ -293,6 +305,15 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			return query.execute()
 				.filter(statement -> statement.returnGeneratedValues())
 				.map((r, meta) -> {
+					System.out.println("Generated values:");
+					for (int i = 0; i < 100; ++i) {
+						try {
+							System.out.println(r.get(i));
+						} catch (Exception e) {
+							break;
+						}
+					}
+					System.out.println("Generated columns = " + generated);
 					SaveRequest request = queue.removeFirst();
 					int index = 0;
 					for (RelationalPersistentProperty property : generated)
@@ -302,6 +323,71 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 				});
 		}).flatMapMany(RowsFetchSpec::all);
 	}
+	
+	@SuppressWarnings({"java:S1612", "java:S3776"}) // cannot do it
+	private static Mono<Object> doInsertSingle(Operation op, SaveRequest request) {
+		return Mono.fromCallable(() -> {
+			SqlQuery<Insert> query = new SqlQuery<>(op.lcClient);
+			final List<RelationalPersistentProperty> generated = new LinkedList<>();
+			OutboundRow row = new OutboundRow();
+			LcEntityWriter writer = new LcEntityWriter(op.lcClient.getMapper());
+			long currentDate = System.currentTimeMillis();
+			for (RelationalPersistentProperty property : request.entityType) {
+				if (property.isAnnotationPresent(GeneratedValue.class)) {
+					GeneratedValue gv = property.getRequiredAnnotation(GeneratedValue.class);
+					if (GeneratedValue.Strategy.RANDOM_UUID.equals(gv.strategy()) && !op.lcClient.getSchemaDialect().supportsUuidGeneration()) {
+						UUID uuid = UUID.randomUUID();
+						request.accessor.setProperty(property, uuid);
+						writer.writeProperty(row, property, request.accessor);
+					} else {
+						generated.add(property);
+					}
+				} else if (!property.isTransient()) { 
+					if (request.entityType.isVersionProperty(property)) {
+						// Version 1 for an insert
+						request.accessor.setProperty(property, op.lcClient.getMapper().getConversionService().convert(1L, property.getType()));
+					} else if (property.isAnnotationPresent(CreatedDate.class) || property.isAnnotationPresent(LastModifiedDate.class)) {
+						request.accessor.setProperty(property, getDateValue(currentDate, property.getType()));
+					}
+					writer.writeProperty(row, property, request.accessor);
+				}
+			}
+			
+			query.setQuery(createInsertQuery(query, row, request.entityType.getTableName(), generated));
+			
+			return query.execute()
+				.filter(statement -> statement.returnGeneratedValues())
+				.map((r, meta) -> {
+					int index = 0;
+					for (RelationalPersistentProperty property : generated)
+						request.accessor.setProperty(property, op.lcClient.getSchemaDialect().convertFromDataBase(r.get(index++), property.getType()));
+					request.state.loaded(request.instance);
+					return request.instance;
+				});
+		}).flatMap(RowsFetchSpec::first);
+	}
+	
+	private static Insert createInsertQuery(SqlQuery<Insert> query, OutboundRow row, SqlIdentifier tableName, List<RelationalPersistentProperty> generated) {
+		Table table = Table.create(tableName);
+		List<Column> columns = new ArrayList<>(row.size());
+		List<Expression> values = new ArrayList<>(row.size());
+		for (RelationalPersistentProperty property : generated) {
+			GeneratedValue gv = property.getRequiredAnnotation(GeneratedValue.class);
+			if (gv.strategy().equals(GeneratedValue.Strategy.SEQUENCE)) {
+				columns.add(Column.create(property.getColumnName(), table));
+				values.add(SimpleFunction.create(query.getClient().getSchemaDialect().sequenceNextValueFunctionName(), Arrays.asList(SQL.literalOf(gv.sequence()))));
+			}
+		}
+		for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet()) {
+			columns.add(Column.create(entry.getKey(), table));
+			if (entry.getValue().getValue() == null)
+				values.add(SQL.nullLiteral());
+			else
+				values.add(query.marker(entry.getValue().getValue()));
+		}
+		return Insert.builder().into(table).columns(columns).values(values).build();
+	}
+
 	
 	private static Mono<Object> doUpdate(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> createUpdateRequest(op, request))

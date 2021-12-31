@@ -158,4 +158,9 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 		}
 		return Functions.count(SimpleFunction.create("DISTINCT", Collections.singletonList(SimpleFunction.create("CONCAT", concat))));
 	}
+	
+	@Override
+	public boolean isMultipleInsertSupported() {
+		return false;
+	}
 }
