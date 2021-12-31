@@ -3,8 +3,8 @@ package net.lecousin.reactive.data.relational.h2.test;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import io.r2dbc.h2.H2ConnectionConfiguration;
-import io.r2dbc.h2.H2ConnectionFactory;
+import io.r2dbc.spi.ConnectionFactories;
+import io.r2dbc.spi.ConnectionFactory;
 import net.lecousin.reactive.data.relational.h2.H2Configuration;
 
 @Configuration
@@ -12,13 +12,8 @@ public class H2TestConfiguration extends H2Configuration {
 
 	@Override
 	@Bean
-	public H2ConnectionFactory connectionFactory() {
-		return new H2ConnectionFactory(
-			H2ConnectionConfiguration.builder()
-			.url("mem:testdb;DB_CLOSE_DELAY=-1;")
-			.username("sa")
-			.build()
-		);
+	public ConnectionFactory connectionFactory() {
+		return ConnectionFactories.get("r2dbc:pool:h2:mem:///sessions;DB_CLOSE_DELAY=-1;");
 	}
 	
 }

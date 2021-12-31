@@ -200,8 +200,22 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			else
 				statements.add(doUpdate(op, request));
 		}
-		if (!toInsert.isEmpty())
-			statements.add(doInsert(op, entityType, toInsert));
+		if (!toInsert.isEmpty()) {
+			if (toInsert.size() <= 100)
+				statements.add(doInsert(op, entityType, toInsert));
+			else {
+				List<SaveRequest> sub = new ArrayList<>(100);
+				for (SaveRequest request : toInsert) {
+					sub.add(request);
+					if (sub.size() == 100) {
+						statements.add(doInsert(op, entityType, sub));
+						sub = new ArrayList<>(100);
+					}
+				}
+				if (!sub.isEmpty())
+					statements.add(doInsert(op, entityType, sub));
+			}
+		}
 		return Mono.when(statements);
 	}
 	
@@ -279,8 +293,6 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			return query.execute()
 				.filter(statement -> statement.returnGeneratedValues())
 				.map((r, meta) -> {
-					System.out.println("Generated values = " + r);
-					System.out.println("Generated columns = " + generated);
 					SaveRequest request = queue.removeFirst();
 					int index = 0;
 					for (RelationalPersistentProperty property : generated)
