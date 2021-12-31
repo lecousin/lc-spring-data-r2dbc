@@ -7,8 +7,8 @@ import java.time.Duration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import io.r2dbc.postgresql.PostgresqlConnectionConfiguration;
-import io.r2dbc.postgresql.PostgresqlConnectionFactory;
+import io.r2dbc.spi.ConnectionFactories;
+import io.r2dbc.spi.ConnectionFactory;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import net.lecousin.reactive.data.relational.postgres.PostgresConfiguration;
 
@@ -43,16 +43,10 @@ public class PostgresTestConfiguration extends PostgresConfiguration {
 	
 	@Override
 	@Bean
-	public PostgresqlConnectionFactory connectionFactory() {
+	public ConnectionFactory connectionFactory() {
 		if (error != null)
 			throw new RuntimeException("Postgres server not started", error);
-		return new PostgresqlConnectionFactory(
-			PostgresqlConnectionConfiguration.builder()
-			.host("localhost")
-			.port(epg.getPort())
-			.username("postgres")
-			.build()
-		);
+		return ConnectionFactories.get("r2dbc:pool:postgresql://postgres@localhost:" + epg.getPort());
 	}
 	
 }
