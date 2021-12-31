@@ -305,15 +305,6 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			return query.execute()
 				.filter(statement -> statement.returnGeneratedValues())
 				.map((r, meta) -> {
-					System.out.println("Generated values:");
-					for (int i = 0; i < 100; ++i) {
-						try {
-							System.out.println(r.get(i));
-						} catch (Exception e) {
-							break;
-						}
-					}
-					System.out.println("Generated columns = " + generated);
 					SaveRequest request = queue.removeFirst();
 					int index = 0;
 					for (RelationalPersistentProperty property : generated)
