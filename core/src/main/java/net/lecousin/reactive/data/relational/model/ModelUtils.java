@@ -29,6 +29,7 @@ import org.springframework.lang.Nullable;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
+import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
@@ -370,6 +371,29 @@ public class ModelUtils {
 			condition = condition != null ? condition.and(propertyCondition) : propertyCondition;
 		} while (it.hasNext());
 		return condition;
+	}
+	
+	public static boolean hasCascadeDeleteImpacts(Class<?> entityType, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+		LcEntityTypeInfo typeInfo = LcEntityTypeInfo.get(entityType);
+		if (!typeInfo.getForeignTables().isEmpty())
+			return true;
+		if (!typeInfo.getJoinTables().isEmpty())
+			return true;
+		RelationalPersistentEntity<?> entity = mappingContext.getRequiredPersistentEntity(entityType);
+		for (RelationalPersistentProperty property : entity) {
+			ForeignKey fkAnnotation = property.findAnnotation(ForeignKey.class);
+			if (fkAnnotation != null) {
+				if (fkAnnotation.cascadeDelete())
+					return true;
+				Field ftField = typeInfo.getForeignTableFieldForJoinKey(property.getName(), entityType);
+				if (ftField != null) {
+					ForeignTable ftAnnotation = ftField.getAnnotation(ForeignTable.class);
+					if (ftAnnotation != null && ftAnnotation.optional() == false)
+						return true;
+				}
+			}
+		}
+		return false;
 	}
 	
 }

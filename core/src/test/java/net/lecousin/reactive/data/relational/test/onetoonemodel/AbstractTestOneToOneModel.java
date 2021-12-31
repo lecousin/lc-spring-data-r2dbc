@@ -300,10 +300,38 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 				return entity;
 			})
 		).then().block();
+		Assertions.assertEquals(100000, repo1.count().block());
 		
 		repo1.deleteAll().block();
 		
 		Assertions.assertEquals(0, repo1.findAll().collectList().block().size());
+	}
+	
+	@Test
+	public void testDeleteById() {
+		List<MyEntity1> entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				MyEntity1 entity = new MyEntity1();
+				entity.setValue("entity" + i);
+				if ((i % 2) == 0) {
+					MySubEntity1 sub = new MySubEntity1();
+					sub.setSubValue("sub" + i);
+					sub.setParent(entity);
+					entity.setSubEntity(sub);
+				}
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, repo1.count().block());
+		
+		int nb = 10;
+		for (MyEntity1 entity : entities) {
+			repo1.deleteById(entity.getId()).block();
+			Assertions.assertEquals(--nb, repo1.count().block());
+			Assertions.assertTrue(repo1.findById(entity.getId()).blockOptional().isEmpty());
+		}
+		Assertions.assertEquals(0, repo1.count().block());
 	}
 	
 }

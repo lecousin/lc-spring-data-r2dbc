@@ -29,6 +29,7 @@ import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
+import reactor.core.publisher.Flux;
 
 @EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)
 @ComponentScan
@@ -827,4 +828,42 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		BooleanTypes entity = new BooleanTypes();
 		Assertions.assertThrows(InvalidEntityStateException.class, () -> ModelUtils.getRequiredId(entity, lcClient.getMappingContext().getPersistentEntity(BooleanTypes.class), null));
 	}
+	
+	@Test
+	public void testInsertAndDelete100000Entities() {
+		lcClient.save(Flux.range(0, 100000)
+			.map(i -> {
+				BooleanTypes entity = new BooleanTypes();
+				entity.setB1(null);
+				entity.setB2(true);
+				return entity;
+			})
+		).then().block();
+		Assertions.assertEquals(100000, repoBool.count().block());
+		
+		repoBool.deleteAll().block();
+		
+		Assertions.assertEquals(0, repoBool.count().block());
+	}
+	
+	@Test
+	public void testDeleteById() {
+		List<BooleanTypes> entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				BooleanTypes entity = new BooleanTypes();
+				entity.setB1(null);
+				entity.setB2(true);
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, repoBool.count().block());
+		int nb = 10;
+		for (BooleanTypes entity : entities) {
+			repoBool.deleteById(entity.getId()).block();
+			Assertions.assertEquals(--nb, repoBool.count().block());
+			Assertions.assertTrue(repoBool.findById(entity.getId()).blockOptional().isEmpty());
+		}
+		Assertions.assertEquals(0, repoBool.count().block());
+	}
+	
 }

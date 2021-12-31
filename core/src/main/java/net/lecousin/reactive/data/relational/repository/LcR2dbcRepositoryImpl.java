@@ -4,9 +4,13 @@ import org.reactivestreams.Publisher;
 import org.springframework.data.r2dbc.convert.R2dbcConverter;
 import org.springframework.data.r2dbc.core.R2dbcEntityOperations;
 import org.springframework.data.r2dbc.repository.support.SimpleR2dbcRepository;
+import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
+import org.springframework.data.relational.core.query.Criteria;
+import org.springframework.data.relational.core.query.Query;
 import org.springframework.data.relational.repository.query.RelationalEntityInformation;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
+import net.lecousin.reactive.data.relational.model.ModelUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -14,10 +18,14 @@ import reactor.core.publisher.Mono;
 public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> implements LcR2dbcRepository<T, ID> {
 
 	private LcReactiveDataRelationalClient lcClient;
+	private RelationalEntityInformation<T, ID> entityInfo;
+	private R2dbcEntityOperations entityOperations;
 	
 	public LcR2dbcRepositoryImpl(RelationalEntityInformation<T, ID> entity, R2dbcEntityOperations entityOperations, R2dbcConverter converter) {
 		super(entity, entityOperations, converter);
 		lcClient = ((LcR2dbcEntityTemplate)entityOperations).getLcClient();
+		this.entityInfo = entity;
+		this.entityOperations = entityOperations;
 	}
 
 	@Override
@@ -57,14 +65,19 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	
 	@Override
 	public Mono<Void> deleteAll() {
-		// TODO we may not need to load them
-		return deleteAll(findAll());
+		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType(), lcClient.getMappingContext()))
+			return deleteAll(findAll());
+		return entityOperations.delete(entityInfo.getJavaType()).all().then();
 	}
 	
 	@Override
 	public Mono<Void> deleteById(ID id) {
-		// TODO we may not need to load it
-		return findById(id).flatMap(this::delete);
+		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType(), lcClient.getMappingContext()))
+			return findById(id).flatMap(this::delete);
+		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
+		if (!entity.hasIdProperty())
+			return findById(id).flatMap(this::delete);
+		return entityOperations.delete(entityInfo.getJavaType()).matching(Query.query(Criteria.where(entity.getRequiredIdProperty().getColumnName().getReference()).is(id))).all().then();
 	}
 	
 	@Override
