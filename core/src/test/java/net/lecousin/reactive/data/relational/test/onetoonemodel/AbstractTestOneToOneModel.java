@@ -12,6 +12,7 @@ import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
+import reactor.core.publisher.Flux;
 
 @EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)
 public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRelationalTest {
@@ -282,6 +283,27 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 		subList = SelectQuery.from(MySubEntity3.class, "entity").execute(lcClient).collectList().block();
 		Assertions.assertEquals(1, subList.size());
 		Assertions.assertEquals(subList.get(0).getId(), list.get(0).getSubEntity().getId());
+	}
+	
+	@Test
+	public void testInsertAndDelete100000EntitiesAnd50000LinkedEntities() {
+		lcClient.save(Flux.range(0, 100000)
+			.map(i -> {
+				MyEntity1 entity = new MyEntity1();
+				entity.setValue("entity" + i);
+				if ((i % 2) == 0) {
+					MySubEntity1 sub = new MySubEntity1();
+					sub.setSubValue("sub" + i);
+					sub.setParent(entity);
+					entity.setSubEntity(sub);
+				}
+				return entity;
+			})
+		).then().block();
+		
+		repo1.deleteAll().block();
+		
+		Assertions.assertEquals(0, repo1.findAll().collectList().block().size());
 	}
 	
 }

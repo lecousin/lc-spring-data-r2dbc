@@ -278,13 +278,16 @@ public class LcReactiveDataRelationalClient {
 			return Mono.error(e);
 		}
 	}
-	
+
 	public <T> Mono<Void> delete(Publisher<T> publisher) {
-		Operation op = new Operation(this);
+		return delete(publisher, 100);
+	}
+	
+	public <T> Mono<Void> delete(Publisher<T> publisher, int bunchSize) {
 		return Flux.from(publisher)
-			.doOnNext(instance -> op.addToDelete(instance, null, null, null))
-			.then(Mono.fromCallable(op::execute))
-			.flatMap(m -> m);
+			.buffer(bunchSize)
+			.flatMap(this::delete)
+			.then();
 	}
 	
 }
