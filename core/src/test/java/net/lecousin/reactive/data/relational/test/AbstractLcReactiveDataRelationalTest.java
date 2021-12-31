@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational.test;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -11,8 +12,12 @@ import java.util.function.Function;
 
 import javax.annotation.PostConstruct;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
@@ -31,6 +36,8 @@ import net.lecousin.reactive.data.relational.test.simplemodel.DateTypesWithTimeZ
 @EnableAutoConfiguration
 @DirtiesContext(classMode = ClassMode.AFTER_EACH_TEST_METHOD)
 public abstract class AbstractLcReactiveDataRelationalTest {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(AbstractLcReactiveDataRelationalTest.class);
 	
 	@Autowired
 	protected LcR2dbcEntityTemplate template;
@@ -52,6 +59,16 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 			usedEntities = getAllCompatibleEntities();
 		RelationalDatabaseSchema schema = lcClient.buildSchemaFromEntities(usedEntities);
 		lcClient.dropCreateSchemaContent(schema).block();
+	}
+	
+	@BeforeEach
+	public void logStartTestInfo(TestInfo testInfo) {
+		LOGGER.info("Start of test {} ({}#{})", testInfo.getDisplayName(), testInfo.getTestClass().map(Class::getName).orElse(""), testInfo.getTestMethod().map(Method::getName).orElse(""));
+	}
+	
+	@AfterEach
+	public void logEndTestInfo(TestInfo testInfo) {
+		LOGGER.info("End of test {} ({}#{})", testInfo.getDisplayName(), testInfo.getTestClass().map(Class::getName).orElse(""), testInfo.getTestMethod().map(Method::getName).orElse(""));
 	}
 	
 	protected Collection<Class<?>> getAllCompatibleEntities() {

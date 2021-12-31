@@ -7,11 +7,9 @@
     <appender-ref ref="CONSOLE" />
   </root>
 
-<!-- 
   <logger name="org.springframework.data.r2dbc" level="debug"/>
   <logger name="org.springframework.r2dbc" level="debug"/>
   <logger name="net.lecousin.reactive.data.relational" level="debug"/>
   <logger name="net.lecousin.reactive.data.relational.schema" level="debug"/>
--->
 
 </configuration>
