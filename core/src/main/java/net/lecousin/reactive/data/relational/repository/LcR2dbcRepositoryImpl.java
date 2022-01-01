@@ -82,8 +82,15 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	
 	@Override
 	public Mono<Void> deleteById(Publisher<ID> idPublisher) {
-		// TODO we may not need to load them
-		return deleteAll(findById(idPublisher));
+		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType(), lcClient.getMappingContext()))
+			return deleteAll(findById(idPublisher));
+		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
+		if (!entity.hasIdProperty())
+			return deleteAll(findById(idPublisher));
+		return Flux.from(idPublisher)
+			.buffer(100)
+			.flatMap(ids -> entityOperations.delete(entityInfo.getJavaType()).matching(Query.query(Criteria.where(entity.getRequiredIdProperty().getColumnName().getReference()).in(ids))).all().then())
+			.then();
 	}
 	
 }

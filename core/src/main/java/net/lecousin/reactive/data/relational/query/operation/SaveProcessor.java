@@ -47,6 +47,7 @@ import net.lecousin.reactive.data.relational.query.InsertMultiple;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest> {
 
@@ -205,35 +206,38 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 			} else
 				statements.add(doUpdate(op, request));
 		}
-		if (!toInsert.isEmpty()) {
-			if (toInsert.size() <= 100) {
-				if (toInsert.size() == 1)
-					statements.add(doInsertSingle(op, toInsert.get(0)));
-				else
-					statements.add(doInsertMultiple(op, entityType, toInsert));
-			} else {
-				List<SaveRequest> sub = new ArrayList<>(100);
-				for (SaveRequest request : toInsert) {
-					sub.add(request);
-					if (sub.size() == 100) {
-						statements.add(doInsertMultiple(op, entityType, sub));
-						sub = new ArrayList<>(100);
-					}
-				}
-				if (!sub.isEmpty()) {
-					if (sub.size() == 1)
-						statements.add(doInsertSingle(op, sub.get(0)));
-					else
-						statements.add(doInsertMultiple(op, entityType, sub));
-				}
+		doInsert(op, entityType, toInsert, statements);
+		if (statements.size() > 4)
+			return Flux.fromIterable(statements)
+				.parallel()
+				.runOn(Schedulers.parallel(), 4)
+				.flatMap(s -> s)
+				.then()
+				;
+		return Flux.merge(statements).then();
+	}
+	
+	private static void doInsert(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests, List<Publisher<?>> statements) {
+		if (requests.isEmpty())
+			return;
+		List<SaveRequest> remaining = requests;
+		do {
+			if (remaining.size() == 1) {
+				statements.add(doInsertSingle(op, remaining.get(0)));
+				return;
 			}
-		}
-		return Mono.when(statements);
+			if (remaining.size() <= 100) {
+				statements.add(doInsertMultiple(op, entityType, remaining));
+				return;
+			}
+			statements.add(doInsertMultiple(op, entityType, remaining.subList(0, 100)));
+			remaining = remaining.subList(100, remaining.size());
+		} while (true);
 	}
 	
 	@SuppressWarnings({"java:S1612", "java:S3776"}) // cannot do it
 	private static Flux<Object> doInsertMultiple(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests) {
-		return Mono.fromCallable(() -> {
+		return Flux.defer(() -> {
 			SqlQuery<InsertMultiple> query = new SqlQuery<>(op.lcClient);
 			// table
 			Table table = Table.create(entityType.getTableName());
@@ -311,8 +315,10 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 						request.accessor.setProperty(property, op.lcClient.getSchemaDialect().convertFromDataBase(r.get(index++), property.getType()));
 					request.state.loaded(request.instance);
 					return request.instance;
-				});
-		}).flatMapMany(RowsFetchSpec::all);
+				})
+				.all()
+				;
+		});
 	}
 	
 	@SuppressWarnings({"java:S1612", "java:S3776"}) // cannot do it

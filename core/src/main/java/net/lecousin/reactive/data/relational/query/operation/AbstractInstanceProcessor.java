@@ -21,7 +21,9 @@ import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @SuppressWarnings("rawtypes")
 abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Request> extends AbstractProcessor<R> {
@@ -172,7 +174,14 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 		}
 		if (executions.isEmpty())
 			return null;
-		return Mono.when(executions);
+		if (executions.size() == 1)
+			return executions.get(0);
+		return Flux.fromIterable(executions)
+			.parallel()
+			.runOn(Schedulers.parallel(), 1)
+			.flatMap(s -> s)
+			.then()
+			;
 	}
 	
 	protected abstract Mono<Void> doRequests(Operation op, RelationalPersistentEntity<?> entityType, List<R> requests);

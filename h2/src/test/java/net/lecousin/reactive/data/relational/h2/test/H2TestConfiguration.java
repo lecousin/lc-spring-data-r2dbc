@@ -13,7 +13,7 @@ public class H2TestConfiguration extends H2Configuration {
 	@Override
 	@Bean
 	public ConnectionFactory connectionFactory() {
-		return ConnectionFactories.get("r2dbc:pool:h2:mem:///sessions;DB_CLOSE_DELAY=-1;");
+		return ConnectionFactories.get("r2dbc:pool:h2:mem:///test;DB_CLOSE_DELAY=-1;");
 	}
 	
 }

@@ -34,6 +34,7 @@ import net.lecousin.reactive.data.relational.schema.SchemaBuilderFromEntities;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Component
 public class LcReactiveDataRelationalClient {
@@ -286,6 +287,8 @@ public class LcReactiveDataRelationalClient {
 	public <T> Mono<Void> delete(Publisher<T> publisher, int bunchSize) {
 		return Flux.from(publisher)
 			.buffer(bunchSize)
+			.parallel()
+			.runOn(Schedulers.parallel(), 1)
 			.flatMap(this::delete)
 			.then();
 	}

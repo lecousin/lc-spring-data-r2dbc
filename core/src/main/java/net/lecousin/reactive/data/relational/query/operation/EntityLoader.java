@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import org.reactivestreams.Publisher;
 import org.springframework.data.mapping.MappingException;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
@@ -15,6 +14,7 @@ import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 class EntityLoader {
 
@@ -29,7 +29,7 @@ class EntityLoader {
 		Mono<Void> retrieve = doRetrieve(op);
 		if (load != null) {
 			if (retrieve != null)
-				return Mono.when(load, retrieve);
+				return Flux.merge(1, load, retrieve).then();
 			return load;
 		}
 		if (retrieve != null)
@@ -57,9 +57,7 @@ class EntityLoader {
 				})
 			);
 		}
-		if (loads.isEmpty())
-			return null;
-		return Mono.when(loads);
+		return execute(loads);
 	}
 	
 	void retrieve(RelationalPersistentEntity<?> entity, RelationalPersistentProperty property, Object propertyValue, Consumer<Object> consumer) {
@@ -72,7 +70,7 @@ class EntityLoader {
 	private Mono<Void> doRetrieve(Operation op) {
 		Map<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, List<Consumer<Object>>>>> map = toRetrieve;
 		toRetrieve = new HashMap<>();
-		List<Publisher<?>> loads = new LinkedList<>();
+		List<Flux<?>> loads = new LinkedList<>();
 		for (Map.Entry<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, List<Consumer<Object>>>>> entity : map.entrySet()) {
 			for (Map.Entry<RelationalPersistentProperty, Map<Object, List<Consumer<Object>>>> property : entity.getValue().entrySet()) {
 				loads.add(
@@ -84,9 +82,7 @@ class EntityLoader {
 				);
 			}
 		}
-		if (loads.isEmpty())
-			return null;
-		return Mono.when(loads);
+		return execute(loads);
 	}
 	
 	private static <T> T retrieved(T entity, Operation op, RelationalPersistentProperty property, Map<Object, List<Consumer<Object>>> consumersMap) {
@@ -99,6 +95,21 @@ class EntityLoader {
 		} catch (Exception e) {
 			throw new MappingException("Error analyzing data from retrieved entity", e);
 		}
+	}
+	
+	private static Mono<Void> execute(List<Flux<?>> requests) {
+		if (requests.isEmpty())
+			return null;
+		if (requests.size() == 1)
+			return requests.get(0).then();
+		if (requests.size() > 4)
+			Flux.fromIterable(requests)
+				.parallel()
+				.runOn(Schedulers.parallel(), 4)
+				.flatMap(s -> s)
+				.then()
+				;
+		return Flux.merge(requests).then();
 	}
 	
 }

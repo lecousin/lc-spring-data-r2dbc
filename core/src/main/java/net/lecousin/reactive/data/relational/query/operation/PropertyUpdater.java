@@ -24,7 +24,9 @@ import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.operation.SaveProcessor.SaveRequest;
 import net.lecousin.reactive.data.relational.sql.ColumnIncrement;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
 	
@@ -71,7 +73,16 @@ class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
 		}
 		if (calls.isEmpty())
 			return null;
-		return Mono.when(calls);
+		if (calls.size() == 1)
+			return calls.get(0);
+		if (calls.size() > 4)
+			return Flux.fromIterable(calls)
+				.parallel()
+				.runOn(Schedulers.parallel(), 4)
+				.flatMap(s -> s)
+				.then()
+				;
+		return Flux.merge(calls).then();
 	}
 	
 	private static void executeUpdates(

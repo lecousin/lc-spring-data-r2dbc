@@ -1,11 +1,13 @@
 package net.lecousin.reactive.data.relational.query.operation;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
@@ -13,11 +15,15 @@ import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Condition;
 import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Delete;
+import org.springframework.data.relational.core.sql.Expression;
+import org.springframework.data.relational.core.sql.SqlIdentifier;
 import org.springframework.data.relational.core.sql.Table;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 class DeleteWithoutLoading extends AbstractProcessor<DeleteWithoutLoading.Request> {
 
@@ -63,20 +69,47 @@ class DeleteWithoutLoading extends AbstractProcessor<DeleteWithoutLoading.Reques
 		}
 		if (calls.isEmpty())
 			return null;
-		return Mono.when(calls);
+		if (calls.size() == 1)
+			return calls.get(0);
+		if (calls.size() > 4)
+			return Flux.fromIterable(calls)
+				.parallel()
+				.runOn(Schedulers.parallel(), 4)
+				.flatMap(s -> s)
+				.then()
+				;
+		return Flux.merge(calls).then();
 	}
 	
 	private static Condition createCondition(RelationalPersistentEntity<?> entityType, Table table, List<Request> ready, SqlQuery<Delete> query) {
+		Map<SqlIdentifier, Set<Object>> valuesByColumn = new HashMap<>();
+		Set<SqlIdentifier> nullColumns = new HashSet<>();
+		for (Request r : ready) {
+			SqlIdentifier col = r.whereProperty.getColumnName();
+			if (r.whereValue != null)
+				valuesByColumn.computeIfAbsent(col, c -> new HashSet<>()).add(r.whereValue);
+			else
+				nullColumns.add(col);
+		}
+
 		Condition condition = null;
-		Iterator<Request> it = ready.iterator();
-		do {
-			Request r = it.next();
-			Column col = Column.create(r.whereProperty.getColumnName(), table);
-			Condition c = r.whereValue != null ? Conditions.isEqual(col, query.marker(r.whereValue)) : Conditions.isNull(col);
+		for (Map.Entry<SqlIdentifier, Set<Object>> e : valuesByColumn.entrySet()) {
+			Column col = Column.create(e.getKey(), table);
+			List<Expression> list = new ArrayList<>(e.getValue().size());
+			for (Object value : e.getValue())
+				list.add(query.marker(value));
+			Condition c = Conditions.in(col, list);
 			condition = condition != null ? condition.or(c) : c;
-			if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
-				LcReactiveDataRelationalClient.logger.debug("Delete " + entityType.getType().getName() + " where " + r.whereProperty.getName() + " = " + r.whereValue);
-		} while (it.hasNext());
+		}
+		
+		for (SqlIdentifier colName : nullColumns) {
+			Column col = Column.create(colName, table);
+			Condition c = Conditions.isNull(col);
+			condition = condition != null ? condition.or(c) : c;
+		}
+
+		if (LcReactiveDataRelationalClient.logger.isDebugEnabled())
+			LcReactiveDataRelationalClient.logger.debug("Delete " + entityType.getType().getName() + " where " + condition);
 		return condition;
 	}
 
