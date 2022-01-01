@@ -75,7 +75,7 @@ class EntityLoader {
 	
 	private static <T> T retrieved(T entity, Operation op, RelationalPersistentProperty property, Map<Object, List<Consumer<Object>>> consumersMap) {
 		try {
-			List<Consumer<Object>> consumers = consumersMap.get(ModelUtils.getDatabaseValue(entity, property, op.lcClient.getMappingContext()));
+			List<Consumer<Object>> consumers = consumersMap.get(ModelUtils.getDatabaseValue(entity, property, op.lcClient));
 			if (consumers != null)
 				for (Consumer<Object> c : consumers)
 					op.toCall(() -> c.accept(entity));

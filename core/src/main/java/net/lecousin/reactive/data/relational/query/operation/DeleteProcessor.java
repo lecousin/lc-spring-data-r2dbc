@@ -230,8 +230,9 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 	private static Condition createCriteriaOnIds(RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests, SqlQuery<Delete> query, Table table) {
 		List<Expression> ids = new ArrayList<>(requests.size());
 		for (DeleteRequest request : requests) {
-			Object id = request.state.getPersistedValue(entityType.getRequiredIdProperty().getName());
-			ids.add(query.marker(id));
+			RelationalPersistentProperty idProperty = entityType.getRequiredIdProperty();
+			Object id = request.state.getPersistedValue(idProperty.getName());
+			ids.add(query.marker(query.getClient().getSchemaDialect().convertToDataBase(id, idProperty)));
 		}
 		return Conditions.in(Column.create(entityType.getRequiredIdProperty().getColumnName(), table), ids);
 	}
@@ -261,6 +262,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 			// get the id instead of the entity
 			value = request.getSavedForeignKeyValue(property.getName());
 		}
+		value = query.getClient().getSchemaDialect().convertToDataBase(value, property);
 		return Conditions.isEqual(Column.create(property.getColumnName(), table), query.marker(value));
 	}
 	

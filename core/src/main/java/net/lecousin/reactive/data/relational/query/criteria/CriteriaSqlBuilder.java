@@ -62,7 +62,7 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 			Collection<?> value = (Collection<?>) op.getValue();
 			List<Expression> expressions = new ArrayList<>(value.size());
 			for (Object v : value)
-				expressions.add(toExpression(v));
+				expressions.add(toExpression(v, property));
 			
 			switch (op.getOperator()) {
 			case IN: return Conditions.in(left, expressions);
@@ -76,9 +76,9 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 			// if foreign key, we need to use the id instead of the object
 			MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> context = query.getClient().getMappingContext();
 			RelationalPersistentEntity<?> foreignEntity = context.getRequiredPersistentEntity(property.getType());
-			rightValue = ModelUtils.getId(foreignEntity, foreignEntity.getPropertyAccessor(rightValue), context);
+			rightValue = ModelUtils.getId(foreignEntity, foreignEntity.getPropertyAccessor(rightValue), query.getClient());
 		}
-		Expression right = toExpression(rightValue);
+		Expression right = toExpression(rightValue, property);
 		switch (op.getOperator()) {
 		case EQUALS: return Conditions.isEqual(left, right);
 		case NOT_EQUALS: return Conditions.isNotEqual(left, right);
@@ -92,10 +92,10 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 		}
 	}
 	
-	protected Expression toExpression(Object value) {
+	protected Expression toExpression(Object value, RelationalPersistentProperty property) {
 		if (value instanceof PropertyOperand)
 			return toExpression((PropertyOperand)value);
-		return query.marker(value);
+		return query.marker(query.getClient().getSchemaDialect().convertToDataBase(value, property));
 	}
 	
 	protected Expression toExpression(PropertyOperand propertyOperand) {

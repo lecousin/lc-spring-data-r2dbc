@@ -144,7 +144,7 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 			accessor = entity.getPropertyAccessor(instance);
 		if (state == null)
 			state = EntityState.get(instance, op.lcClient, entity);
-		instance = op.cache.getOrSet(state, entity, accessor, op.lcClient.getMappingContext());
+		instance = op.cache.getOrSet(state, entity, accessor, op.lcClient);
 		Map<Object, R> map = requests.computeIfAbsent(entity, e -> new HashMap<>());
 		R r = map.get(instance);
 		if (r == null) {

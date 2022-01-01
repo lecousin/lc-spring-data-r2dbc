@@ -394,7 +394,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		for (Map.Entry<SqlIdentifier, Parameter> entry : row.entrySet())
 			assignments.add(AssignValue.create(Column.create(entry.getKey(), table), entry.getValue().getValue() != null ? query.marker(entry.getValue().getValue()) : SQL.nullLiteral()));
 
-		Condition criteria = ModelUtils.getConditionOnId(query, request.entityType, request.accessor, op.lcClient.getMappingContext());
+		Condition criteria = ModelUtils.getConditionOnId(query, request.entityType, request.accessor, op.lcClient);
 		
 		if (request.entityType.hasVersionProperty()) {
 			RelationalPersistentProperty property = request.entityType.getRequiredVersionProperty();

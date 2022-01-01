@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
@@ -13,6 +14,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -30,6 +32,7 @@ import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)
 @ComponentScan
@@ -49,6 +52,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Autowired
 	private DateTypesRepository repoDate;
+	
+	@Autowired
+	private UUIDEntityRepository uuidRepo;
 	
 	@Autowired
 	private TransactionalService transactionalService;
@@ -823,9 +829,96 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			Assertions.assertFalse(keys.containsValue(e.getUuidKey()));
 			keys.put(e.getI(), e.getUuidKey());
 			Assertions.assertEquals(uuids.get(e.getI()), e.getUuidNonKey());
+			UUID newUuid = UUID.randomUUID();
+			e.setUuidNonKey(newUuid);
+			uuids.put(e.getI(), newUuid);
+		}
+		lcClient.save(entities).collectList().block();
+		
+		entities = uuidRepo.findAll().collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		keys = new HashMap<>();
+		for (UUIDEntity e : entities) {
+			Assertions.assertNotNull(e.getUuidKey());
+			Assertions.assertFalse(keys.containsKey(e.getI()));
+			Assertions.assertFalse(keys.containsValue(e.getUuidKey()));
+			keys.put(e.getI(), e.getUuidKey());
+			Assertions.assertEquals(uuids.get(e.getI()), e.getUuidNonKey());
 		}
 		
+		Assertions.assertTrue(uuidRepo.existsById(entities.get(0).getUuidKey()).block());
+		Assertions.assertTrue(uuidRepo.existsById(Mono.just(entities.get(0).getUuidKey())).block());
+		Assertions.assertFalse(uuidRepo.existsById(UUID.randomUUID()).block());
+		Assertions.assertFalse(uuidRepo.existsById(Mono.just(UUID.randomUUID())).block());
+
+		Assertions.assertNotNull(uuidRepo.findById(entities.get(0).getUuidKey()).block());
+		Assertions.assertNotNull(uuidRepo.findById(Mono.just(entities.get(0).getUuidKey())).block());
+		Assertions.assertNull(uuidRepo.findById(UUID.randomUUID()).block());
+		Assertions.assertNull(uuidRepo.findById(Mono.just(UUID.randomUUID())).block());
+
+		entities = uuidRepo.findAllById(Flux.fromIterable(entities).map(UUIDEntity::getUuidKey)).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		entities = uuidRepo.findAllById(Flux.fromIterable(entities.subList(2, 5)).map(UUIDEntity::getUuidKey).concatWithValues(UUID.randomUUID())).collectList().block();
+		Assertions.assertEquals(3, entities.size());
+		entities = uuidRepo.findAll().collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		
+		entities = uuidRepo.findAllById(entities.stream().map(UUIDEntity::getUuidKey).collect(Collectors.toList())).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		List<UUID> idsList = new ArrayList<>(5);
+		idsList.add(UUID.randomUUID());
+		idsList.add(entities.get(1).getUuidKey());
+		idsList.add(UUID.randomUUID());
+		idsList.add(entities.get(6).getUuidKey());
+		idsList.add(UUID.randomUUID());
+		entities = uuidRepo.findAllById(idsList).collectList().block();
+		Assertions.assertEquals(2, entities.size());
+		
+		entities = uuidRepo.findAll().collectList().block();
+		Assertions.assertEquals(10, entities.size());
 		lcClient.delete(entities).block();
+		entities = SelectQuery.from(UUIDEntity.class, "e").execute(lcClient).collectList().block();
+		Assertions.assertEquals(0, entities.size());
+		
+		entities = lcClient.save(Flux.fromIterable(uuids.entrySet())
+			.map(entry -> {
+				UUIDEntity e = new UUIDEntity();
+				e.setUuidNonKey(entry.getValue());
+				e.setI(entry.getKey());
+				return e;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+
+		uuidRepo.deleteAll().block();
+		entities = SelectQuery.from(UUIDEntity.class, "e").execute(lcClient).collectList().block();
+		Assertions.assertEquals(0, entities.size());
+		
+		entities = lcClient.save(Flux.fromIterable(uuids.entrySet())
+			.map(entry -> {
+				UUIDEntity e = new UUIDEntity();
+				e.setUuidNonKey(entry.getValue());
+				e.setI(entry.getKey());
+				return e;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+
+		uuidRepo.deleteById(Flux.fromIterable(entities).map(UUIDEntity::getUuidKey)).block();
+		entities = SelectQuery.from(UUIDEntity.class, "e").execute(lcClient).collectList().block();
+		Assertions.assertEquals(0, entities.size());
+		
+		entities = lcClient.save(Flux.fromIterable(uuids.entrySet())
+			.map(entry -> {
+				UUIDEntity e = new UUIDEntity();
+				e.setUuidNonKey(entry.getValue());
+				e.setI(entry.getKey());
+				return e;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+
+		uuidRepo.deleteAllById(entities.stream().map(UUIDEntity::getUuidKey).collect(Collectors.toList())).block();
 		entities = SelectQuery.from(UUIDEntity.class, "e").execute(lcClient).collectList().block();
 		Assertions.assertEquals(0, entities.size());
 	}

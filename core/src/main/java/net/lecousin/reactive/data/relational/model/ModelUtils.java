@@ -26,6 +26,7 @@ import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.Table;
 import org.springframework.lang.Nullable;
 
+import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
@@ -254,7 +255,7 @@ public class ModelUtils {
 	}
 	
 	@SuppressWarnings("java:S3011")
-	public static Object getDatabaseValue(Object instance, RelationalPersistentProperty property, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public static Object getDatabaseValue(Object instance, RelationalPersistentProperty property, LcReactiveDataRelationalClient client) {
 		Field f = property.getRequiredField();
 		f.setAccessible(true);
 		Object value;
@@ -266,8 +267,10 @@ public class ModelUtils {
 		if (value == null)
 			return null;
 		if (property.isAnnotationPresent(ForeignKey.class)) {
-			RelationalPersistentEntity<?> e = mappingContext.getRequiredPersistentEntity(value.getClass());
+			RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(value.getClass());
 			value = e.getPropertyAccessor(value).getProperty(e.getRequiredIdProperty());
+		} else {
+			value = client.getSchemaDialect().convertToDataBase(value, property);
 		}
 		return value;
 	}
@@ -290,22 +293,22 @@ public class ModelUtils {
 		return list;
 	}
 	
-	public static Object getId(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public static Object getId(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
 		if (entityType.hasIdProperty())
 			return getIdPropertyValue(entityType, accessor);
 		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getIdFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, mappingContext);
-		return getIdFromProperties(entityType, accessor, mappingContext);
+			return getIdFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, client);
+		return getIdFromProperties(entityType, accessor, client);
 	}
 	
 	public static Object getIdPropertyValue(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor) {
 		return accessor.getProperty(entityType.getRequiredIdProperty());
 	}
 	
-	public static CompositeIdValue getIdFromProperties(Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public static CompositeIdValue getIdFromProperties(Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
 		CompositeIdValue id = new CompositeIdValue();
 		for (RelationalPersistentProperty property : properties) {
-			id.add(property.getName(), getDatabaseValue(accessor.getBean(), property, mappingContext));
+			id.add(property.getName(), getDatabaseValue(accessor.getBean(), property, client));
 		}
 		return id;
 	}
@@ -332,41 +335,41 @@ public class ModelUtils {
 		return id;
 	}
 	
-	public static Condition getConditionOnId(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public static Condition getConditionOnId(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
 		if (entityType.hasIdProperty())
-			return getConditionOnProperties(query, entityType, Arrays.asList(entityType.getRequiredIdProperty()), accessor, mappingContext);
+			return getConditionOnProperties(query, entityType, Arrays.asList(entityType.getRequiredIdProperty()), accessor, client);
 		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getConditionOnProperties(query, entityType, getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, mappingContext);
-		return getConditionOnProperties(query, entityType, entityType, accessor, mappingContext);
+			return getConditionOnProperties(query, entityType, getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, client);
+		return getConditionOnProperties(query, entityType, entityType, accessor, client);
 	}
 	
-	public static Condition getConditionOnProperties(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public static Condition getConditionOnProperties(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
 		Iterator<RelationalPersistentProperty> it = properties.iterator();
 		Condition condition = null;
 		Table table = Table.create(entityType.getTableName());
 		do {
 			RelationalPersistentProperty property = it.next();
-			Object value = getDatabaseValue(accessor.getBean(), property, mappingContext);
+			Object value = getDatabaseValue(accessor.getBean(), property, client);
 			Condition propertyCondition = Conditions.isEqual(Column.create(property.getColumnName(), table), value != null ? query.marker(value) : SQL.nullLiteral());
 			condition = condition != null ? condition.and(propertyCondition) : propertyCondition;
 		} while (it.hasNext());
 		return condition;
 	}
 	
-	public static Criteria getCriteriaOnId(String entityName, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public static Criteria getCriteriaOnId(String entityName, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
 		if (entityType.hasIdProperty())
-			return getCriteriaOnProperties(entityName, Arrays.asList(entityType.getRequiredIdProperty()), accessor, mappingContext);
+			return getCriteriaOnProperties(entityName, Arrays.asList(entityType.getRequiredIdProperty()), accessor, client);
 		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getCriteriaOnProperties(entityName, getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, mappingContext);
-		return getCriteriaOnProperties(entityName, entityType, accessor, mappingContext);
+			return getCriteriaOnProperties(entityName, getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, client);
+		return getCriteriaOnProperties(entityName, entityType, accessor, client);
 	}
 	
-	public static Criteria getCriteriaOnProperties(String entityName, Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public static Criteria getCriteriaOnProperties(String entityName, Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
 		Iterator<RelationalPersistentProperty> it = properties.iterator();
 		Criteria condition = null;
 		do {
 			RelationalPersistentProperty property = it.next();
-			Object value = getDatabaseValue(accessor.getBean(), property, mappingContext);
+			Object value = getDatabaseValue(accessor.getBean(), property, client);
 			Criteria propertyCondition = value != null ? Criteria.property(entityName, property.getName()).is(value) : Criteria.property(entityName, property.getName()).isNull();
 			condition = condition != null ? condition.and(propertyCondition) : propertyCondition;
 		} while (it.hasNext());

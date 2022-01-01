@@ -186,11 +186,11 @@ public class LcReactiveDataRelationalClient {
 	@SuppressWarnings("unchecked")
 	private <T> Mono<T> doLoading(T entity, RelationalPersistentEntity<?> entityType) {
 		PersistentPropertyAccessor<?> accessor = entityType.getPropertyAccessor(entity);
-		Object id = ModelUtils.getId(entityType, accessor, mappingContext);
+		Object id = ModelUtils.getId(entityType, accessor, this);
 		EntityCache cache = new EntityCache();
 		cache.setById((Class<T>) entity.getClass(), id, entity);
 		return SelectQuery.from((Class<T>) entity.getClass(), QUERY_ENTITY_NAME)
-			.where(ModelUtils.getCriteriaOnId(QUERY_ENTITY_NAME, entityType, accessor, mappingContext))
+			.where(ModelUtils.getCriteriaOnId(QUERY_ENTITY_NAME, entityType, accessor, this))
 			.limit(0, 1)
 			.execute(this, new LcEntityReader(cache, getMapper()))
 			.next()
@@ -228,9 +228,9 @@ public class LcReactiveDataRelationalClient {
 		Criteria criteria = null;
 		do {
 			PersistentPropertyAccessor<?> accessor = entityType.getPropertyAccessor(entity);
-			Object id = ModelUtils.getId(entityType, accessor, mappingContext);
+			Object id = ModelUtils.getId(entityType, accessor, this);
 			cache.setById((Class<T>) entity.getClass(), id, entity);
-			Criteria entityCriteria = ModelUtils.getCriteriaOnId(QUERY_ENTITY_NAME, entityType, accessor, mappingContext);
+			Criteria entityCriteria = ModelUtils.getCriteriaOnId(QUERY_ENTITY_NAME, entityType, accessor, this);
 			criteria = criteria != null ? criteria.or(entityCriteria) : entityCriteria;
 			if (!it.hasNext())
 				break;

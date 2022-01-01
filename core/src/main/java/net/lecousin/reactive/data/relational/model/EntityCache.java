@@ -4,10 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.data.mapping.PersistentPropertyAccessor;
-import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
+import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 
 public class EntityCache {
@@ -29,11 +28,11 @@ public class EntityCache {
 	
 	/** Get it from cache or add it to cache. */
 	@SuppressWarnings("java:S3824")
-	public <T> T getOrSet(EntityState state, RelationalPersistentEntity<T> entity, PersistentPropertyAccessor<T> accessor, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public <T> T getOrSet(EntityState state, RelationalPersistentEntity<T> entity, PersistentPropertyAccessor<T> accessor, LcReactiveDataRelationalClient client) {
 		if (!state.isPersisted())
 			return accessor.getBean(); // if not persisted, we cannot use id, only instance
 		Map<Object, Object> map = cache.computeIfAbsent(entity.getType(), e -> new HashMap<>());
-		Object id = ModelUtils.getId(entity, accessor, mappingContext);
+		Object id = ModelUtils.getId(entity, accessor, client);
 		@SuppressWarnings("unchecked")
 		T known = (T) map.get(id);
 		if (known == null) {
