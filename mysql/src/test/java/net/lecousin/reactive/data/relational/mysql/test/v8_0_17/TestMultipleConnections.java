@@ -13,6 +13,11 @@ public class TestMultipleConnections extends TestMultipleDatabaseConnections {
 
 	@Configuration
 	public static class MySqlDbUrls implements DbUrls {
+		@Bean
+		public MySqlStarter mysql() {
+			return new MySqlStarter(com.wix.mysql.distribution.Version.v8_0_17);
+		}
+		
 		@Override
 		@Bean
 		@Qualifier("db1Url")
