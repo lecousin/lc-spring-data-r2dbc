@@ -475,9 +475,10 @@ public final class Enhancer {
 				ForeignKey fk = (ForeignKey) field.getAnnotation(ForeignKey.class);
 				if (fk != null) {
 					// if ForeignKey, ensure it is loaded
-					method.setBody("return $0.get" + method.getName().substring(7) + "() != null ? $0.get" + method.getName().substring(7) + "().loadEntity() : reactor.core.publisher.Mono.empty();");
+					String getter = "$0.get" + method.getName().substring(7) + "()";
+					method.setBody("return " + getter + " != null ? " + getter + "._lcState.load(" + getter + ") : reactor.core.publisher.Mono.empty();");
 				} else {
-					method.setBody("return $0.loadEntity().map($0._lcState.getFieldMapper($0, \"" + propertyName + "\"));");
+					method.setBody("return $0._lcState.load($0).map($0._lcState.getFieldMapper($0, \"" + propertyName + "\"));");
 				}
 			}
 		}

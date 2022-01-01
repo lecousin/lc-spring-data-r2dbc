@@ -2,6 +2,7 @@ package net.lecousin.reactive.data.relational.query;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Expression;
@@ -116,15 +117,15 @@ public class InsertMultiple {
 
 		StringBuilder builder = new StringBuilder();
 
-		builder.append("INSERT ").append(this.into);
+		builder.append("INSERT INTO ").append(this.into);
 
 		if (!this.columns.isEmpty()) {
-			builder.append(" (").append(StringUtils.collectionToDelimitedString(this.columns, ", ")).append(")");
+			builder.append(" (").append(StringUtils.collectionToDelimitedString(this.columns.stream().map(col -> col.getName().toString()).collect(Collectors.toList()), ",")).append(")");
 		}
 
 		if (!this.values.isEmpty()) {
 			builder.append(" VALUES ");
-			StringUtils.collectionToDelimitedString(this.values, ",");
+			builder.append(StringUtils.collectionToDelimitedString(this.values, ","));
 		}
 
 		return builder.toString();

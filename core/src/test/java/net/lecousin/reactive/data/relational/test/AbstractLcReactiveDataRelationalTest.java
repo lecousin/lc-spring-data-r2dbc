@@ -53,15 +53,6 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	}
 	
 	@BeforeEach
-	public void initDatabase() {
-		Collection<Class<?>> usedEntities = usedEntities();
-		if (usedEntities == null)
-			usedEntities = getAllCompatibleEntities();
-		RelationalDatabaseSchema schema = lcClient.buildSchemaFromEntities(usedEntities);
-		lcClient.dropCreateSchemaContent(schema).block();
-	}
-	
-	@BeforeEach
 	public void logStartTestInfo(TestInfo testInfo) {
 		LOGGER.info("Start of test {} ({}#{})", testInfo.getDisplayName(), testInfo.getTestClass().map(Class::getName).orElse(""), testInfo.getTestMethod().map(Method::getName).orElse(""));
 	}
@@ -69,6 +60,17 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	@AfterEach
 	public void logEndTestInfo(TestInfo testInfo) {
 		LOGGER.info("End of test {} ({}#{})", testInfo.getDisplayName(), testInfo.getTestClass().map(Class::getName).orElse(""), testInfo.getTestMethod().map(Method::getName).orElse(""));
+	}
+	
+	@BeforeEach
+	public void initDatabase() {
+		LOGGER.info("Initializing database");
+		Collection<Class<?>> usedEntities = usedEntities();
+		if (usedEntities == null)
+			usedEntities = getAllCompatibleEntities();
+		RelationalDatabaseSchema schema = lcClient.buildSchemaFromEntities(usedEntities);
+		lcClient.dropCreateSchemaContent(schema).block();
+		LOGGER.info("Database initialized");
 	}
 	
 	protected Collection<Class<?>> getAllCompatibleEntities() {

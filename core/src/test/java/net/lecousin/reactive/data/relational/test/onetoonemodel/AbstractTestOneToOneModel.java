@@ -26,9 +26,12 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 	@Autowired
 	private MyEntity3Repository repo3;
 	
+	@Autowired
+	private MyEntity4Repository repo4;
+	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
-		return Arrays.asList(MyEntity1.class, MyEntity2.class, MyEntity3.class, MySubEntity1.class, MySubEntity2.class, MySubEntity3.class);
+		return Arrays.asList(MyEntity1.class, MyEntity2.class, MyEntity3.class, MySubEntity1.class, MySubEntity2.class, MySubEntity3.class, MyEntity4.class, MySubEntity4.class);
 	}
 	
 	@Test
@@ -353,6 +356,105 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 		
 		repo1.deleteById(Flux.fromIterable(entities).map(MyEntity1::getId)).block();
 		Assertions.assertEquals(0, repo1.count().block());
+	}
+	
+	@Test
+	public void testOneToOneWithCompositeIdInSubEntity() {
+		List<MyEntity4> entities = repo4.saveAll(Flux.range(1, 10).map(i -> {
+			MyEntity4 e = new MyEntity4();
+			e.setValue("entity" + i);
+			MySubEntity4 s = new MySubEntity4();
+			s.setValue1(i + "." + 1);
+			s.setValue2(i + "." + 2);
+			s.setParent(e);
+			e.setSubEntity(s);
+			MyEntity1 e1 = new MyEntity1();
+			e1.setValue("one." + i);
+			s.setEntity1(e1);
+			return e;
+		})).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, repo4.count().block());
+		Assertions.assertEquals(10, SelectQuery.from(MySubEntity4.class, "e").executeCount(lcClient).block());
+		Assertions.assertEquals(10, repo1.count().block());
+		
+		entities = repo4.findAll().collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		for (MyEntity4 e : entities) {
+			Assertions.assertTrue(e.getValue().startsWith("entity"));
+			int i = Integer.parseInt(e.getValue().substring(6));
+			Assertions.assertNull(e.getSubEntity());
+			MySubEntity4 s = e.lazyGetSubEntity().block();
+			Assertions.assertEquals(i + "." + 1, s.getValue1());
+			Assertions.assertEquals(i + "." + 2, s.getValue2());
+			Assertions.assertEquals(s, e.getSubEntity());
+			Assertions.assertNotNull(s.getEntity1()); // id loaded
+			Assertions.assertNull(s.getEntity1().getValue()); // but not value column
+			MyEntity1 e1 = s.lazyGetEntity1().block();
+			Assertions.assertEquals("one." + i, e1.getValue());
+			Assertions.assertEquals("one." + i, s.getEntity1().getValue());
+		}
+		
+		MySubEntity4 sub = new MySubEntity4();
+		sub.setValue1("4.1");
+		sub.setValue2("4.2");
+		Assertions.assertNull(sub.getParent());
+		lcClient.lazyLoad(sub).block();
+		Assertions.assertNotNull(sub.getParent());
+		Assertions.assertNull(sub.getParent().getValue());
+		lcClient.lazyLoad(sub.getParent()).block();
+		Assertions.assertEquals("entity4", sub.getParent().getValue());
+		
+		
+		repo4.deleteAll().block();
+		Assertions.assertEquals(0, repo4.count().block());
+		Assertions.assertEquals(0, SelectQuery.from(MySubEntity4.class, "e").executeCount(lcClient).block());
+		Assertions.assertEquals(0, repo1.count().block());
+		
+		entities = repo4.saveAll(Flux.range(1, 10).map(i -> {
+			MyEntity4 e = new MyEntity4();
+			e.setValue("entity" + i);
+			MySubEntity4 s = new MySubEntity4();
+			s.setValue1(i + "." + 1);
+			s.setValue2(i + "." + 2);
+			s.setParent(e);
+			e.setSubEntity(s);
+			MyEntity1 e1 = new MyEntity1();
+			e1.setValue("one." + i);
+			s.setEntity1(e1);
+			return e;
+		})).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, repo4.count().block());
+		Assertions.assertEquals(10, SelectQuery.from(MySubEntity4.class, "e").executeCount(lcClient).block());
+		Assertions.assertEquals(10, repo1.count().block());
+		
+		entities = repo4.findAllWithSubEntities().collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		for (MyEntity4 e : entities) {
+			Assertions.assertTrue(e.getValue().startsWith("entity"));
+			int i = Integer.parseInt(e.getValue().substring(6));
+			MySubEntity4 s = e.getSubEntity();
+			Assertions.assertNotNull(s);
+			Assertions.assertEquals(i + "." + 1, s.getValue1());
+			Assertions.assertEquals(i + "." + 2, s.getValue2());
+			Assertions.assertEquals(s, e.getSubEntity());
+			MyEntity1 e1 = s.getEntity1();
+			Assertions.assertNotNull(e1);
+			Assertions.assertNotNull(e1.getValue()); // but not value column
+			Assertions.assertEquals("one." + i, e1.getValue());
+			Assertions.assertEquals("one." + i, s.getEntity1().getValue());
+		}
+		repo4.deleteAll(entities).block();
+		Assertions.assertEquals(0, repo4.count().block());
+		Assertions.assertEquals(0, SelectQuery.from(MySubEntity4.class, "e").executeCount(lcClient).block());
+		Assertions.assertEquals(0, repo1.count().block());
+	}
+	
+	@Test
+	public void testInvalidJoin() {
+		SelectQuery<MyEntity4> q = SelectQuery.from(MyEntity4.class, "e").join("e", "subEntity", "s");
+		Assertions.assertThrows(IllegalArgumentException.class, () -> q.join("subEntity", "entity1", "e1"));
 	}
 	
 }

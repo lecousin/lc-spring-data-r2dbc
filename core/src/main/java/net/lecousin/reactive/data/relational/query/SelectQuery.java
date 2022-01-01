@@ -59,6 +59,8 @@ public class SelectQuery<T> {
 
 	public SelectQuery<T> join(String entityName, String propertyName, String alias) {
 		TableReference source = tableAliases.get(entityName);
+		if (source == null)
+			throw new IllegalArgumentException("entity <" + entityName + "> does not exist in current select query");
 		TableReference table = new TableReference(source, propertyName, null, alias);
 		joins.add(table);
 		tableAliases.put(table.alias, table);

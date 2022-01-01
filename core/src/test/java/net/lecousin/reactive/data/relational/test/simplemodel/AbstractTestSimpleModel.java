@@ -792,16 +792,42 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Test
 	public void testUUID() {
-		UUIDEntity e = new UUIDEntity();
-		UUID uuid = UUID.randomUUID();
-		e.setUuidNonKey(uuid);
+		Map<Integer, UUID> uuids = new HashMap<>();
+		for (int i = 0; i < 10; ++i)
+			uuids.put(i, UUID.randomUUID());
 		
-		e = lcClient.save(e).block();
-		Assertions.assertNotNull(e.getUuidKey());
-		Assertions.assertEquals(uuid, e.getUuidNonKey());
+		List<UUIDEntity> entities = lcClient.save(Flux.fromIterable(uuids.entrySet())
+			.map(entry -> {
+				UUIDEntity e = new UUIDEntity();
+				e.setUuidNonKey(entry.getValue());
+				e.setI(entry.getKey());
+				return e;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Map<Integer, UUID> keys = new HashMap<>();
+		for (UUIDEntity e : entities) {
+			Assertions.assertNotNull(e.getUuidKey());
+			Assertions.assertFalse(keys.containsKey(e.getI()));
+			Assertions.assertFalse(keys.containsValue(e.getUuidKey()));
+			keys.put(e.getI(), e.getUuidKey());
+			Assertions.assertEquals(uuids.get(e.getI()), e.getUuidNonKey());
+		}
 		
-		UUIDEntity e2 = SelectQuery.from(UUIDEntity.class, "e").execute(lcClient).single().block();
-		Assertions.assertEquals(uuid, e2.getUuidNonKey());
+		entities = SelectQuery.from(UUIDEntity.class, "e").execute(lcClient).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		keys = new HashMap<>();
+		for (UUIDEntity e : entities) {
+			Assertions.assertNotNull(e.getUuidKey());
+			Assertions.assertFalse(keys.containsKey(e.getI()));
+			Assertions.assertFalse(keys.containsValue(e.getUuidKey()));
+			keys.put(e.getI(), e.getUuidKey());
+			Assertions.assertEquals(uuids.get(e.getI()), e.getUuidNonKey());
+		}
+		
+		lcClient.delete(entities).block();
+		entities = SelectQuery.from(UUIDEntity.class, "e").execute(lcClient).collectList().block();
+		Assertions.assertEquals(0, entities.size());
 	}
 	
 	@Test

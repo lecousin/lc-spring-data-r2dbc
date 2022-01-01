@@ -17,6 +17,9 @@ public class UUIDEntity {
 	
 	@Column
 	private UUID uuidNonKey;
+	
+	@Column
+	private int i;
 
 	public UUID getUuidKey() {
 		return uuidKey;
@@ -32,6 +35,14 @@ public class UUIDEntity {
 
 	public void setUuidNonKey(UUID uuidNonKey) {
 		this.uuidNonKey = uuidNonKey;
+	}
+
+	public int getI() {
+		return i;
+	}
+
+	public void setI(int i) {
+		this.i = i;
 	}
 
 }
