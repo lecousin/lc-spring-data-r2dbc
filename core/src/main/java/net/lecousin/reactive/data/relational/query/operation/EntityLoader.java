@@ -12,9 +12,7 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 class EntityLoader {
 
@@ -25,16 +23,10 @@ class EntityLoader {
 	private Map<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, List<Consumer<Object>>>>> toRetrieve = new HashMap<>();
 	
 	Mono<Void> doOperations(Operation op) {
-		Mono<Void> load = doLoad(op);
-		Mono<Void> retrieve = doRetrieve(op);
-		if (load != null) {
-			if (retrieve != null)
-				return Flux.merge(1, load, retrieve).then();
-			return load;
-		}
-		if (retrieve != null)
-			return retrieve;
-		return null;
+		List<Mono<Void>> loads = new LinkedList<>();
+		doLoad(op, loads);
+		doRetrieve(op, loads);
+		return Operation.executeParallel(loads);
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -44,8 +36,7 @@ class EntityLoader {
 		consumers.add((Consumer<Object>)onLoaded);
 	}
 
-	private Mono<Void> doLoad(Operation op) {
-		List<Flux<?>> loads = new LinkedList<>();
+	private void doLoad(Operation op, List<Mono<Void>> loads) {
 		Map<RelationalPersistentEntity<?>, Map<Object, List<Consumer<Object>>>> map = toLoad;
 		toLoad = new HashMap<>();
 		for (Map.Entry<RelationalPersistentEntity<?>, Map<Object, List<Consumer<Object>>>> entity : map.entrySet()) {
@@ -54,10 +45,9 @@ class EntityLoader {
 				.doOnNext(loaded -> {
 					for (Consumer<Object> consumer : entity.getValue().get(loaded))
 						op.toCall(() -> consumer.accept(loaded));
-				})
+				}).then()
 			);
 		}
-		return execute(loads);
 	}
 	
 	void retrieve(RelationalPersistentEntity<?> entity, RelationalPersistentProperty property, Object propertyValue, Consumer<Object> consumer) {
@@ -67,10 +57,9 @@ class EntityLoader {
 		list.add(consumer);
 	}
 	
-	private Mono<Void> doRetrieve(Operation op) {
+	private void doRetrieve(Operation op, List<Mono<Void>> loads) {
 		Map<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, List<Consumer<Object>>>>> map = toRetrieve;
 		toRetrieve = new HashMap<>();
-		List<Flux<?>> loads = new LinkedList<>();
 		for (Map.Entry<RelationalPersistentEntity<?>, Map<RelationalPersistentProperty, Map<Object, List<Consumer<Object>>>>> entity : map.entrySet()) {
 			for (Map.Entry<RelationalPersistentProperty, Map<Object, List<Consumer<Object>>>> property : entity.getValue().entrySet()) {
 				loads.add(
@@ -78,11 +67,10 @@ class EntityLoader {
 						SelectQuery.from(entity.getKey().getType(), "e")
 						.where(net.lecousin.reactive.data.relational.query.criteria.Criteria.property("e", property.getKey().getName()).in(property.getValue().keySet())),
 						null
-					).map(e -> retrieved(e, op, property.getKey(), property.getValue()))
+					).map(e -> retrieved(e, op, property.getKey(), property.getValue())).then()
 				);
 			}
 		}
-		return execute(loads);
 	}
 	
 	private static <T> T retrieved(T entity, Operation op, RelationalPersistentProperty property, Map<Object, List<Consumer<Object>>> consumersMap) {
@@ -95,21 +83,6 @@ class EntityLoader {
 		} catch (Exception e) {
 			throw new MappingException("Error analyzing data from retrieved entity", e);
 		}
-	}
-	
-	private static Mono<Void> execute(List<Flux<?>> requests) {
-		if (requests.isEmpty())
-			return null;
-		if (requests.size() == 1)
-			return requests.get(0).then();
-		if (requests.size() > 4)
-			Flux.fromIterable(requests)
-				.parallel()
-				.runOn(Schedulers.parallel(), 4)
-				.flatMap(s -> s)
-				.then()
-				;
-		return Flux.merge(requests).then();
 	}
 	
 }

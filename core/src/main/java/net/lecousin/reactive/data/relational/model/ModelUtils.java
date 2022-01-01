@@ -375,22 +375,20 @@ public class ModelUtils {
 	
 	public static boolean hasCascadeDeleteImpacts(Class<?> entityType, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
 		LcEntityTypeInfo typeInfo = LcEntityTypeInfo.get(entityType);
-		if (!typeInfo.getForeignTables().isEmpty())
-			return true;
-		if (!typeInfo.getJoinTables().isEmpty())
+		if (!typeInfo.getForeignTables().isEmpty() || !typeInfo.getJoinTables().isEmpty())
 			return true;
 		RelationalPersistentEntity<?> entity = mappingContext.getRequiredPersistentEntity(entityType);
 		for (RelationalPersistentProperty property : entity) {
 			ForeignKey fkAnnotation = property.findAnnotation(ForeignKey.class);
-			if (fkAnnotation != null) {
-				if (fkAnnotation.cascadeDelete())
+			if (fkAnnotation == null)
+				continue;
+			if (fkAnnotation.cascadeDelete())
+				return true;
+			Field ftField = typeInfo.getForeignTableFieldForJoinKey(property.getName(), entityType);
+			if (ftField != null) {
+				ForeignTable ftAnnotation = ftField.getAnnotation(ForeignTable.class);
+				if (ftAnnotation != null && !ftAnnotation.optional())
 					return true;
-				Field ftField = typeInfo.getForeignTableFieldForJoinKey(property.getName(), entityType);
-				if (ftField != null) {
-					ForeignTable ftAnnotation = ftField.getAnnotation(ForeignTable.class);
-					if (ftAnnotation != null && ftAnnotation.optional() == false)
-						return true;
-				}
 			}
 		}
 		return false;

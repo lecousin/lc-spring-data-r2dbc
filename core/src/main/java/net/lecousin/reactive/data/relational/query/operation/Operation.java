@@ -12,7 +12,9 @@ import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.EntityCache;
 import net.lecousin.reactive.data.relational.query.operation.DeleteProcessor.DeleteRequest;
 import net.lecousin.reactive.data.relational.query.operation.SaveProcessor.SaveRequest;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 public class Operation {
 	
@@ -96,5 +98,19 @@ public class Operation {
 			return op;
 		return Mono.when(op, op2);
 	}
-	
+
+	static Mono<Void> executeParallel(List<Mono<Void>> monos) {
+		if (monos.isEmpty())
+			return null;
+		if (monos.size() == 1)
+			return monos.get(0);
+		if (monos.size() > 4)
+			return Flux.fromIterable(monos)
+				.parallel()
+				.runOn(Schedulers.parallel(), 4)
+				.flatMap(s -> s)
+				.then()
+				;
+		return Flux.merge(monos).then();
+	}
 }

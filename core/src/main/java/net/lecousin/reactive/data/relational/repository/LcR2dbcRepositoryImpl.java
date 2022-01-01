@@ -13,6 +13,7 @@ import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @SuppressWarnings("java:S119") // name of parameter ID
 public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> implements LcR2dbcRepository<T, ID> {
@@ -83,12 +84,15 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	@Override
 	public Mono<Void> deleteById(Publisher<ID> idPublisher) {
 		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType(), lcClient.getMappingContext()))
-			return deleteAll(findById(idPublisher));
+			return deleteAll(findAllById(idPublisher));
 		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
 		if (!entity.hasIdProperty())
-			return deleteAll(findById(idPublisher));
+			return deleteAll(findAllById(idPublisher));
 		return Flux.from(idPublisher)
+			.subscribeOn(Schedulers.parallel()).publishOn(Schedulers.parallel())
 			.buffer(100)
+			.parallel()
+			.runOn(Schedulers.parallel(), 1)
 			.flatMap(ids -> entityOperations.delete(entityInfo.getJavaType()).matching(Query.query(Criteria.where(entity.getRequiredIdProperty().getColumnName().getReference()).in(ids))).all().then())
 			.then();
 	}

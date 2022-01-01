@@ -286,6 +286,7 @@ public class LcReactiveDataRelationalClient {
 	
 	public <T> Mono<Void> delete(Publisher<T> publisher, int bunchSize) {
 		return Flux.from(publisher)
+			.subscribeOn(Schedulers.parallel()).publishOn(Schedulers.parallel())
 			.buffer(bunchSize)
 			.parallel()
 			.runOn(Schedulers.parallel(), 1)

@@ -332,6 +332,25 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 			Assertions.assertTrue(repo1.findById(entity.getId()).blockOptional().isEmpty());
 		}
 		Assertions.assertEquals(0, repo1.count().block());
+		
+		entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				MyEntity1 entity = new MyEntity1();
+				entity.setValue("entity" + i);
+				if ((i % 2) == 0) {
+					MySubEntity1 sub = new MySubEntity1();
+					sub.setSubValue("sub" + i);
+					sub.setParent(entity);
+					entity.setSubEntity(sub);
+				}
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, repo1.count().block());
+		
+		repo1.deleteById(Flux.fromIterable(entities).map(MyEntity1::getId)).block();
+		Assertions.assertEquals(0, repo1.count().block());
 	}
 	
 }

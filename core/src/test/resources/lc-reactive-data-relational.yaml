@@ -4,6 +4,7 @@ entities:
     - simplemodel:
       - BooleanTypes
       - CharacterTypes
+      - CompositeIdEntity
       - DateTypes
       - DateTypesWithTimeZone
       - Entity1WithSequence

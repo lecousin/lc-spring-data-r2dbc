@@ -59,6 +59,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Collections.addAll(entities,
 			BooleanTypes.class,
 			CharacterTypes.class,
+			CompositeIdEntity.class,
 			DateTypes.class,
 			Entity1WithSequence.class,
 			Entity2WithSequence.class,
@@ -864,6 +865,56 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			Assertions.assertTrue(repoBool.findById(entity.getId()).blockOptional().isEmpty());
 		}
 		Assertions.assertEquals(0, repoBool.count().block());
+		
+		entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				BooleanTypes entity = new BooleanTypes();
+				entity.setB1(null);
+				entity.setB2(true);
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, repoBool.count().block());
+		
+		repoBool.deleteById(Flux.fromIterable(entities).map(BooleanTypes::getId)).block();
+		Assertions.assertEquals(0, repoBool.count().block());
+	}
+	
+	@Test
+	public void testCompositeId() {
+		List<CompositeIdEntity> entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				CompositeIdEntity entity = new CompositeIdEntity();
+				entity.setId1(Long.valueOf(i / 2));
+				entity.setId2("Test" + (i % 2));
+				entity.setStr("entity" + i);
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, SelectQuery.from(CompositeIdEntity.class, "entity").executeCount(lcClient).block());
+		
+		entities = SelectQuery.from(CompositeIdEntity.class, "entity").execute(lcClient).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		for (CompositeIdEntity entity : entities) {
+			Assertions.assertTrue(entity.getStr().startsWith("entity"));
+			int i = Integer.parseInt(entity.getStr().substring(6));
+			Assertions.assertEquals(Long.valueOf(i / 2), entity.getId1());
+			Assertions.assertEquals("Test" + (i % 2), entity.getId2());
+			entity.setStr("updated" + i);
+		}
+		lcClient.save(entities).collectList().block();
+		entities = SelectQuery.from(CompositeIdEntity.class, "entity").execute(lcClient).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		for (CompositeIdEntity entity : entities) {
+			Assertions.assertTrue(entity.getStr().startsWith("updated"));
+			int i = Integer.parseInt(entity.getStr().substring(7));
+			Assertions.assertEquals(Long.valueOf(i / 2), entity.getId1());
+			Assertions.assertEquals("Test" + (i % 2), entity.getId2());
+		}
+		lcClient.delete(entities).block();
+		entities = SelectQuery.from(CompositeIdEntity.class, "entity").execute(lcClient).collectList().block();
+		Assertions.assertEquals(0, entities.size());
 	}
 	
 }

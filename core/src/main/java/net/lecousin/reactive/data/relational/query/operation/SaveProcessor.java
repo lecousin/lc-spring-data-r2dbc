@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.apache.commons.lang3.mutable.MutableObject;
-import org.reactivestreams.Publisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -47,7 +46,6 @@ import net.lecousin.reactive.data.relational.query.InsertMultiple;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest> {
 
@@ -194,7 +192,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 	
 	@Override
 	protected Mono<Void> doRequests(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests) {
-		List<Publisher<?>> statements = new LinkedList<>();
+		List<Mono<Void>> statements = new LinkedList<>();
 		boolean multipleInsertSupported = op.lcClient.getSchemaDialect().isMultipleInsertSupported();
 		List<SaveRequest> toInsert = new LinkedList<>();
 		for (SaveRequest request : requests) {
@@ -207,17 +205,10 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 				statements.add(doUpdate(op, request));
 		}
 		doInsert(op, entityType, toInsert, statements);
-		if (statements.size() > 4)
-			return Flux.fromIterable(statements)
-				.parallel()
-				.runOn(Schedulers.parallel(), 4)
-				.flatMap(s -> s)
-				.then()
-				;
-		return Flux.merge(statements).then();
+		return Operation.executeParallel(statements);
 	}
 	
-	private static void doInsert(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests, List<Publisher<?>> statements) {
+	private static void doInsert(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests, List<Mono<Void>> statements) {
 		if (requests.isEmpty())
 			return;
 		List<SaveRequest> remaining = requests;
@@ -226,17 +217,17 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 				statements.add(doInsertSingle(op, remaining.get(0)));
 				return;
 			}
-			if (remaining.size() <= 100) {
+			if (remaining.size() <= 1000) {
 				statements.add(doInsertMultiple(op, entityType, remaining));
 				return;
 			}
-			statements.add(doInsertMultiple(op, entityType, remaining.subList(0, 100)));
-			remaining = remaining.subList(100, remaining.size());
+			statements.add(doInsertMultiple(op, entityType, remaining.subList(0, 1000)));
+			remaining = remaining.subList(1000, remaining.size());
 		} while (true);
 	}
 	
 	@SuppressWarnings({"java:S1612", "java:S3776"}) // cannot do it
-	private static Flux<Object> doInsertMultiple(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests) {
+	private static Mono<Void> doInsertMultiple(Operation op, RelationalPersistentEntity<?> entityType, List<SaveRequest> requests) {
 		return Flux.defer(() -> {
 			SqlQuery<InsertMultiple> query = new SqlQuery<>(op.lcClient);
 			// table
@@ -318,11 +309,11 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 				})
 				.all()
 				;
-		});
+		}).then();
 	}
 	
 	@SuppressWarnings({"java:S1612", "java:S3776"}) // cannot do it
-	private static Mono<Object> doInsertSingle(Operation op, SaveRequest request) {
+	private static Mono<Void> doInsertSingle(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> {
 			SqlQuery<Insert> query = new SqlQuery<>(op.lcClient);
 			final List<RelationalPersistentProperty> generated = new LinkedList<>();
@@ -361,7 +352,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 					request.state.loaded(request.instance);
 					return request.instance;
 				});
-		}).flatMap(RowsFetchSpec::first);
+		}).flatMap(RowsFetchSpec::first).then();
 	}
 	
 	private static Insert createInsertQuery(SqlQuery<Insert> query, OutboundRow row, SqlIdentifier tableName, List<RelationalPersistentProperty> generated) {
@@ -386,9 +377,9 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 	}
 
 	
-	private static Mono<Object> doUpdate(Operation op, SaveRequest request) {
+	private static Mono<Void> doUpdate(Operation op, SaveRequest request) {
 		return Mono.fromCallable(() -> createUpdateRequest(op, request))
-			.flatMap(updatedRows -> updatedRows != null ? updatedRows.thenReturn(request.instance).doOnSuccess(e -> entityUpdated(op, request)) : Mono.just(request.instance));
+			.flatMap(updatedRows -> updatedRows != null ? updatedRows.doOnSuccess(nb -> entityUpdated(op, request)).then() : Mono.empty());
 	}
 	
 	private static Mono<Integer> createUpdateRequest(Operation op, SaveRequest request) {

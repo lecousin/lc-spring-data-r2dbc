@@ -21,9 +21,7 @@ import org.springframework.data.relational.core.sql.Table;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 class DeleteWithoutLoading extends AbstractProcessor<DeleteWithoutLoading.Request> {
 
@@ -64,21 +62,12 @@ class DeleteWithoutLoading extends AbstractProcessor<DeleteWithoutLoading.Reques
 			SqlQuery<Delete> query = new SqlQuery<>(op.lcClient);
 			Table table = Table.create(entity.getKey().getTableName());
 			Condition condition = createCondition(entity.getKey(), table, ready, query);
-			query.setQuery(Delete.builder().from(table).where(condition).build());
-			calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
+			if (condition != null) {
+				query.setQuery(Delete.builder().from(table).where(condition).build());
+				calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
+			}
 		}
-		if (calls.isEmpty())
-			return null;
-		if (calls.size() == 1)
-			return calls.get(0);
-		if (calls.size() > 4)
-			return Flux.fromIterable(calls)
-				.parallel()
-				.runOn(Schedulers.parallel(), 4)
-				.flatMap(s -> s)
-				.then()
-				;
-		return Flux.merge(calls).then();
+		return Operation.executeParallel(calls);
 	}
 	
 	private static Condition createCondition(RelationalPersistentEntity<?> entityType, Table table, List<Request> ready, SqlQuery<Delete> query) {
