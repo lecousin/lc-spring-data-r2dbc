@@ -286,8 +286,9 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 	}
 	
 	@Test
-	public void testInsertAndDelete100000EntitiesAnd50000LinkedEntities() {
-		lcClient.save(Flux.range(0, 100000)
+	public void testInsertAndDeleteManyEntities() {
+		final int nb = lcClient.getSchemaDialect().isMultipleInsertSupported() ? 100000 : 1000;
+		lcClient.save(Flux.range(0, nb)
 			.map(i -> {
 				MyEntity1 entity = new MyEntity1();
 				entity.setValue("entity" + i);
@@ -300,7 +301,8 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 				return entity;
 			})
 		).then().block();
-		Assertions.assertEquals(100000, repo1.count().block());
+		Assertions.assertEquals(nb, repo1.count().block());
+		Assertions.assertEquals(nb / 2, SelectQuery.from(MySubEntity1.class, "e").executeCount(lcClient).block());
 		
 		repo1.deleteAll().block();
 		

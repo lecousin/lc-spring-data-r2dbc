@@ -831,8 +831,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	}
 	
 	@Test
-	public void testInsertAndDelete100000Entities() {
-		lcClient.save(Flux.range(0, 100000)
+	public void testInsertAndDeleteManyEntities() {
+		final int nb = lcClient.getSchemaDialect().isMultipleInsertSupported() ? 1000000 : 10000;
+		lcClient.save(Flux.range(0, nb)
 			.map(i -> {
 				BooleanTypes entity = new BooleanTypes();
 				entity.setB1(null);
@@ -840,7 +841,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 				return entity;
 			})
 		).then().block();
-		Assertions.assertEquals(100000, repoBool.count().block());
+		Assertions.assertEquals(nb, repoBool.count().block());
 		
 		repoBool.deleteAll().block();
 		
