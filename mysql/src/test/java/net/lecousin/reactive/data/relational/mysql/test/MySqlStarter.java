@@ -44,7 +44,7 @@ public class MySqlStarter {
 		    .withCharset(Charset.aCharset("utf8", "utf8_bin"))
 		    .withTimeZone(TimeZone.getDefault())
 		    .build();
-		mysql = EmbeddedMysql.anEmbeddedMysql(config).addSchema("test").start();
+		mysql = EmbeddedMysql.anEmbeddedMysql(config).addSchema("test").addSchema("first").addSchema("second").start();
 		launchVersion = version;
 	}
 	

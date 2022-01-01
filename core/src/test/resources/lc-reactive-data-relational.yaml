@@ -43,3 +43,9 @@ entities:
       - User
     - treemodel:
       - Node
+    - multipleconnections:
+      - db1:
+        - MyEntity1
+      - db2:
+        - MyEntity2
+        

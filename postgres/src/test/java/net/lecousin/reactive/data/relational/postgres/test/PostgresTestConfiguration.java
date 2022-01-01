@@ -15,7 +15,7 @@ import net.lecousin.reactive.data.relational.postgres.PostgresConfiguration;
 @Configuration
 public class PostgresTestConfiguration extends PostgresConfiguration {
 
-	private static EmbeddedPostgres epg;
+	public static EmbeddedPostgres epg;
 	private static Throwable error = null;
 	
 	static {
@@ -35,6 +35,8 @@ public class PostgresTestConfiguration extends PostgresConfiguration {
 			epg = builder.start();
 			Connection conn = epg.getPostgresDatabase().getConnection();
 			conn.prepareCall("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").execute();
+			conn.prepareCall("CREATE DATABASE first").execute();
+			conn.prepareCall("CREATE DATABASE second").execute();
 			conn.close();
 		} catch (Throwable e) {
 			error = e;
