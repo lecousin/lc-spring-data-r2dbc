@@ -75,7 +75,7 @@ public abstract class TestMultipleDatabaseConnections {
 		Assertions.assertEquals(1L, 
 			Mono.from(factory1.create())
 			.flatMap(connection ->
-				Mono.from(connection.createStatement("SELECT COUNT(*) FROM my_entity1").execute())
+				Mono.from(connection.createStatement("SELECT COUNT(*) FROM multiple_db_entity1").execute())
 				.flatMap(result -> Mono.from(result.map((r, m) -> r.get(0))))
 				.doOnTerminate(() -> Mono.from(connection.close()).subscribe())
 			).block()
@@ -84,7 +84,7 @@ public abstract class TestMultipleDatabaseConnections {
 		Assertions.assertEquals(1L, 
 			Mono.from(factory2.create())
 			.flatMap(connection ->
-				Mono.from(connection.createStatement("SELECT COUNT(*) FROM my_entity2").execute())
+				Mono.from(connection.createStatement("SELECT COUNT(*) FROM multiple_db_entity2").execute())
 				.flatMap(result -> Mono.from(result.map((r, m) -> r.get(0))))
 				.doOnTerminate(() -> Mono.from(connection.close()).subscribe())
 			).block()
@@ -93,7 +93,7 @@ public abstract class TestMultipleDatabaseConnections {
 		Assertions.assertThrows(R2dbcBadGrammarException.class, () -> 
 			Mono.from(factory1.create())
 			.flatMap(connection ->
-				Mono.from(connection.createStatement("SELECT COUNT(*) FROM my_entity2").execute())
+				Mono.from(connection.createStatement("SELECT COUNT(*) FROM multiple_db_entity2").execute())
 				.flatMap(result -> Mono.from(result.map((r, m) -> r.get(0))))
 				.doOnTerminate(() -> Mono.from(connection.close()).subscribe())
 			).block()
@@ -102,7 +102,7 @@ public abstract class TestMultipleDatabaseConnections {
 		Assertions.assertThrows(R2dbcBadGrammarException.class, () -> 
 			Mono.from(factory2.create())
 			.flatMap(connection ->
-				Mono.from(connection.createStatement("SELECT COUNT(*) FROM my_entity1").execute())
+				Mono.from(connection.createStatement("SELECT COUNT(*) FROM multiple_db_entity1").execute())
 				.flatMap(result -> Mono.from(result.map((r, m) -> r.get(0))))
 				.doOnTerminate(() -> Mono.from(connection.close()).subscribe())
 			).block()
