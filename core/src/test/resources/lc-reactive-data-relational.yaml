@@ -45,7 +45,7 @@ entities:
       - Node
     - multipleconnections:
       - db1:
-        - MyEntity1
+        - MultipleDbEntity1
       - db2:
-        - MyEntity2
+        - MultipleDbEntity2
         

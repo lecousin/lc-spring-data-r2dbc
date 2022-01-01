@@ -38,6 +38,6 @@ public class Table {
 		for (Column col : columns)
 			if (col.getName().equals(name))
 				return col;
-		throw new NoSuchElementException("Column " + name);
+		throw new NoSuchElementException("Column <" + name + "> in table <" + name + ">");
 	}
 }

@@ -7,7 +7,7 @@ import org.springframework.data.relational.core.mapping.Table;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 
 @Table
-public class MyEntity1 {
+public class MultipleDbEntity1 {
 
 	@Id @GeneratedValue
 	private Long id;

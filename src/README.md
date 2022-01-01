@@ -1,10 +1,14 @@
 # lc-spring-data-r2dbc
 
-net.lecousin.reactive-data-relational
 [![Maven Central](https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22net.lecousin.reactive-data-relational%22%20AND%20a%3A%22core%22)
 [![Javadoc](https://img.shields.io/badge/javadoc-${project.version}-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/${project.version})
 ![Build status](https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml/badge.svg?branch=master)
+
 [![Codecov](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg)](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=coverage)](https://sonarcloud.io/summary/new_code?id=lecousin_lc-spring-data-r2dbc)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=bugs)](https://sonarcloud.io/summary/new_code?id=lecousin_lc-spring-data-r2dbc)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=lecousin_lc-spring-data-r2dbc)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=lecousin_lc-spring-data-r2dbc)
 
 The goal this library is to provide basic ORM features not covered by [Spring Data R2DBC](https://github.com/spring-projects/spring-data-r2dbc).
 

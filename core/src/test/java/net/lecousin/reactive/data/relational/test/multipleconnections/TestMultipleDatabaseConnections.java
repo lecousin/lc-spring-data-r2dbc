@@ -15,9 +15,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.R2dbcBadGrammarException;
-import net.lecousin.reactive.data.relational.test.multipleconnections.db1.MyEntity1;
+import net.lecousin.reactive.data.relational.test.multipleconnections.db1.MultipleDbEntity1;
 import net.lecousin.reactive.data.relational.test.multipleconnections.db1.MyRepository1;
-import net.lecousin.reactive.data.relational.test.multipleconnections.db2.MyEntity2;
+import net.lecousin.reactive.data.relational.test.multipleconnections.db2.MultipleDbEntity2;
 import net.lecousin.reactive.data.relational.test.multipleconnections.db2.MyRepository2;
 import reactor.core.publisher.Mono;
 
@@ -53,14 +53,14 @@ public abstract class TestMultipleDatabaseConnections {
 	
 	@Test
 	public void test() {
-		repo1.getLcClient().dropCreateSchemaContent(repo1.getLcClient().buildSchemaFromEntities(Arrays.asList(MyEntity1.class))).block();
-		repo2.getLcClient().dropCreateSchemaContent(repo2.getLcClient().buildSchemaFromEntities(Arrays.asList(MyEntity2.class))).block();
+		repo1.getLcClient().dropCreateSchemaContent(repo1.getLcClient().buildSchemaFromEntities(Arrays.asList(MultipleDbEntity1.class))).block();
+		repo2.getLcClient().dropCreateSchemaContent(repo2.getLcClient().buildSchemaFromEntities(Arrays.asList(MultipleDbEntity2.class))).block();
 		
-		MyEntity1 e1 = new MyEntity1();
+		MultipleDbEntity1 e1 = new MultipleDbEntity1();
 		e1.setValue("db1");
 		repo1.save(e1).block();
 		
-		MyEntity2 e2 = new MyEntity2();
+		MultipleDbEntity2 e2 = new MultipleDbEntity2();
 		e2.setValue("second db");
 		repo2.save(e2).block();
 
