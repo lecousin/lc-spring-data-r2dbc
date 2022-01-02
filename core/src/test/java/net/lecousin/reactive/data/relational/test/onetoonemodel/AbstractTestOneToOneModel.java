@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
 import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 import reactor.core.publisher.Flux;
@@ -29,9 +30,25 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 	@Autowired
 	private MyEntity4Repository repo4;
 	
+	@Autowired
+	private MySubEntity1Repository subRepo1;
+	
+	@Autowired
+	private MySubEntity5Repository subRepo5;
+	
+	@Autowired
+	private MySubEntity6Repository subRepo6;
+	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
-		return Arrays.asList(MyEntity1.class, MyEntity2.class, MyEntity3.class, MySubEntity1.class, MySubEntity2.class, MySubEntity3.class, MyEntity4.class, MySubEntity4.class);
+		return Arrays.asList(
+			MyEntity1.class, MySubEntity1.class,
+			MyEntity2.class, MySubEntity2.class,
+			MyEntity3.class, MySubEntity3.class,
+			MyEntity4.class, MySubEntity4.class,
+			MyEntity5.class, MySubEntity5.class,
+			MyEntity6.class, MySubEntity6.class
+		);
 	}
 	
 	@Test
@@ -313,7 +330,7 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 	}
 	
 	@Test
-	public void testDeleteById() {
+	public void testDeleteById1() {
 		List<MyEntity1> entities = lcClient.save(Flux.range(0, 10)
 			.map(i -> {
 				MyEntity1 entity = new MyEntity1();
@@ -356,6 +373,78 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 		
 		repo1.deleteById(Flux.fromIterable(entities).map(MyEntity1::getId)).block();
 		Assertions.assertEquals(0, repo1.count().block());
+		
+		entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				MyEntity1 entity = new MyEntity1();
+				entity.setValue("entity" + i);
+				if ((i % 2) == 0) {
+					MySubEntity1 sub = new MySubEntity1();
+					sub.setSubValue("sub" + i);
+					sub.setParent(entity);
+					entity.setSubEntity(sub);
+				}
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, repo1.count().block());
+		Assertions.assertEquals(5, subRepo1.count().block());
+		
+		MySubEntity1 sub = repo1.findByValue("entity4").blockFirst().lazyGetSubEntity().block();
+		Assertions.assertEquals("sub4", sub.getSubValue());
+		subRepo1.deleteById(sub.getId()).block();
+		Assertions.assertEquals(10, repo1.count().block());
+		Assertions.assertEquals(4, subRepo1.count().block());
+		Assertions.assertNull(repo1.findByValue("entity4").blockFirst().lazyGetSubEntity().block());
+	}
+	
+	@Test
+	public void testDeleteById5HavingCascadeDelete() {
+		List<MyEntity5> entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				MyEntity5 entity = new MyEntity5();
+				entity.setValue("entity" + i);
+				MySubEntity5 sub = new MySubEntity5();
+				sub.setSubValue("sub" + i);
+				sub.setParent(entity);
+				entity.setSubEntity(sub);
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, SelectQuery.from(MyEntity5.class, "e").executeCount(lcClient).block());
+		Assertions.assertEquals(10, subRepo5.count().block());
+		
+		MySubEntity5 sub = entities.get(3).getSubEntity();
+		Assertions.assertEquals("sub3", sub.getSubValue());
+		subRepo5.deleteById(sub.getId()).block();
+		Assertions.assertEquals(9, SelectQuery.from(MyEntity5.class, "e").executeCount(lcClient).block());
+		Assertions.assertEquals(9, subRepo5.count().block());
+	}
+	
+	@Test
+	public void testDeleteById6HavingForeignTableWithOptionalFalse() {
+		List<MyEntity6> entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				MyEntity6 entity = new MyEntity6();
+				entity.setValue("entity" + i);
+				MySubEntity6 sub = new MySubEntity6();
+				sub.setSubValue("sub" + i);
+				sub.setParent(entity);
+				entity.setSubEntity(sub);
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, SelectQuery.from(MyEntity6.class, "e").executeCount(lcClient).block());
+		Assertions.assertEquals(10, subRepo6.count().block());
+		
+		MySubEntity6 sub = entities.get(3).getSubEntity();
+		Assertions.assertEquals("sub3", sub.getSubValue());
+		subRepo6.deleteById(sub.getId()).block();
+		Assertions.assertEquals(9, SelectQuery.from(MyEntity6.class, "e").executeCount(lcClient).block());
+		Assertions.assertEquals(9, subRepo6.count().block());
 	}
 	
 	@Test
@@ -457,4 +546,30 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 		Assertions.assertThrows(IllegalArgumentException.class, () -> q.join("subEntity", "entity1", "e1"));
 	}
 	
+	@Test
+	public void testCriteriaOnForeignKey() {
+		List<MyEntity1> entities = lcClient.save(Flux.range(0, 10)
+			.map(i -> {
+				MyEntity1 entity = new MyEntity1();
+				entity.setValue("entity" + i);
+				MySubEntity1 sub = new MySubEntity1();
+				sub.setSubValue("sub" + i);
+				sub.setParent(entity);
+				entity.setSubEntity(sub);
+				return entity;
+			})
+		).collectList().block();
+		Assertions.assertEquals(10, entities.size());
+		Assertions.assertEquals(10, repo1.count().block());
+		Assertions.assertEquals(10, subRepo1.count().block());
+		
+		MyEntity1 e1 = entities.get(6);
+		List<MySubEntity1> list = SelectQuery.from(MySubEntity1.class, "sub").where(Criteria.property("sub", "parent").is(e1)).execute(lcClient).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		Assertions.assertEquals(e1.getSubEntity().getId(), list.get(0).getId());
+		
+		list = SelectQuery.from(MySubEntity1.class, "sub").where(Criteria.property("sub", "parent").isNot(e1)).execute(lcClient).collectList().block();
+		Assertions.assertEquals(9, list.size());
+	}
+
 }

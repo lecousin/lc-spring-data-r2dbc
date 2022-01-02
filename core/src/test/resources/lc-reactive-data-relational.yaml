@@ -22,6 +22,10 @@ entities:
       - MySubEntity3
       - MyEntity4
       - MySubEntity4
+      - MyEntity5
+      - MySubEntity5
+      - MyEntity6
+      - MySubEntity6
     - onetomanymodel:
       - RootEntity
       - SubEntity

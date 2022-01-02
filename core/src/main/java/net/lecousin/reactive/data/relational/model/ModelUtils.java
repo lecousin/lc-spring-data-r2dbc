@@ -30,8 +30,8 @@ import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
-import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 
@@ -202,7 +202,7 @@ public class ModelUtils {
 	public static void addToCollectionField(Field field, Object collectionOwnerInstance, Object elementToAdd) throws IllegalAccessException {
 		if (field.getType().isArray()) {
 			Object[] array = (Object[]) field.get(collectionOwnerInstance);
-			if (array == null || array.length == 0) {
+			if (array == null) {
 				array = (Object[]) Array.newInstance(field.getType().getComponentType(), 1);
 				array[0] = elementToAdd;
 				field.set(collectionOwnerInstance, array);
@@ -387,12 +387,10 @@ public class ModelUtils {
 				continue;
 			if (fkAnnotation.cascadeDelete())
 				return true;
-			Field ftField = typeInfo.getForeignTableFieldForJoinKey(property.getName(), entityType);
-			if (ftField != null) {
-				ForeignTable ftAnnotation = ftField.getAnnotation(ForeignTable.class);
-				if (ftAnnotation != null && !ftAnnotation.optional())
-					return true;
-			}
+			LcEntityTypeInfo foreignInfo = LcEntityTypeInfo.get(property.getActualType());
+			ForeignTableInfo ft = foreignInfo.getForeignTableWithFieldForJoinKey(property.getName(), entityType);
+			if (ft != null && !ft.getAnnotation().optional())
+				return true;
 		}
 		return false;
 	}

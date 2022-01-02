@@ -99,12 +99,6 @@ public class InsertMultiple {
 			return this.namingStrategy;
 		}
 
-		@Override
-		public String toString() {
-
-			return "SimpleRenderContext{" + "namingStrategy=" + namingStrategy + '}';
-		}
-
 		enum DefaultSelectRenderContext implements SelectRenderContext {
 			INSTANCE;
 		}

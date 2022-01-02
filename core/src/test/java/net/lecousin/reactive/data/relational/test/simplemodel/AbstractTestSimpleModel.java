@@ -748,6 +748,16 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	}
 	
 	@Test
+	public void testSequence() {
+		Assumptions.assumeTrue(lcClient.getSchemaDialect().supportsSequence());
+		
+		Entity1WithSequence e = new Entity1WithSequence();
+		e.setValue("test");
+		e = lcClient.save(e).block();
+		Assertions.assertNotNull(e.getId());
+	}
+	
+	@Test
 	public void test2EntitiesWithSameSequence() {
 		Assumptions.assumeTrue(lcClient.getSchemaDialect().supportsSequence());
 		

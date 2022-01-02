@@ -70,6 +70,7 @@
     <sonar.java.source>11</sonar.java.source>
     <sonar.test.exclusions>**/src/test/**/*</sonar.test.exclusions>
     <sonar.exclusions>test-spring-boot/**/*,test-junit-5/**/*</sonar.exclusions>
+    <sonar.coverage.jacoco.xmlReportPaths>jacoco-report-aggregate/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
   </properties>
   
   <dependencies>

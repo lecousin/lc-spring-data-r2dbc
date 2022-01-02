@@ -50,6 +50,7 @@ class DeleteWithoutLoading extends AbstractProcessor<DeleteWithoutLoading.Reques
 	}
 
 	@Override
+	@SuppressWarnings("java:S4449") // condition cannot be null because ready is not empty
 	protected Mono<Void> executeRequests(Operation op) {
 		List<Mono<Void>> calls = new LinkedList<>();
 		for (Map.Entry<RelationalPersistentEntity<?>, List<Request>> entity : requests.entrySet()) {
@@ -62,23 +63,17 @@ class DeleteWithoutLoading extends AbstractProcessor<DeleteWithoutLoading.Reques
 			SqlQuery<Delete> query = new SqlQuery<>(op.lcClient);
 			Table table = Table.create(entity.getKey().getTableName());
 			Condition condition = createCondition(entity.getKey(), table, ready, query);
-			if (condition != null) {
-				query.setQuery(Delete.builder().from(table).where(condition).build());
-				calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
-			}
+			query.setQuery(Delete.builder().from(table).where(condition).build());
+			calls.add(query.execute().then().doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
 		}
 		return Operation.executeParallel(calls);
 	}
 	
 	private static Condition createCondition(RelationalPersistentEntity<?> entityType, Table table, List<Request> ready, SqlQuery<Delete> query) {
 		Map<SqlIdentifier, Set<Object>> valuesByColumn = new HashMap<>();
-		Set<SqlIdentifier> nullColumns = new HashSet<>();
 		for (Request r : ready) {
 			SqlIdentifier col = r.whereProperty.getColumnName();
-			if (r.whereValue != null)
-				valuesByColumn.computeIfAbsent(col, c -> new HashSet<>()).add(r.whereValue);
-			else
-				nullColumns.add(col);
+			valuesByColumn.computeIfAbsent(col, c -> new HashSet<>()).add(r.whereValue);
 		}
 
 		Condition condition = null;
@@ -88,12 +83,6 @@ class DeleteWithoutLoading extends AbstractProcessor<DeleteWithoutLoading.Reques
 			for (Object value : e.getValue())
 				list.add(query.marker(value));
 			Condition c = Conditions.in(col, list);
-			condition = condition != null ? condition.or(c) : c;
-		}
-		
-		for (SqlIdentifier colName : nullColumns) {
-			Column col = Column.create(colName, table);
-			Condition c = Conditions.isNull(col);
 			condition = condition != null ? condition.or(c) : c;
 		}
 

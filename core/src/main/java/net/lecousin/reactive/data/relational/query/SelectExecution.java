@@ -241,9 +241,10 @@ public class SelectExecution<T> {
 				logger.debug("Pre-selected ids bunch: " + Objects.toString(ids));
 				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getIdProperty().getName();
 				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false, false).execute().fetch().all();
+				RowHandler handler = new RowHandler(mapping);
 				return Flux.create((Consumer<FluxSink<T>>)sink ->
-					fromDb.doOnComplete(() -> handleRow(null, sink, mapping))
-						.subscribe(row -> handleRow(row, sink, mapping))
+					fromDb.doOnComplete(() -> handler.handleRow(null, sink))
+						.subscribe(row -> handler.handleRow(row, sink))
 				)
 				.collectList()
 				.flatMapMany(list -> {
@@ -269,9 +270,10 @@ public class SelectExecution<T> {
 	private Flux<T> executeWithoutPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
 		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true, true).execute().fetch().all();
+		RowHandler handler = new RowHandler(mapping);
 		return Flux.create(sink ->
-			fromDb.doOnComplete(() -> handleRow(null, sink, mapping))
-				.subscribe(row -> handleRow(row, sink, mapping))
+			fromDb.doOnComplete(() -> handler.handleRow(null, sink))
+				.subscribe(row -> handler.handleRow(row, sink))
 		);
 	}
 	
@@ -496,115 +498,126 @@ public class SelectExecution<T> {
 		return ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
 	}
 	
-	private T currentRoot = null;
-	private Object currentRootId = null;
+	private class RowHandler {
 	
-	@SuppressWarnings("unchecked")
-	private void handleRow(Map<String, Object> row, FluxSink<T> sink, SelectMapping mapping) {
-		if (logger.isDebugEnabled())
-			logger.debug("Result row = " + row);
-		if (row == null) {
-			if (currentRoot != null) {
-				endOfRoot();
-				sink.next(currentRoot);
-			}
-			sink.complete();
-			return;
+		private SelectMapping mapping;
+		private RelationalPersistentEntity<?> rootEntity;
+		private Map<String, String> rootAliases;
+		private T currentRoot = null;
+		private Object currentRootId = null;
+		
+		private RowHandler(SelectMapping mapping) {
+			this.mapping = mapping;
+			this.rootEntity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+			this.rootAliases = mapping.fieldAliasesByTableAlias.get(query.from.alias);
 		}
-		RelationalPersistentEntity<?> rootEntity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
-		PropertiesSource source = new PropertiesSourceMap(row, mapping.fieldAliasesByTableAlias.get(query.from.alias));
-		Object rootId = ModelUtils.getId(rootEntity, source);
-		if (currentRoot != null) {
-			if (rootId != null && !currentRootId.equals(rootId)) {
-				endOfRoot();
-				sink.next(currentRoot);
+		
+		@SuppressWarnings("unchecked")
+		private void handleRow(Map<String, Object> row, FluxSink<T> sink) {
+			if (logger.isDebugEnabled())
+				logger.debug("Result row = " + row);
+			if (row == null) {
+				if (currentRoot != null) {
+					endOfRoot();
+					sink.next(currentRoot);
+				}
+				sink.complete();
+				return;
+			}
+			PropertiesSource source = new PropertiesSourceMap(row, rootAliases);
+			Object rootId = ModelUtils.getId(rootEntity, source);
+			if (currentRoot != null) {
+				if (rootId != null && !currentRootId.equals(rootId)) {
+					endOfRoot();
+					sink.next(currentRoot);
+					currentRoot = (T) reader.read(query.from.targetType, source);
+					currentRootId = rootId;
+				}
+			} else {
 				currentRoot = (T) reader.read(query.from.targetType, source);
 				currentRootId = rootId;
 			}
-		} else {
-			currentRoot = (T) reader.read(query.from.targetType, source);
-			currentRootId = rootId;
+			fillLinkedEntities(currentRoot, EntityState.get(currentRoot, client, rootEntity), query.from, row);
 		}
-		fillLinkedEntities(currentRoot, EntityState.get(currentRoot, client, rootEntity), query.from, row, mapping, reader);
-	}
 	
-	private void fillLinkedEntities(Object parent, EntityState parentState, TableReference parentTable, Map<String, Object> row, SelectMapping mapping, LcEntityReader reader) {
-		for (TableReference join : query.joins) {
-			if (join.source != parentTable)
-				continue;
-			try {
-				fillLinkedEntity(join, parent, parentState, row, mapping, reader);
-			} catch (Exception e) {
-				throw new MappingException("Error mapping result for entity " + join.targetType.getName(), e);
+		private void fillLinkedEntities(Object parent, EntityState parentState, TableReference parentTable, Map<String, Object> row) {
+			for (TableReference join : query.joins) {
+				if (join.source != parentTable)
+					continue;
+				try {
+					fillLinkedEntity(join, parent, parentState, row);
+				} catch (Exception e) {
+					throw new MappingException("Error mapping result for entity " + join.targetType.getName(), e);
+				}
 			}
 		}
-	}
-	
-	@SuppressWarnings({"java:S3011", "unchecked"}) // access directly to field
-	private <J> void fillLinkedEntity(TableReference join, Object parent, EntityState parentState, Map<String, Object> row, SelectMapping mapping, LcEntityReader reader) throws ReflectiveOperationException {
-		if (logger.isDebugEnabled())
-			logger.debug("Read join " + join.targetType.getSimpleName() + " as " + join.alias + " from " + parent.getClass().getSimpleName());
-		Field field = parent.getClass().getDeclaredField(join.propertyName);
-		field.setAccessible(true);
-		Class<?> type;
-		boolean isCollection = ModelUtils.isCollection(field);
-		if (isCollection)
-			type = ModelUtils.getRequiredCollectionType(field);
-		else
-			type = field.getType();
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(type);
-		PropertiesSource source = new PropertiesSourceMap(row, mapping.fieldAliasesByTableAlias.get(join.alias));
-		Object id = ModelUtils.getId(entity, source);
-		if (id == null) {
-			// left join without any match
-			if (isCollection)
-				field.set(parent, CollectionFactory.createCollection(field.getType(), ModelUtils.getCollectionType(field), 0));
-			return;
-		}
-		J instance = reader.read((Class<J>) join.targetType, source);
-		if (isCollection)
-			ModelUtils.addToCollectionField(field, parent, instance);
-		else {
-			if (LcEntityTypeInfo.isForeignTableField(field))
-				parentState.setForeignTableField(parent, field, instance, true);
-			else
-				parentState.setPersistedField(parent, field, instance, true);
-		}
-		fillLinkedEntities(instance, EntityState.get(instance, client, entity), join, row, mapping, reader);
-	}
-	
-	
-	private void endOfRoot() {
-		signalLoadedForeignTables(currentRoot, query.from);
-	}
-	
-	private void signalLoadedForeignTables(Object parent, TableReference parentTable) {
-		for (TableReference join : query.joins) {
-			if (join.source != parentTable)
-				continue;
-			try {
-				signalLoadedForeignTable(parent, join);
-			} catch (Exception e) {
-				throw new MappingException("Error mapping result for entity " + join.targetType.getName(), e);
-			}
-		}
-	}
-	
-	@SuppressWarnings("squid:S3011")
-	private void signalLoadedForeignTable(Object parent, TableReference join) throws ReflectiveOperationException {
-		Field field = parent.getClass().getDeclaredField(join.propertyName);
-		field.setAccessible(true);
-		Object instance = field.get(parent);
-		if (field.isAnnotationPresent(ForeignTable.class)) {
-			EntityState.get(parent, client).foreignTableLoaded(field, instance);
-		}
-		if (instance != null) {
+		
+		@SuppressWarnings({"java:S3011", "unchecked"}) // access directly to field
+		private <J> void fillLinkedEntity(TableReference join, Object parent, EntityState parentState, Map<String, Object> row) throws ReflectiveOperationException {
+			if (logger.isDebugEnabled())
+				logger.debug("Read join " + join.targetType.getSimpleName() + " as " + join.alias + " from " + parent.getClass().getSimpleName());
+			Field field = parent.getClass().getDeclaredField(join.propertyName);
+			field.setAccessible(true);
+			Class<?> type;
 			boolean isCollection = ModelUtils.isCollection(field);
 			if (isCollection)
-				for (Object element : ModelUtils.getAsCollection(instance))
-					signalLoadedForeignTables(element, join);
+				type = ModelUtils.getRequiredCollectionType(field);
 			else
-				signalLoadedForeignTables(instance, join);
+				type = field.getType();
+			RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(type);
+			PropertiesSource source = new PropertiesSourceMap(row, mapping.fieldAliasesByTableAlias.get(join.alias));
+			Object id = ModelUtils.getId(entity, source);
+			if (id == null) {
+				// left join without any match
+				if (isCollection)
+					field.set(parent, CollectionFactory.createCollection(field.getType(), ModelUtils.getCollectionType(field), 0));
+				return;
+			}
+			J instance = reader.read((Class<J>) join.targetType, source);
+			if (isCollection)
+				ModelUtils.addToCollectionField(field, parent, instance);
+			else {
+				if (LcEntityTypeInfo.isForeignTableField(field))
+					parentState.setForeignTableField(parent, field, instance, true);
+				else
+					parentState.setPersistedField(parent, field, instance, true);
+			}
+			fillLinkedEntities(instance, EntityState.get(instance, client, entity), join, row);
+		}
+		
+		
+		private void endOfRoot() {
+			signalLoadedForeignTables(currentRoot, query.from);
+		}
+	
+		private void signalLoadedForeignTables(Object parent, TableReference parentTable) {
+			for (TableReference join : query.joins) {
+				if (join.source != parentTable)
+					continue;
+				try {
+					signalLoadedForeignTable(parent, join);
+				} catch (Exception e) {
+					throw new MappingException("Error mapping result for entity " + join.targetType.getName(), e);
+				}
+			}
+		}
+		
+		@SuppressWarnings("squid:S3011")
+		private void signalLoadedForeignTable(Object parent, TableReference join) throws ReflectiveOperationException {
+			Field field = parent.getClass().getDeclaredField(join.propertyName);
+			field.setAccessible(true);
+			Object instance = field.get(parent);
+			if (field.isAnnotationPresent(ForeignTable.class)) {
+				EntityState.get(parent, client).foreignTableLoaded(field, instance);
+			}
+			if (instance != null) {
+				boolean isCollection = ModelUtils.isCollection(field);
+				if (isCollection)
+					for (Object element : ModelUtils.getAsCollection(instance))
+						signalLoadedForeignTables(element, join);
+				else
+					signalLoadedForeignTables(instance, join);
+			}
 		}
 	}
 }
