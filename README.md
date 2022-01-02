@@ -1,10 +1,14 @@
 # lc-spring-data-r2dbc
 
-net.lecousin.reactive-data-relational
 [![Maven Central](https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22net.lecousin.reactive-data-relational%22%20AND%20a%3A%22core%22)
-[![Javadoc](https://img.shields.io/badge/javadoc-0.7.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.7.0)
+[![Javadoc](https://img.shields.io/badge/javadoc-0.8.0-brightgreen.svg)](https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.8.0)
 ![Build status](https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml/badge.svg?branch=master)
+
 [![Codecov](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg)](https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=coverage)](https://sonarcloud.io/summary/new_code?id=lecousin_lc-spring-data-r2dbc)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=bugs)](https://sonarcloud.io/summary/new_code?id=lecousin_lc-spring-data-r2dbc)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=lecousin_lc-spring-data-r2dbc)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=lecousin_lc-spring-data-r2dbc)
 
 The goal this library is to provide basic ORM features not covered by [Spring Data R2DBC](https://github.com/spring-projects/spring-data-r2dbc).
 
@@ -27,6 +31,7 @@ this library aims at providing the most useful features that are really missing 
  - Delete with cascade
  - Composite Id
  - Sequence
+ - Insert multiple rows in a single INSERT request (except for MySql)
  - Schema generation, with indexes, foreign key constraints, sequences
 
 Features are detailed with examples in the [wiki section](https://github.com/lecousin/lc-spring-data-r2dbc/wiki)
@@ -60,13 +65,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>h2</artifactId>
-  <version>0.7.0</version>
+  <version>0.8.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '0.7.0'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '0.8.0'
 ```
 
 ### Postgres
@@ -76,13 +81,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>postgres</artifactId>
-  <version>0.7.0</version>
+  <version>0.8.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '0.7.0'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '0.8.0'
 ```
 
 ### MySql
@@ -92,13 +97,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>mysql</artifactId>
-  <version>0.7.0</version>
+  <version>0.8.0</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '0.7.0'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '0.8.0'
 ```
 
 ## Spring Boot configuration
@@ -244,7 +249,7 @@ In order to make sure the initializer is launched before any test class is loade
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>test-junit-5</artifactId>
-  <version>0.7.0</version>
+  <version>0.8.0</version>
   <scope>test</scope>
 </dependency>
 ```

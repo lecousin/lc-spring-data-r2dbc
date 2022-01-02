@@ -961,7 +961,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Test
 	public void testInsertAndDeleteManyEntities() {
-		final int nb = lcClient.getSchemaDialect().isMultipleInsertSupported() ? 1000000 : 10000;
+		final int nb = lcClient.getSchemaDialect().isMultipleInsertSupported() ? 1000000 : 1000;
 		lcClient.save(Flux.range(0, nb)
 			.map(i -> {
 				BooleanTypes entity = new BooleanTypes();
