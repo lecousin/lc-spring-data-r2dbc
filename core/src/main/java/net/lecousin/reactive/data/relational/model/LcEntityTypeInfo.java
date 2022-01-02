@@ -30,10 +30,15 @@ public class LcEntityTypeInfo {
 	public static class ForeignTableInfo {
 		private Field field;
 		private ForeignTable annotation;
+		private boolean isCollection;
+		private Class<?> collectionElementType;
 		
 		private ForeignTableInfo(Field field, ForeignTable annotation) {
 			this.field = field;
 			this.annotation = annotation;
+			isCollection = ModelUtils.isCollection(field);
+			if (isCollection)
+				collectionElementType = ModelUtils.getRequiredCollectionType(field);
 		}
 
 		public Field getField() {
@@ -42,6 +47,14 @@ public class LcEntityTypeInfo {
 
 		public ForeignTable getAnnotation() {
 			return annotation;
+		}
+
+		public boolean isCollection() {
+			return isCollection;
+		}
+
+		public Class<?> getCollectionElementType() {
+			return collectionElementType;
 		}
 	}
 	
@@ -181,17 +194,19 @@ public class LcEntityTypeInfo {
 	 */
 	@Nullable
 	public ForeignTableInfo getForeignTableWithFieldForJoinKey(String joinKey, Class<?> targetType) {
-		for (Map.Entry<String, ForeignTableInfo> e : foreignTables.entrySet())
-			if (e.getValue().getAnnotation().joinKey().equals(joinKey)) {
-				Field field = e.getValue().getField();
+		for (Map.Entry<String, ForeignTableInfo> e : foreignTables.entrySet()) {
+			ForeignTableInfo ft = e.getValue();
+			if (ft.getAnnotation().joinKey().equals(joinKey)) {
+				Field field = ft.getField();
 				Class<?> fieldType;
-				if (ModelUtils.isCollection(field))
-					fieldType = ModelUtils.getCollectionType(field);
+				if (ft.isCollection())
+					fieldType = ft.getCollectionElementType();
 				else
 					fieldType = field.getType();
 				if (targetType.equals(fieldType))
-					return e.getValue();
+					return ft;
 			}
+		}
 		return null;
 	}
 	
@@ -221,6 +236,16 @@ public class LcEntityTypeInfo {
 	public Field getForeignTableFieldForProperty(String propertyName) {
 		ForeignTableInfo i = foreignTables.get(propertyName);
 		return i != null ? i.getField() : null;
+	}
+	
+	/** Return the foreign table info on the given property.
+	 * 
+	 * @param propertyName foreign table property
+	 * @return the foreign table
+	 */
+	@Nullable
+	public ForeignTableInfo getForeignTableWithFieldForProperty(String propertyName) {
+		return foreignTables.get(propertyName);
 	}
 	
 	/** Return the foreign table field on the given property.

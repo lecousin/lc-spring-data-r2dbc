@@ -31,7 +31,7 @@ this library aims at providing the most useful features that are really missing 
  - Delete with cascade
  - Composite Id
  - Sequence
- - Insert multiple rows in a single INSERT request
+ - Insert multiple rows in a single INSERT request (except for MySql)
  - Schema generation, with indexes, foreign key constraints, sequences
 
 Features are detailed with examples in the [wiki section](https://github.com/lecousin/lc-spring-data-r2dbc/wiki)

@@ -1,6 +1,5 @@
 package net.lecousin.reactive.data.relational.query;
 
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -13,6 +12,7 @@ import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.JoinTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
@@ -22,6 +22,11 @@ import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple3;
 import reactor.util.function.Tuples;
 
+/**
+ * Specifies a SELECT operation, possibly with joins, where clause, limit and order by clause.
+ * 
+ * @param <T> type of entity this select will return
+ */
 public class SelectQuery<T> {
 	
 	static class TableReference {
@@ -53,10 +58,12 @@ public class SelectQuery<T> {
 		tableAliases.put(alias, from);
 	}
 	
+	/** Create a SELECT query from the table of the given entity type, using the given alias. */
 	public static <T> SelectQuery<T> from(Class<T> type, String alias) {
 		return new SelectQuery<>(type, alias);
 	}
 
+	/** Create a join, using the link entityName.propertyName, and using the given alias as the joined entity name. */
 	public SelectQuery<T> join(String entityName, String propertyName, String alias) {
 		TableReference source = tableAliases.get(entityName);
 		if (source == null)
@@ -67,6 +74,7 @@ public class SelectQuery<T> {
 		return this;
 	}
 	
+	/** Set the given criteria in the where clause. If criteria already exist, a AND is created between the existing criteria and the new criteria. */
 	public SelectQuery<T> where(Criteria criteria) {
 		if (where == null)
 			where = criteria;
@@ -75,25 +83,30 @@ public class SelectQuery<T> {
 		return this;
 	}
 	
-	public SelectQuery<T> limit(long start, long nb) {
+	/** Apply a limit and offset to the select query. */
+	public SelectQuery<T> limit(long start, long count) {
 		this.offset = start;
-		this.limit = nb;
+		this.limit = count;
 		return this;
 	}
 	
+	/** Add an ORDER BY clause to this select query. */
 	public SelectQuery<T> orderBy(String entityName, String propertyName, boolean ascending) {
 		this.orderBy.add(Tuples.of(entityName, propertyName, Boolean.valueOf(ascending)));
 		return this;
 	}
 	
+	/** Execute the query using the given database client. */
 	public Flux<T> execute(LcReactiveDataRelationalClient client) {
 		return client.execute(this, null);
 	}
 
+	/** Execute the query using the given database client and the given reader. */
 	public Flux<T> execute(LcReactiveDataRelationalClient client, LcEntityReader reader) {
 		return client.execute(this, reader);
 	}
 	
+	/** Execute a COUNT request, using the joins and where clause of this select query. Any join which are not useful (not used for conditions) are automatically ignored. */
 	public Mono<Long> executeCount(LcReactiveDataRelationalClient client) {
 		return client.executeCount(this);
 	}
@@ -112,12 +125,12 @@ public class SelectQuery<T> {
 				continue;
 			}
 			LcEntityTypeInfo sourceInfo = LcEntityTypeInfo.get(join.source.targetType);
-			Field f = sourceInfo.getForeignTableFieldForProperty(join.propertyName);
-			if (f != null) {
-				if (ModelUtils.isCollection(f))
-					join.targetType = ModelUtils.getCollectionType(f);
+			ForeignTableInfo ft = sourceInfo.getForeignTableWithFieldForProperty(join.propertyName);
+			if (ft != null) {
+				if (ft.isCollection())
+					join.targetType = ft.getCollectionElementType();
 				else
-					join.targetType = f.getType();
+					join.targetType = ft.getField().getType();
 				continue;
 			}
 			JoinTableInfo joinInfo = sourceInfo.getJoinTable(join.propertyName);

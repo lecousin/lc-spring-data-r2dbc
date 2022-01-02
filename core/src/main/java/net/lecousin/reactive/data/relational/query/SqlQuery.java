@@ -21,6 +21,11 @@ import org.springframework.util.Assert;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 
+/**
+ * SQL query with binding, for execution on a database client.
+ * 
+ * @param <T> type of query, that can be {@link Select}, {@link Insert}, {@link InsertMultiple}, {@link Update} or {@link Delete} 
+ */
 public class SqlQuery<T> {
 
 	private T query;
@@ -45,6 +50,7 @@ public class SqlQuery<T> {
 		this.query = query;
 	}
 	
+	/** Create a bind marker that will be bind to the statement on execution. */
 	public Expression marker(Object value) {
 		BindMarker marker = markers.next();
 		bindings.add(Pair.of(marker, value));
@@ -55,6 +61,7 @@ public class SqlQuery<T> {
 		return query;
 	}
 
+	/** Execute the query. */
 	public GenericExecuteSpec execute() {
 		PreparedOperation<T> operation = new PreparedOperation<T>() {
 			@Override

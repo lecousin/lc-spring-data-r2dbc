@@ -16,6 +16,11 @@ import org.springframework.data.relational.core.sql.render.RenderNamingStrategy;
 import org.springframework.data.relational.core.sql.render.SelectRenderContext;
 import org.springframework.util.StringUtils;
 
+/**
+ * Specify an INSERT query, with multiple rows.<br/>
+ * As Spring Data R2DBC does not support it, we define a custom request, but it cannot be used with MySql which does not support to return all generated values.<br/>
+ * An InsertMultiple can be used in a SqlQuery to be executed.
+ */
 public class InsertMultiple {
 
 	private final Table into;
@@ -33,7 +38,7 @@ public class InsertMultiple {
 	public String render(RenderContext renderContext) {
 		if (renderContext == null)
 			renderContext = new SimpleRenderContext();
-		StringBuilder sql = new StringBuilder();
+		StringBuilder sql = new StringBuilder(512 + 16 * values.size());
 		sql.append("INSERT INTO ");
 		sql.append(render(renderContext.getNamingStrategy().getName(into), renderContext));
 		sql.append(" (");

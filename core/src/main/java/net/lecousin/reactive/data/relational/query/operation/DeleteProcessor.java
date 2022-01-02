@@ -22,7 +22,6 @@ import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
-import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
@@ -72,7 +71,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 				Field ftField = LcEntityTypeInfo.get(request.entityType.getType()).getForeignTableFieldForJoinKey(fkProperty.getName(), entity.getType());
 				if (ftField == null) {
 					ForeignKey fkAnnotation = fkProperty.getRequiredAnnotation(ForeignKey.class);
-					processForeignTableField(op, request, null, null, null, false, entity, fkProperty, fkAnnotation);
+					processForeignTableField(op, request, null, null, entity, fkProperty, fkAnnotation);
 				}
 			}
 		}
@@ -84,7 +83,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 	protected void processForeignKey(
 		Operation op, DeleteRequest request,
 		RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation,
-		@Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation
+		@Nullable ForeignTableInfo foreignTableInfo
 	) {
 		if (!request.entityType.hasIdProperty()) {
 			// no id, the delete will be by values, but we need to keep foreign key ids because they will be set to null before
@@ -95,20 +94,20 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 			}
 			request.saveForeignKeyValue(fkProperty.getName(), foreignInstance);
 		}
-		if (foreignTableAnnotation != null && foreignTableField != null) {
-			if (ModelUtils.isCollection(foreignTableField)) {
+		if (foreignTableInfo != null) {
+			if (foreignTableInfo.isCollection()) {
 				// remove from collection if loaded
-				removeFromForeignTableCollection(request, fkProperty, foreignTableField);
+				removeFromForeignTableCollection(request, fkProperty, foreignTableInfo);
 				return;
 			}
 			
-			if (foreignTableAnnotation.optional() && !fkAnnotation.cascadeDelete()) {
+			if (foreignTableInfo.getAnnotation().optional() && !fkAnnotation.cascadeDelete()) {
 				// set to null if loaded
 				if (request.state.isLoaded() && !request.state.isFieldModified(fkProperty.getName())) {
 					Object foreignInstance = request.accessor.getProperty(fkProperty);
 					if (foreignInstance != null) {
 						try {
-							foreignTableField.set(foreignInstance, null);
+							foreignTableInfo.getField().set(foreignInstance, null);
 						} catch (Exception e) {
 							throw new ModelAccessException("Cannot set foreign table field", e);
 						}
@@ -130,12 +129,12 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 		op.loader.load(request.entityType, request.instance, loaded -> deleteForeignKeyInstance(op, request, request.accessor.getProperty(fkProperty)));
 	}
 	
-	private static void removeFromForeignTableCollection(DeleteRequest request, RelationalPersistentProperty fkProperty, Field foreignTableField) {
+	private static void removeFromForeignTableCollection(DeleteRequest request, RelationalPersistentProperty fkProperty, ForeignTableInfo foreignTableInfo) {
 		if (request.state.isLoaded() && !request.state.isFieldModified(fkProperty.getName())) {
 			Object foreignInstance = request.accessor.getProperty(fkProperty);
 			if (foreignInstance != null) {
 				try {
-					ModelUtils.removeFromCollectionField(foreignTableField, foreignInstance, request.instance);
+					ModelUtils.removeFromCollectionField(foreignTableInfo.getField(), foreignInstance, request.instance);
 				} catch (Exception e) {
 					throw new ModelAccessException("Cannot remove instance from collection field", e);
 				}
@@ -154,7 +153,7 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 	@Override
 	protected <T> void processForeignTableField(
 		Operation op, DeleteRequest request,
-		@Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation, @Nullable MutableObject<?> foreignFieldValue, boolean isCollection,
+		@Nullable ForeignTableInfo foreignTableInfo, @Nullable MutableObject<?> foreignFieldValue,
 		RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
 	) {
 		if (fkAnnotation.onForeignDeleted().equals(ForeignKey.OnForeignDeleted.SET_TO_NULL)) {
@@ -171,12 +170,12 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 		}
 		
 		//delete
-		if (foreignFieldValue != null && foreignTableField != null && !request.state.isFieldModified(foreignTableField.getName())) {
+		if (foreignFieldValue != null && foreignTableInfo != null && !request.state.isFieldModified(foreignTableInfo.getField().getName())) {
 			// foreign loaded
 			Object foreignInstance = foreignFieldValue.getValue();
 			if (foreignInstance == null)
 				return; // no link
-			if (ModelUtils.isCollection(foreignTableField)) {
+			if (foreignTableInfo.isCollection()) {
 				for (Object o : ModelUtils.getAsCollection(foreignFieldValue.getValue()))
 					request.dependsOn(addToProcess(op, (T) o, foreignEntity, null, null));
 			} else {

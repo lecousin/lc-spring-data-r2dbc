@@ -243,7 +243,7 @@ public class SelectExecution<T> {
 				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false, false).execute().fetch().all();
 				RowHandler handler = new RowHandler(mapping);
 				return Flux.create((Consumer<FluxSink<T>>)sink ->
-					fromDb.doOnComplete(() -> handler.handleRow(null, sink))
+					fromDb.doOnComplete(() -> handler.handleEnd(sink))
 						.subscribe(row -> handler.handleRow(row, sink))
 				)
 				.collectList()
@@ -272,7 +272,7 @@ public class SelectExecution<T> {
 		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true, true).execute().fetch().all();
 		RowHandler handler = new RowHandler(mapping);
 		return Flux.create(sink ->
-			fromDb.doOnComplete(() -> handler.handleRow(null, sink))
+			fromDb.doOnComplete(() -> handler.handleEnd(sink))
 				.subscribe(row -> handler.handleRow(row, sink))
 		);
 	}
@@ -516,14 +516,6 @@ public class SelectExecution<T> {
 		private void handleRow(Map<String, Object> row, FluxSink<T> sink) {
 			if (logger.isDebugEnabled())
 				logger.debug("Result row = " + row);
-			if (row == null) {
-				if (currentRoot != null) {
-					endOfRoot();
-					sink.next(currentRoot);
-				}
-				sink.complete();
-				return;
-			}
 			PropertiesSource source = new PropertiesSourceMap(row, rootAliases);
 			Object rootId = ModelUtils.getId(rootEntity, source);
 			if (currentRoot != null) {
@@ -538,6 +530,16 @@ public class SelectExecution<T> {
 				currentRootId = rootId;
 			}
 			fillLinkedEntities(currentRoot, EntityState.get(currentRoot, client, rootEntity), query.from, row);
+		}
+		
+		private void handleEnd(FluxSink<T> sink) {
+			if (logger.isDebugEnabled())
+				logger.debug("End of rows");
+			if (currentRoot != null) {
+				endOfRoot();
+				sink.next(currentRoot);
+			}
+			sink.complete();
 		}
 	
 		private void fillLinkedEntities(Object parent, EntityState parentState, TableReference parentTable, Map<String, Object> row) {

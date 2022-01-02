@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
@@ -67,51 +68,63 @@ public class LcReactiveDataRelationalClient {
 			mappingContext.getPersistentEntity(type);
 	}
 
+	/** @return the Spring R2DBC database client. */
 	public DatabaseClient getSpringClient() {
 		return client;
 	}
 	
+	/** @return entity mapper and converters. */
 	public LcMappingR2dbcConverter getMapper() {
 		return mapper;
 	}
 	
+	/** @return the Spring Data mappign context containing all known entities. */
 	@SuppressWarnings("java:S1452") // usage of generic wildcard type
 	public MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> getMappingContext() {
 		return mappingContext;
 	}
 	
+	/** @return the Spring Data R2DBC data access strategy. */
 	public LcReactiveDataAccessStrategy getDataAccess() {
 		return dataAccess;
 	}
 	
+	/** @return the extended dialect. */
 	public RelationalDatabaseSchemaDialect getSchemaDialect() {
 		return schemaDialect;
 	}
 	
+	/** @return the R2DBC native dialect. */
 	public R2dbcDialect getDialect() {
 		return dataAccess.getDialect();
 	}
 
+	/** Drop all elements from the given schema. */
 	public Mono<Void> dropSchemaContent(RelationalDatabaseSchema schema) {
 		return schemaDialect.dropSchemaContent(schema).execute(this);
 	}
 	
+	/** Create tables, constraints and sequences from the given schema. */
 	public Mono<Void> createSchemaContent(RelationalDatabaseSchema schema) {
 		return schemaDialect.createSchemaContent(schema).execute(this);
 	}
 	
+	/** Drop then create the given schema. */
 	public Mono<Void> dropCreateSchemaContent(RelationalDatabaseSchema schema) {
 		return dropSchemaContent(schema).then(createSchemaContent(schema));
 	}
 	
+	/** Build the schema definition from all known entities. */
 	public RelationalDatabaseSchema buildSchemaFromEntities() {
 		return buildSchemaFromEntities(LcEntityTypeInfo.getClasses());
 	}
 	
+	/** Build the schema definition from given entities. */
 	public RelationalDatabaseSchema buildSchemaFromEntities(Collection<Class<?>> classes) {
 		return new SchemaBuilderFromEntities(this).build(LcEntityTypeInfo.addGeneratedJoinTables(classes));
 	}
 	
+	/** Save the given entity (insert or update in cascade). */
 	public <T> Mono<T> save(T entity) {
 		try {
 			@SuppressWarnings("unchecked")
@@ -124,6 +137,7 @@ public class LcReactiveDataRelationalClient {
 		}
 	}
 	
+	/** Save the given entities (insert or update in cascade). */
 	public <T> Flux<T> save(Iterable<T> entities) {
 		try {
 			Iterator<T> it = entities.iterator();
@@ -142,6 +156,7 @@ public class LcReactiveDataRelationalClient {
 		}
 	}
 	
+	/** Save the given entities (insert or update in cascade). */
 	public <T> Flux<T> save(Publisher<T> publisher) {
 		Operation op = new Operation(this);
 		List<T> list = new LinkedList<>();
@@ -156,6 +171,7 @@ public class LcReactiveDataRelationalClient {
 			.flatMapMany(Flux::fromIterable);
 	}
 	
+	/** Save the given entities (insert or update in cascade). */
 	public Mono<Void> saveAll(Iterable<Object> entities) {
 		Iterator<Object> it = entities.iterator();
 		if (!it.hasNext())
@@ -167,18 +183,22 @@ public class LcReactiveDataRelationalClient {
 		return op.execute();
 	}
 	
+	/** Save the given entities (insert or update in cascade). */
 	public Mono<Void> saveAll(Object... entities) {
 		return saveAll(Arrays.asList(entities));
 	}
 	
+	/** Load the given entity from database. */
 	public <T> Mono<T> lazyLoad(T entity) {
 		return lazyLoad(entity, mappingContext.getRequiredPersistentEntity(entity.getClass()));
 	}
 	
+	/** Load the given entity from database. */
 	public <T> Mono<T> lazyLoad(T entity, RelationalPersistentEntity<?> entityType) {
 		return lazyLoad(entity, EntityState.get(entity, this, entityType), entityType);
 	}
 	
+	/** Load the given entity from database. */
 	public <T> Mono<T> lazyLoad(T entity, EntityState state, RelationalPersistentEntity<?> entityType) {
 		return Mono.fromCallable(() -> state.loading(() -> doLoading(entity, entityType))).flatMap(result -> result);
 	}
@@ -197,6 +217,7 @@ public class LcReactiveDataRelationalClient {
 			;
 	}
 
+	/** Load the given entities from database. */
 	public <T> Flux<T> lazyLoad(Iterable<T> entities, RelationalPersistentEntity<?> entityType) {
 		List<Mono<T>> alreadyLoading = new LinkedList<>();
 		List<T> toLoad = new LinkedList<>();
@@ -242,14 +263,17 @@ public class LcReactiveDataRelationalClient {
 			;
 	}
 	
+	/** Execute a select query using the given LcEntityReader to map rows to entities. */
 	public <T> Flux<T> execute(SelectQuery<T> query, @Nullable LcEntityReader reader) {
 		return new SelectExecution<T>(query, this, reader).execute();
 	}
 	
+	/** Execute a select query. */
 	public Mono<Long> executeCount(SelectQuery<?> query) {
 		return new SelectExecution<>(query, this, null).executeCount();
 	}
 	
+	/** Delete the given entity (with cascade). */
 	public <T> Mono<Void> delete(T entity) {
 		try {
 			@SuppressWarnings("unchecked")
@@ -262,6 +286,7 @@ public class LcReactiveDataRelationalClient {
 		}
 	}
 	
+	/** Delete the given entities (with cascade). */
 	public <T> Mono<Void> delete(Iterable<T> entities) {
 		try {
 			Iterator<T> it = entities.iterator();
@@ -280,14 +305,20 @@ public class LcReactiveDataRelationalClient {
 		}
 	}
 
+	/** Delete the given entities (with cascade). */
 	public <T> Mono<Void> delete(Publisher<T> publisher) {
-		return delete(publisher, 100);
+		return delete(publisher, 100, Duration.ofSeconds(1));
 	}
 	
-	public <T> Mono<Void> delete(Publisher<T> publisher, int bunchSize) {
+	/** Delete the given entities (with cascade), by bunch.
+	 * @param publisher entities to delete
+	 * @param bunchSize bufferize entities to delete them by bunch
+	 * @param bunchTimeout timeout after which a the current bunch of entities are deleted even the bunch is not full
+	 */
+	public <T> Mono<Void> delete(Publisher<T> publisher, int bunchSize, Duration bunchTimeout) {
 		return Flux.from(publisher)
 			.subscribeOn(Schedulers.parallel()).publishOn(Schedulers.parallel())
-			.buffer(bunchSize)
+			.bufferTimeout(bunchSize, bunchTimeout)
 			.parallel()
 			.runOn(Schedulers.parallel(), 1)
 			.flatMap(this::delete)

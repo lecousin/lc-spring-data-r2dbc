@@ -1,6 +1,5 @@
 package net.lecousin.reactive.data.relational.query.operation;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -15,12 +14,10 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
-import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
-import net.lecousin.reactive.data.relational.model.ModelUtils;
 import reactor.core.publisher.Mono;
 
 @SuppressWarnings("rawtypes")
@@ -105,15 +102,15 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 			ForeignKey fkAnnotation = property.findAnnotation(ForeignKey.class);
 			if (fkAnnotation != null) {
 				ForeignTableInfo fti = LcEntityTypeInfo.get(property.getActualType()).getForeignTableWithFieldForJoinKey(property.getName(), request.entityType.getType());
-				processForeignKey(op, request, property, fkAnnotation, fti != null ? fti.getField() : null, fti != null ? fti.getAnnotation() : null);
+				processForeignKey(op, request, property, fkAnnotation, fti);
 			}
 		}
 	}
 	
 	private void processForeignTables(Operation op, R request) {
 		for (ForeignTableInfo fti : LcEntityTypeInfo.get(request.instance.getClass()).getForeignTables()) {
-			boolean isCollection = ModelUtils.isCollection(fti.getField());
-			RelationalPersistentEntity<?> foreignEntity = op.lcClient.getMappingContext().getRequiredPersistentEntity(isCollection ? ModelUtils.getRequiredCollectionType(fti.getField()) : fti.getField().getType());
+			boolean isCollection = fti.isCollection();
+			RelationalPersistentEntity<?> foreignEntity = op.lcClient.getMappingContext().getRequiredPersistentEntity(isCollection ? fti.getCollectionElementType() : fti.getField().getType());
 			RelationalPersistentProperty fkProperty = foreignEntity.getRequiredPersistentProperty(fti.getAnnotation().joinKey());
 			ForeignKey fk = fkProperty.findAnnotation(ForeignKey.class);
 			MutableObject<?> foreignFieldValue;
@@ -123,7 +120,7 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 				throw new ModelAccessException("Unable to get foreign table field", e);
 			}
 			
-			processForeignTableField(op, request, fti.getField(), fti.getAnnotation(), foreignFieldValue, isCollection, foreignEntity, fkProperty, fk);
+			processForeignTableField(op, request, fti, foreignFieldValue, foreignEntity, fkProperty, fk);
 		}
 	}
 	
@@ -131,10 +128,10 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 	
 	protected abstract boolean doProcess(Operation op, R request);
 	
-	protected abstract void processForeignKey(Operation op, R request, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation, @Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation);
+	protected abstract void processForeignKey(Operation op, R request, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation, @Nullable ForeignTableInfo foreignTableInfo);
 	
 	@SuppressWarnings("java:S107")
-	protected abstract <T> void processForeignTableField(Operation op, R request, Field foreignTableField, ForeignTable foreignTableAnnotation, @Nullable MutableObject<?> foreignFieldValue, boolean isCollection, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation);
+	protected abstract <T> void processForeignTableField(Operation op, R request, ForeignTableInfo foreignTableInfo, @Nullable MutableObject<?> foreignFieldValue, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation);
 	
 	@SuppressWarnings({ "java:S3824", "unchecked" })
 	private <T> R addRequest(Operation op, T instance, @Nullable RelationalPersistentEntity<T> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
@@ -164,12 +161,13 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 					ready.add(request);
 			}
 			if (!ready.isEmpty()) {
-				Mono<Void> execution = doRequests(op, entity.getKey(), ready).doOnSuccess(v -> {
-					for (R r : ready)
-						r.executed = true;
-				});
+				Mono<Void> execution = doRequests(op, entity.getKey(), ready);
 				if (execution != null)
-					executions.add(execution);
+					executions.add(execution.doOnSuccess(v -> {
+						for (R r : ready)
+							r.executed = true;
+					}));
+				else ready.forEach(r -> r.executed = true);
 			}
 		}
 		return Operation.executeParallel(executions);

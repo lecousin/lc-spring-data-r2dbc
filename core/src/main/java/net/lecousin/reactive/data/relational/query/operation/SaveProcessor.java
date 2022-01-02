@@ -36,10 +36,10 @@ import org.springframework.r2dbc.core.RowsFetchSpec;
 import org.springframework.util.Assert;
 
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
-import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.mapping.LcEntityWriter;
+import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.InsertMultiple;
@@ -73,16 +73,16 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 	protected void processForeignKey(
 		Operation op, SaveRequest request,
 		RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation,
-		@Nullable Field foreignTableField, @Nullable ForeignTable foreignTableAnnotation
+		@Nullable ForeignTableInfo foreignTableInfo
 	) {
 		Object value = request.accessor.getProperty(fkProperty);
 		Object originalValue = request.state.getPersistedValue(fkProperty.getName());
 		if (!Objects.equals(originalValue, value) && originalValue != null) {
 			// link changed, we need to delete/null the previous one
 			// remove the link
-			if (foreignTableAnnotation != null)
-				removeForeignTableLink(op, request, foreignTableField, originalValue);
-			if ((foreignTableAnnotation != null && !foreignTableAnnotation.optional()) || fkAnnotation.cascadeDelete()) {
+			if (foreignTableInfo != null)
+				removeForeignTableLink(op, request, foreignTableInfo, originalValue);
+			if ((foreignTableInfo != null && !foreignTableInfo.getAnnotation().optional()) || fkAnnotation.cascadeDelete()) {
 				// not optional specified on ForeignTable, or cascadeDelete -> this is a delete
 				op.addToDelete(originalValue, null, null, null);
 			}
@@ -94,13 +94,13 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 		}
 	}
 	
-	private static void removeForeignTableLink(Operation op, SaveRequest request, Field foreignTableField, Object originalValue) {
+	private static void removeForeignTableLink(Operation op, SaveRequest request, ForeignTableInfo foreignTableInfo, Object originalValue) {
 		try {
-			if (ModelUtils.isCollection(foreignTableField)) {
-				ModelUtils.removeFromCollectionField(foreignTableField, originalValue, request.instance);
+			if (foreignTableInfo.isCollection()) {
+				ModelUtils.removeFromCollectionField(foreignTableInfo.getField(), originalValue, request.instance);
 			} else {
 				EntityState foreignState = EntityState.get(originalValue, op.lcClient);
-				foreignState.setForeignTableField(originalValue, foreignTableField, null, false);
+				foreignState.setForeignTableField(originalValue, foreignTableInfo.getField(), null, false);
 			}
 		} catch (Exception e) {
 			throw new ModelAccessException("Unable to remove link for removed entity", e);
@@ -110,15 +110,15 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 	@Override
 	protected <T> void processForeignTableField(
 		Operation op, SaveRequest request,
-		Field foreignTableField, ForeignTable foreignTableAnnotation, @Nullable MutableObject<?> foreignFieldValue, boolean isCollection,
+		ForeignTableInfo foreignTableInfo, @Nullable MutableObject<?> foreignFieldValue,
 		RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation
 	) {
 		if (foreignFieldValue == null)
 			return; // not loaded -> not saved
-		if (ModelUtils.isCollection(foreignTableField))
-			processForeignTableFieldCollection(op, request, foreignTableField, foreignFieldValue, foreignEntity, fkProperty, fkAnnotation);
+		if (foreignTableInfo.isCollection())
+			processForeignTableFieldCollection(op, request, foreignTableInfo.getField(), foreignFieldValue, foreignEntity, fkProperty, fkAnnotation);
 		else
-			processForeignTableFieldSimple(op, request, foreignTableField, foreignFieldValue, foreignEntity, fkProperty, fkAnnotation);
+			processForeignTableFieldSimple(op, request, foreignTableInfo.getField(), foreignFieldValue, foreignEntity, fkProperty, fkAnnotation);
 	}
 	
 	@SuppressWarnings("unchecked")

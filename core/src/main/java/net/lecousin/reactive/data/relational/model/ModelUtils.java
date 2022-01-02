@@ -90,12 +90,12 @@ public class ModelUtils {
 	 */
 	@SuppressWarnings("java:S3011")
 	public static void setReverseLink(Object instance, Object linkedInstance, RelationalPersistentProperty linkedProperty) {
-		Field field = LcEntityTypeInfo.get(instance.getClass()).getForeignTableFieldForJoinKey(linkedProperty.getName(), linkedInstance.getClass());
-		if (field != null && !isCollection(field))
+		ForeignTableInfo ft = LcEntityTypeInfo.get(instance.getClass()).getForeignTableWithFieldForJoinKey(linkedProperty.getName(), linkedInstance.getClass());
+		if (ft != null && !ft.isCollection())
 			try {
-				field.set(instance, linkedInstance);
+				ft.getField().set(instance, linkedInstance);
 			} catch (Exception e) {
-				throw new ModelAccessException("Unable to set ForeignTable field " + field.getName() + " on " + instance.getClass().getSimpleName() + " with value " + linkedInstance, e);
+				throw new ModelAccessException("Unable to set ForeignTable field " + ft.getField().getName() + " on " + instance.getClass().getSimpleName() + " with value " + linkedInstance, e);
 			}
 	}
 	
