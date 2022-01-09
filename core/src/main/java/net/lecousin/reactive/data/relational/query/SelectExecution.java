@@ -242,7 +242,7 @@ public class SelectExecution<T> {
 				if (logger.isDebugEnabled())
 					logger.debug("Pre-selected ids bunch: " + Objects.toString(ids));
 				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getIdProperty().getName();
-				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false, false).execute().fetch().all();
+				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false, true).execute().fetch().all();
 				return Flux.create((Consumer<FluxSink<T>>)sink -> {
 					RowHandlerSorted handler = new RowHandlerSorted(mapping, sink, ids);
 					fromDb.doOnComplete(handler::handleEnd).subscribe(handler::handleRow, sink::error);
@@ -252,7 +252,7 @@ public class SelectExecution<T> {
 	
 	private Flux<T> executeWithoutPreSelect() {
 		SelectMapping mapping = buildSelectMapping();
-		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true, true).execute().fetch().all();
+		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true, hasJoinMany()).execute().fetch().all();
 		return Flux.create((Consumer<FluxSink<T>>)sink -> {
 			RowHandler handler = new RowHandler(mapping, sink);
 			fromDb.doOnComplete(handler::handleEnd).subscribe(handler::handleRow, sink::error);
@@ -664,14 +664,25 @@ public class SelectExecution<T> {
 			}
 			sink.next(root);
 			sortedIds.removeFirst();
-			while (!sortedIds.isEmpty()) {
+			while (!sortedIds.isEmpty() && !waitingInstances.isEmpty()) {
 				nextId = sortedIds.getFirst();
-				T instance = waitingInstances.get(nextId);
+				T instance = waitingInstances.remove(nextId);
 				if (instance == null)
 					break;
 				sink.next(instance);
 				sortedIds.removeFirst();
 			}
+		}
+		
+		@Override
+		protected void endOfRoots() {
+			while (!waitingInstances.isEmpty()) {
+				Object nextId = sortedIds.removeFirst();
+				T instance = waitingInstances.get(nextId);
+				if (instance != null)
+					sink.next(instance);
+			}
+			sink.complete();
 		}
 		
 	}
