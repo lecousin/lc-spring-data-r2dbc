@@ -47,6 +47,11 @@ entities:
       - User
     - treemodel:
       - Node
+    - envelopemodel:
+      - Envelope
+      - Document
+      - Page
+      - Note
     - multipleconnections:
       - db1:
         - MultipleDbEntity1

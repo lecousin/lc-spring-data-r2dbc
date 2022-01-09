@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Function;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.core.CollectionFactory;
@@ -314,25 +315,32 @@ public class ModelUtils {
 	}
 	
 	public static Object getId(RelationalPersistentEntity<?> entityType, PropertiesSource source) {
+		return idGetter(entityType).apply(source);
+	}
+	
+	public static Function<PropertiesSource, Object> idGetter(RelationalPersistentEntity<?> entityType) {
 		if (entityType.hasIdProperty())
-			return getIdPropertyValue(entityType, source);
+			return idGetterFromIdProperty(entityType);
 		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getIdFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), source);
-		return getIdFromProperties(entityType, source);
+			return idGetterFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()));
+		return idGetterFromProperties(entityType);
 	}
 	
-	public static Object getIdPropertyValue(RelationalPersistentEntity<?> entityType, PropertiesSource source) {
-		return source.getPropertyValue(entityType.getRequiredIdProperty());
+	public static Function<PropertiesSource, Object> idGetterFromIdProperty(RelationalPersistentEntity<?> entityType) {
+		RelationalPersistentProperty idProperty = entityType.getRequiredIdProperty();
+		return source -> source.getPropertyValue(idProperty);
 	}
 	
-	public static CompositeIdValue getIdFromProperties(Iterable<RelationalPersistentProperty> properties, PropertiesSource source) {
-		CompositeIdValue id = new CompositeIdValue();
-		for (RelationalPersistentProperty property : properties) {
-			id.add(property.getName(), source.getPropertyValue(property));
-		}
-		if (id.isNull())
-			return null;
-		return id;
+	public static Function<PropertiesSource, Object> idGetterFromProperties(Iterable<RelationalPersistentProperty> properties) {
+		return source -> {
+			CompositeIdValue id = new CompositeIdValue();
+			for (RelationalPersistentProperty property : properties) {
+				id.add(property.getName(), source.getPropertyValue(property));
+			}
+			if (id.isNull())
+				return null;
+			return id;
+		};
 	}
 	
 	public static Condition getConditionOnId(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {

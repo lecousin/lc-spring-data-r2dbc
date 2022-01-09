@@ -163,10 +163,7 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 			if (!ready.isEmpty()) {
 				Mono<Void> execution = doRequests(op, entity.getKey(), ready);
 				if (execution != null)
-					executions.add(execution.doOnSuccess(v -> {
-						for (R r : ready)
-							r.executed = true;
-					}));
+					executions.add(execution.doOnSuccess(v -> ready.forEach(r -> r.executed = true)));
 				else ready.forEach(r -> r.executed = true);
 			}
 		}
