@@ -10,9 +10,11 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -57,6 +59,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	private UUIDEntityRepository uuidRepo;
 	
 	@Autowired
+	private EnumRepository enumRepo;
+	
+	@Autowired
 	private TransactionalService transactionalService;
 	
 	@Override
@@ -69,6 +74,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			DateTypes.class,
 			Entity1WithSequence.class,
 			Entity2WithSequence.class,
+			EnumEntity.class,
 			NumericTypes.class,
 			UpdatableProperties.class,
 			UUIDEntity.class,
@@ -1045,6 +1051,40 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		lcClient.delete(entities).block();
 		entities = SelectQuery.from(CompositeIdEntity.class, "entity").execute(lcClient).collectList().block();
 		Assertions.assertEquals(0, entities.size());
+	}
+	
+	@Test
+	public void testEnum() {
+		EnumEntity entity1 = new EnumEntity();
+		entity1.setE1(EnumEntity.Enum1.V1);
+		entity1.setI(1);
+		enumRepo.save(entity1).block();
+		
+		entity1 = enumRepo.findAll().blockFirst();
+		Assertions.assertEquals(1, entity1.getI());
+		Assertions.assertEquals(EnumEntity.Enum1.V1, entity1.getE1());
+
+		EnumEntity entity2 = new EnumEntity();
+		entity2.setE1(EnumEntity.Enum1.V2);
+		entity2.setI(2);
+		EnumEntity entity3 = new EnumEntity();
+		entity3.setE1(EnumEntity.Enum1.V3);
+		entity3.setI(3);
+		enumRepo.saveAll(Arrays.asList(entity2, entity3)).collectList().block();
+		
+		List<EnumEntity> list = enumRepo.findAll().collectList().block();
+		Assertions.assertEquals(3, list.size());
+		Set<Integer> done = new HashSet<>();
+		for (EnumEntity e : list) {
+			switch (e.getI()) {
+			case 1: Assertions.assertEquals(EnumEntity.Enum1.V1, e.getE1()); break;
+			case 2: Assertions.assertEquals(EnumEntity.Enum1.V2, e.getE1()); break;
+			case 3: Assertions.assertEquals(EnumEntity.Enum1.V3, e.getE1()); break;
+			default: throw new AssertionError("Unexpected value: " + e.getI());
+			}
+			Assertions.assertFalse(done.contains(Integer.valueOf(e.getI())));
+			done.add(Integer.valueOf(e.getI()));
+		}
 	}
 	
 }

@@ -58,4 +58,5 @@ public class H2SchemaDialect extends RelationalDatabaseSchemaDialect {
 	protected String getColumnTypeTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
 		return "VARCHAR";
 	}
+	
 }

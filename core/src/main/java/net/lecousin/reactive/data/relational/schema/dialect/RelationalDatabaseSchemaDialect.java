@@ -93,6 +93,8 @@ public abstract class RelationalDatabaseSchemaDialect {
 			return getColumnTypeTimestamp(col, type, def);
 		if (UUID.class.equals(type))
 			return getColumnTypeUUID(col, type, def);
+		if (Enum.class.isAssignableFrom(type))
+			return getColumnTypeEnum(col, type, def);
 		throw new SchemaException("Column type not supported: " + type.getName() + " on column " + col.getName() + " with " + getName());
 	}
 	
@@ -202,7 +204,15 @@ public abstract class RelationalDatabaseSchemaDialect {
 	protected String getColumnTypeUUID(Column col, Class<?> type, ColumnDefinition def) {
 		return "UUID";
 	}
-	
+
+	protected String getColumnTypeEnum(Column col, Class<?> type, ColumnDefinition def) {
+		int max = 1;
+		for (Object enumValue : type.getEnumConstants()) {
+			max = Math.max(max, enumValue.toString().length());
+		}
+		return "VARCHAR(" + max + ")";
+	}
+
 	public SchemaStatements dropSchemaContent(RelationalDatabaseSchema schema) {
 		SchemaStatements toExecute = new SchemaStatements();
 		// drop tables

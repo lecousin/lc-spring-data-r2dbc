@@ -9,6 +9,7 @@ entities:
       - DateTypesWithTimeZone
       - Entity1WithSequence
       - Entity2WithSequence
+      - EnumEntity
       - NumericTypes
       - UpdatableProperties
       - UUIDEntity
