@@ -95,6 +95,8 @@ public class CriteriaSqlBuilder implements CriteriaVisitor<Condition> {
 	protected Expression toExpression(Object value, RelationalPersistentProperty property) {
 		if (value instanceof PropertyOperand)
 			return toExpression((PropertyOperand)value);
+		if (value != null && Enum.class.isAssignableFrom(value.getClass()))
+			value = value.toString();
 		return query.marker(query.getClient().getSchemaDialect().convertToDataBase(value, property));
 	}
 	

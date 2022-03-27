@@ -1055,6 +1055,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 	
 	@Test
 	public void testEnum() {
+		// test 1 entity
 		EnumEntity entity1 = new EnumEntity();
 		entity1.setE1(EnumEntity.Enum1.V1);
 		entity1.setI(1);
@@ -1064,6 +1065,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals(1, entity1.getI());
 		Assertions.assertEquals(EnumEntity.Enum1.V1, entity1.getE1());
 
+		// add 2 more entities
 		EnumEntity entity2 = new EnumEntity();
 		entity2.setE1(EnumEntity.Enum1.V2);
 		entity2.setI(2);
@@ -1085,6 +1087,23 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			Assertions.assertFalse(done.contains(Integer.valueOf(e.getI())));
 			done.add(Integer.valueOf(e.getI()));
 		}
+		
+		// test criteria
+		list = SelectQuery.from(EnumEntity.class, "e").where(Criteria.property("e", "e1").is(EnumEntity.Enum1.V2)).execute(lcClient).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity2 = list.get(0);
+		Assertions.assertEquals(2, entity2.getI());
+		
+		// test update
+		entity2.setE1(EnumEntity.Enum1.V3);
+		lcClient.save(entity2).block();
+		
+		// no more V2
+		Assertions.assertEquals(0, SelectQuery.from(EnumEntity.class, "e").where(Criteria.property("e", "e1").is(EnumEntity.Enum1.V2)).executeCount(lcClient).block());
+		// 2 V3
+		Assertions.assertEquals(2, SelectQuery.from(EnumEntity.class, "e").where(Criteria.property("e", "e1").is(EnumEntity.Enum1.V3)).executeCount(lcClient).block());
+		// still 1 V1
+		Assertions.assertEquals(1, SelectQuery.from(EnumEntity.class, "e").where(Criteria.property("e", "e1").is(EnumEntity.Enum1.V1)).executeCount(lcClient).block());
 	}
 	
 }
