@@ -210,6 +210,15 @@ class DeleteProcessor extends AbstractInstanceProcessor<DeleteProcessor.DeleteRe
 	
 	@Override
 	protected Mono<Void> doRequests(Operation op, RelationalPersistentEntity<?> entityType, List<DeleteRequest> requests) {
+		for (Iterator<DeleteRequest> it = requests.iterator(); it.hasNext(); ) {
+			DeleteRequest r = it.next();
+			if (!r.state.isPersisted()) {
+				r.executed = true;
+				it.remove();
+			}
+		}
+		if (requests.isEmpty())
+			return Mono.empty();
 		SqlQuery<Delete> delete = new SqlQuery<>(op.lcClient);
 		Table table = Table.create(entityType.getTableName());
 		Condition criteria = entityType.hasIdProperty() ? createCriteriaOnIds(entityType, requests, delete, table) : createCriteriaOnProperties(entityType, requests, delete, table);

@@ -3,6 +3,7 @@ package net.lecousin.reactive.data.relational.test;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Assertions;
@@ -16,6 +17,8 @@ import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.enhance.Enhancer;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.ModelException;
+import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
 import net.lecousin.reactive.data.relational.schema.Column;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
@@ -83,6 +86,31 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	}
 	
 	@Test
+	public void testEntityTransientFields() throws Exception {
+		RelationalDatabaseSchema schema = lcClient.buildSchemaFromEntities(Arrays.asList(Entity.class));
+		lcClient.dropCreateSchemaContent(schema).block();
+		
+		Entity entity = new Entity();
+		entity.setStr("aTest");
+		entity.setTextNotSaved("should be null");
+		entity.setDefaultHello("world");
+		lcClient.save(entity).block();
+		
+		List<Entity> list = SelectQuery.from(Entity.class, "e").execute(lcClient).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity = list.get(0);
+		Assertions.assertEquals("aTest", entity.getStr());
+		Assertions.assertNull(entity.getTextNotSaved());
+		Assertions.assertNull(entity.getDefaultHello());
+		Assertions.assertNull(entity.getClient());
+		
+		lcClient.delete(entity).block();
+
+		list = SelectQuery.from(Entity.class, "e").execute(lcClient).collectList().block();
+		Assertions.assertEquals(0, list.size());
+	}
+	
+	@Test
 	public void testPrintSchema() {
 		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(getAllCompatibleEntities());
 		lcClient.getSchemaDialect().createSchemaContent(schema).print(System.out);
@@ -129,6 +157,19 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 			lcClient.getSchemaDialect().getColumnType(col, getClass(), null);
 			throw new AssertionError();
 		} catch (SchemaException e) {
+			// ok
+		}
+	}
+	
+	@Test
+	public void testInvalidQuery() {
+		SqlQuery<Integer> q = new SqlQuery<>(lcClient);
+		q.setQuery(1);
+		Assertions.assertEquals(1, q.getQuery());
+		try {
+			q.execute().fetch().all().collectList().block();
+			throw new AssertionError();
+		} catch (IllegalArgumentException e) {
 			// ok
 		}
 	}

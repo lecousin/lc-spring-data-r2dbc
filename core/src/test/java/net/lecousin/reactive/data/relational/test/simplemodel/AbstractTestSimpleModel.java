@@ -161,14 +161,22 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 			else
 				Assertions.assertTrue(e.getB1());
 		}
-		Assertions.assertNotNull(e1.getId());
-		Assertions.assertNotNull(e2.getId());
+		Long id1 = e1.getId();
+		Assertions.assertNotNull(id1);
+		Long id2 = e2.getId();
+		Assertions.assertNotNull(id2);
+		
+		Assertions.assertEquals(2, repoBool.findAllById(Arrays.asList(id1, id2)).collectList().block().size());
+		Assertions.assertEquals(0, repoBool.findAllById(new ArrayList<>(0)).collectList().block().size());
+		Assertions.assertEquals(0, repoBool.findAllById(Arrays.asList(123456789L)).collectList().block().size());
 
 		repoBool.deleteAll(Arrays.asList(e1, e2)).block();
 		list = repoBool.findAll().collectList().block();
 		Assertions.assertEquals(0, list.size());
 		Assertions.assertNull(e1.getId());
 		Assertions.assertNull(e2.getId());
+		
+		Assertions.assertEquals(0, repoBool.findAllById(Arrays.asList(id1, id2)).collectList().block().size());
 	}
 	
 	@Test
@@ -810,6 +818,15 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		e.setB2(false);
 		OutboundRow row = lcClient.getDataAccess().getOutboundRow(e);
 		Assertions.assertEquals(3, row.keySet().size());
+		
+		UpdatableProperties e2 = new UpdatableProperties();
+		e2.setId(1L);
+		e2.setStr1("s1");
+		e2.setStr2("s2");
+		e2.setStr3("s3");
+		e2.setStr4("s4");
+		row = lcClient.getDataAccess().getOutboundRow(e2);
+		Assertions.assertEquals(4, row.keySet().size()); // str4 must be excluded
 	}
 	
 	@Test
@@ -1104,6 +1121,12 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals(2, SelectQuery.from(EnumEntity.class, "e").where(Criteria.property("e", "e1").is(EnumEntity.Enum1.V3)).executeCount(lcClient).block());
 		// still 1 V1
 		Assertions.assertEquals(1, SelectQuery.from(EnumEntity.class, "e").where(Criteria.property("e", "e1").is(EnumEntity.Enum1.V1)).executeCount(lcClient).block());
+	}
+	
+	@Test
+	public void testNonSenseOperations() {
+		BooleanTypes b = new BooleanTypes();
+		lcClient.delete(b).block();
 	}
 	
 }

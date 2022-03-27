@@ -25,23 +25,19 @@ import net.lecousin.reactive.data.relational.model.ModelUtils;
 public class SchemaBuilderFromEntities {
 	
 	protected LcReactiveDataRelationalClient client;
-	protected RelationalDatabaseSchema schema = new RelationalDatabaseSchema();
 	
 	public SchemaBuilderFromEntities(LcReactiveDataRelationalClient client) {
 		this.client = client;
 	}
 	
-	public RelationalDatabaseSchema getSchema() {
-		return schema;
-	}
-
 	public RelationalDatabaseSchema build(Collection<Class<?>> entities) {
+		RelationalDatabaseSchema schema = new RelationalDatabaseSchema();
 		for (Class<?> entity : entities) {
 			schema.add(buildTable(entity));
-			addSequences(entity);
+			addSequences(entity, schema);
 		}
 		for (Class<?> entity : entities) {
-			addForeignKeys(entity);
+			addForeignKeys(entity, schema);
 		}
 		return schema;
 	}
@@ -115,7 +111,7 @@ public class SchemaBuilderFromEntities {
 		return col;
 	}
 	
-	protected void addForeignKeys(Class<?> entity) {
+	protected void addForeignKeys(Class<?> entity, RelationalDatabaseSchema schema) {
 		RelationalPersistentEntity<?> entityType = client.getMappingContext().getRequiredPersistentEntity(entity);
 		Iterator<RelationalPersistentProperty> keys = entityType.getPersistentProperties(ForeignKey.class).iterator();
 		if (!keys.hasNext())
@@ -132,7 +128,7 @@ public class SchemaBuilderFromEntities {
 		} while (keys.hasNext());
 	}
 	
-	protected void addSequences(Class<?> entity) {
+	protected void addSequences(Class<?> entity, RelationalDatabaseSchema schema) {
 		RelationalPersistentEntity<?> entityType = client.getMappingContext().getRequiredPersistentEntity(entity);
 		for (RelationalPersistentProperty property : entityType.getPersistentProperties(GeneratedValue.class)) {
 			GeneratedValue annotation = property.getRequiredAnnotation(GeneratedValue.class);
