@@ -3,7 +3,7 @@
   <parent>
     <groupId>net.lecousin.reactive-data-relational</groupId>
     <artifactId>parent</artifactId>
-    <version>0.8.0</version>
+    <version>0.8.1</version>
   </parent>
   <artifactId>test-junit-5</artifactId>
   
