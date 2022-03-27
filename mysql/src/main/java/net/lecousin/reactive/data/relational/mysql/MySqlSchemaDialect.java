@@ -87,6 +87,22 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 	
 	@Override
+	protected String getColumnTypeEnum(Column col, Class<?> type, ColumnDefinition def) {
+		StringBuilder s = new StringBuilder(256);
+		s.append("ENUM(");
+		boolean first = true;
+		for (Object enumValue : type.getEnumConstants()) {
+			if (first)
+				first = false;
+			else
+				s.append(',');
+			s.append('\'').append(enumValue.toString()).append('\'');
+		}
+		s.append(')');
+		return s.toString();
+	}
+	
+	@Override
 	public boolean supportsUuidGeneration() {
 		return false;
 	}
