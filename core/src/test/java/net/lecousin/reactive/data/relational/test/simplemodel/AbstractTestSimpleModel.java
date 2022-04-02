@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.mapping.MappingException;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
@@ -142,6 +143,14 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 				Assertions.assertNull(e.getB1());
 			else
 				Assertions.assertTrue(e.getB1());
+		}
+		
+		// test invalid custom query
+		try {
+			repoBool.findAllWithoutId().collectList().block();
+			throw new AssertionError();
+		} catch (MappingException e) {
+			// ok
 		}
 		
 		repoBool.delete(e2).block();

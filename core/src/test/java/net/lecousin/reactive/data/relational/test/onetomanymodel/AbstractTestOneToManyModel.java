@@ -20,10 +20,13 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 
 	@Autowired
 	private RootEntityRepository repo;
+
+	@Autowired
+	private RootEntityWithConstructorRepository repoCtor;
 	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
-		return Arrays.asList(RootEntity.class, SubEntity.class, SubEntity2.class, SubEntity3.class);
+		return Arrays.asList(RootEntity.class, SubEntity.class, SubEntity2.class, SubEntity3.class, RootEntityWithConstructor.class, SubEntityWithConstructor.class);
 	}
 	
 	@Test
@@ -937,5 +940,310 @@ public abstract class AbstractTestOneToManyModel extends AbstractLcReactiveDataR
 		Assertions.assertEquals(1, list.size());
 		Assertions.assertEquals("efgh", list.get(0).getValue());
 		Assertions.assertEquals(3, list.get(0).getList().size());
+	}
+
+
+	// Tests with constructor
+	
+	
+	@Test
+	public void testConstructorListEmpty() {
+		RootEntityWithConstructor root = new RootEntityWithConstructor(null, "empty", new LinkedList<>());
+		root = repoCtor.save(root).block();
+		Assertions.assertEquals("empty", root.getValue());
+		Assertions.assertTrue(root.getList() == null || root.getList().isEmpty());
+		
+		root = repoCtor.getOneWithLinkedEntities(root.getId()).block();
+		Assertions.assertNotNull(root);
+		Assertions.assertTrue(root.getList() == null || root.getList().isEmpty());
+		
+		List<RootEntityWithConstructor> list = repoCtor.findAll().collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("empty", root.getValue());
+		Assertions.assertTrue(root.getList() == null || root.getList().isEmpty());
+		
+		list = repoCtor.findByValueWithSubEntity("abcd").collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		list = repoCtor.findByValueWithSubEntity("empty").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("empty", root.getValue());
+		Assertions.assertTrue(root.getList() == null || root.getList().isEmpty());
+		
+		repoCtor.deleteAll(repoCtor.findAll().collectList().block()).block();
+		Assertions.assertEquals(0, repoCtor.findAll().collectList().block().size());
+	}
+	
+	@Test
+	public void testWithConstructorOneSubElement() {
+		RootEntityWithConstructor root = new RootEntityWithConstructor(null, "one", new LinkedList<>());
+		SubEntityWithConstructor sub = new SubEntityWithConstructor(null, "sub1", root);
+		root.getList().add(sub);
+		root = repoCtor.save(root).block();
+		Assertions.assertEquals("one", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(1, root.getList().size());
+		Assertions.assertEquals("sub1", root.getList().get(0).getSubValue());
+		Assertions.assertEquals(root, root.getList().get(0).getParent());
+		
+		root = repoCtor.getOneWithLinkedEntities(root.getId()).block();
+		Assertions.assertNotNull(root);
+		Assertions.assertEquals("one", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(1, root.getList().size());
+		Assertions.assertEquals("sub1", root.getList().get(0).getSubValue());
+		Assertions.assertEquals(root, root.getList().get(0).getParent());
+		
+		List<RootEntityWithConstructor> list = repoCtor.findAll().collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("one", root.getValue());
+		Assertions.assertNull(root.getList());
+		List<SubEntityWithConstructor> children = root.lazyGetList().collectList().block();
+		Assertions.assertNotNull(children);
+		Assertions.assertEquals(1, children.size());
+		Assertions.assertEquals("sub1", children.get(0).getSubValue());
+		children = root.getList();
+		Assertions.assertNotNull(children);
+		Assertions.assertEquals(1, children.size());
+		Assertions.assertEquals("sub1", children.get(0).getSubValue());
+		// test call lazyGet on an already loaded list
+		root.lazyGetList().collectList().block();
+		
+		list = repoCtor.findByValueWithSubEntity("abcd").collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		list = repoCtor.findByValueWithSubEntity("one").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("one", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(1, root.getList().size());
+		Assertions.assertEquals("sub1", root.getList().get(0).getSubValue());
+		Assertions.assertEquals(root, root.getList().get(0).getParent());
+		
+		list = repoCtor.findBySubValue("abcd").collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		list = repoCtor.findBySubValue("sub1").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("one", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(1, root.getList().size());
+		Assertions.assertEquals("sub1", root.getList().get(0).getSubValue());
+		Assertions.assertEquals(root, root.getList().get(0).getParent());
+		
+		repoCtor.deleteAll(repoCtor.findAll().collectList().block()).block();
+		Assertions.assertEquals(0, SelectQuery.from(RootEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(SubEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+	}
+
+	@Test
+	public void testConstructorZeroToSeveralSubElements() {
+		RootEntityWithConstructor root;
+		SubEntityWithConstructor sub;
+
+		root = new RootEntityWithConstructor(null, "zero", new LinkedList<>());
+		repoCtor.save(root).block();
+
+		root = new RootEntityWithConstructor(null, "one", new LinkedList<>());
+		sub = new SubEntityWithConstructor(null, "sub1.1", root);
+		root.getList().add(sub);
+		repoCtor.save(root).block();
+
+		root = new RootEntityWithConstructor(null, "two", new LinkedList<>());
+		sub = new SubEntityWithConstructor(null, "sub2.1", root);
+		root.getList().add(sub);
+		sub = new SubEntityWithConstructor(null, "sub2.2", root);
+		root.getList().add(sub);
+		repoCtor.save(root).block();
+
+		root = new RootEntityWithConstructor(null, "five", new LinkedList<>());
+		sub = new SubEntityWithConstructor(null, "sub5.1", root);
+		root.getList().add(sub);
+		sub = new SubEntityWithConstructor(null, "sub5.2", root);
+		root.getList().add(sub);
+		sub = new SubEntityWithConstructor(null, "sub5.3", root);
+		root.getList().add(sub);
+		sub = new SubEntityWithConstructor(null, "sub5.4", root);
+		root.getList().add(sub);
+		sub = new SubEntityWithConstructor(null, "sub5.5", root);
+		root.getList().add(sub);
+		repoCtor.save(root).block();
+		
+		
+		
+		List<RootEntityWithConstructor> list = repoCtor.findAll().collectList().block();
+		Assertions.assertEquals(4, list.size());
+		List<String> expected = new LinkedList<>();
+		expected.addAll(Arrays.asList("zero", "one", "two", "five"));
+		for (RootEntityWithConstructor r : list) {
+			Assertions.assertTrue(expected.remove(r.getValue()));
+			Assertions.assertNull(r.getList());
+			List<SubEntityWithConstructor> children = r.lazyGetList().collectList().block();
+			Assertions.assertNotNull(children);
+			if ("zero".equals(r.getValue())) {
+				Assertions.assertEquals(0, children.size());
+			} else if ("one".equals(r.getValue())) {
+				Assertions.assertEquals(1, children.size());
+				Assertions.assertEquals("sub1.1", children.get(0).getSubValue());
+			} else if ("two".equals(r.getValue())) {
+				Assertions.assertEquals(2, children.size());
+				List<String> expectedSub = new LinkedList<>();
+				expectedSub.addAll(Arrays.asList("sub2.1", "sub2.2"));
+				for (SubEntityWithConstructor s : children) {
+					Assertions.assertTrue(expectedSub.remove(s.getSubValue()));
+				}
+			} else if ("five".equals(r.getValue())) {
+				Assertions.assertEquals(5, children.size());
+				List<String> expectedSub = new LinkedList<>();
+				expectedSub.addAll(Arrays.asList("sub5.1", "sub5.2", "sub5.3", "sub5.4", "sub5.5"));
+				for (SubEntityWithConstructor s : children) {
+					Assertions.assertTrue(expectedSub.remove(s.getSubValue()));
+				}
+			}
+			children = root.getList();
+			Assertions.assertNotNull(children);
+		}
+		
+		list = repoCtor.findByValueWithSubEntity("abcd").collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		list = repoCtor.findByValueWithSubEntity("zero").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("zero", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(0, root.getList().size());
+		
+		list = repoCtor.findByValueWithSubEntity("one").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("one", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(1, root.getList().size());
+		Assertions.assertEquals("sub1.1", root.getList().get(0).getSubValue());
+		Assertions.assertEquals(root, root.getList().get(0).getParent());
+		
+		list = repoCtor.findByValueWithSubEntity("two").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("two", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(2, root.getList().size());
+		List<String> expectedSub = new LinkedList<>();
+		expectedSub.addAll(Arrays.asList("sub2.1", "sub2.2"));
+		for (SubEntityWithConstructor s : root.getList()) {
+			Assertions.assertTrue(expectedSub.remove(s.getSubValue()));
+			Assertions.assertEquals(root, s.getParent());
+		}
+		
+		list = repoCtor.findByValueWithSubEntity("five").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("five", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(5, root.getList().size());
+		expectedSub = new LinkedList<>();
+		expectedSub.addAll(Arrays.asList("sub5.1", "sub5.2", "sub5.3", "sub5.4", "sub5.5"));
+		for (SubEntityWithConstructor s : root.getList()) {
+			Assertions.assertTrue(expectedSub.remove(s.getSubValue()));
+			Assertions.assertEquals(root, s.getParent());
+		}
+		
+		list = repoCtor.findBySubValue("abcd").collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		list = repoCtor.findBySubValue("sub1.1").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("one", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(1, root.getList().size());
+		Assertions.assertEquals("sub1.1", root.getList().get(0).getSubValue());
+		Assertions.assertEquals(root, root.getList().get(0).getParent());
+		
+		list = repoCtor.findBySubValue("sub2.1").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("two", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(2, root.getList().size());
+		expectedSub = new LinkedList<>();
+		expectedSub.addAll(Arrays.asList("sub2.1", "sub2.2"));
+		for (SubEntityWithConstructor s : root.getList()) {
+			Assertions.assertTrue(expectedSub.remove(s.getSubValue()));
+			Assertions.assertEquals(root, s.getParent());
+		}
+		
+		list = repoCtor.findBySubValue("sub5.3").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("five", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(5, root.getList().size());
+		expectedSub = new LinkedList<>();
+		expectedSub.addAll(Arrays.asList("sub5.1", "sub5.2", "sub5.3", "sub5.4", "sub5.5"));
+		for (SubEntityWithConstructor s : root.getList()) {
+			Assertions.assertTrue(expectedSub.remove(s.getSubValue()));
+			Assertions.assertEquals(root, s.getParent());
+		}
+		
+		list = repoCtor.findBySubValueStartsWith("sub5", 0, 10).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		root = list.get(0);
+		Assertions.assertEquals("five", root.getValue());
+		Assertions.assertNotNull(root.getList());
+		Assertions.assertEquals(5, root.getList().size());
+		expectedSub = new LinkedList<>();
+		expectedSub.addAll(Arrays.asList("sub5.1", "sub5.2", "sub5.3", "sub5.4", "sub5.5"));
+		for (SubEntityWithConstructor s : root.getList()) {
+			Assertions.assertTrue(expectedSub.remove(s.getSubValue()));
+			Assertions.assertEquals(root, s.getParent());
+		}
+
+		list = repoCtor.findBySubValueStartsWith("sub", 0, 10).collectList().block();
+		Assertions.assertEquals(3, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 0, 1).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 0, 2).collectList().block();
+		Assertions.assertEquals(2, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 0, 3).collectList().block();
+		Assertions.assertEquals(3, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 1, 1).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 1, 2).collectList().block();
+		Assertions.assertEquals(2, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 1, 3).collectList().block();
+		Assertions.assertEquals(2, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 2, 1).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 2, 2).collectList().block();
+		Assertions.assertEquals(1, list.size());
+		list = repoCtor.findBySubValueStartsWith("sub", 3, 1).collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		
+		Assertions.assertEquals(4, SelectQuery.from(RootEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(8, SelectQuery.from(SubEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		
+		repoCtor.deleteAll(repoCtor.findByValueWithSubEntity("two").collectList().block()).block();
+		Assertions.assertEquals(3, SelectQuery.from(RootEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(SubEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		
+		repoCtor.deleteAll(repoCtor.findByValueWithSubEntity("zero").collectList().block()).block();
+		Assertions.assertEquals(2, SelectQuery.from(RootEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(6, SelectQuery.from(SubEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		
+		repoCtor.deleteAll(repoCtor.findByValueWithSubEntity("five").collectList().block()).block();
+		Assertions.assertEquals(1, SelectQuery.from(RootEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(SubEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		
+		repoCtor.deleteAll(repoCtor.findByValueWithSubEntity("one").collectList().block()).block();
+		Assertions.assertEquals(0, SelectQuery.from(RootEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(SubEntityWithConstructor.class, "entity").execute(lcClient).collectList().block().size());
 	}
 }

@@ -294,6 +294,13 @@ public class ModelUtils {
 		return list;
 	}
 	
+	public static boolean isPropertyPartOfCompositeId(RelationalPersistentProperty property) {
+		CompositeId id = property.getOwner().findAnnotation(CompositeId.class);
+		if (id == null)
+			return false;
+		return ArrayUtils.contains(id.properties(), property.getName());
+	}
+	
 	public static Object getId(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
 		if (entityType.hasIdProperty())
 			return getIdPropertyValue(entityType, accessor);

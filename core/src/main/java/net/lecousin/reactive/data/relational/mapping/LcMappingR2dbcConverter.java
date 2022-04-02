@@ -41,7 +41,7 @@ public class LcMappingR2dbcConverter extends MappingR2dbcConverter implements R2
 	
 	@Override
 	public Object readValue(@Nullable Object value, TypeInformation<?> type) {
-		return new LcEntityReader(null, null, client).readValue(value, type);
+		return new LcEntityReader(null, null, client).readValue(value, type.getType());
 	}
 
 

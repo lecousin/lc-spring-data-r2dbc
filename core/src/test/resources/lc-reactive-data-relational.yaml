@@ -27,11 +27,15 @@ entities:
       - MySubEntity5
       - MyEntity6
       - MySubEntity6
+      - MyEntity1WithConstructor
+      - MySubEntity1WithConstructor
     - onetomanymodel:
       - RootEntity
       - SubEntity
       - SubEntity2
       - SubEntity3
+      - RootEntityWithConstructor
+      - SubEntityWithConstructor
     - manytomanymodel:
       - Entity1
       - Entity2

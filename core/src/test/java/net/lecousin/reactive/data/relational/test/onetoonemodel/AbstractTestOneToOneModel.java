@@ -38,6 +38,9 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 	
 	@Autowired
 	private MySubEntity6Repository subRepo6;
+
+	@Autowired
+	private MyEntity1WithConstructorRepository repo1Ctor;
 	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
@@ -47,7 +50,8 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 			MyEntity3.class, MySubEntity3.class,
 			MyEntity4.class, MySubEntity4.class,
 			MyEntity5.class, MySubEntity5.class,
-			MyEntity6.class, MySubEntity6.class
+			MyEntity6.class, MySubEntity6.class,
+			MyEntity1WithConstructor.class, MySubEntity1WithConstructor.class
 		);
 	}
 	
@@ -106,6 +110,7 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 		Assertions.assertEquals("test", entity.getValue());
 		Assertions.assertNotNull(entity.getSubEntity());
 		Assertions.assertEquals("sub test", entity.getSubEntity().getSubValue());
+		Assertions.assertTrue(entity.getSubEntity().getParent() == entity);
 		
 		// update entity value
 		entity.setValue("test 2");
@@ -150,6 +155,103 @@ public abstract class AbstractTestOneToOneModel extends AbstractLcReactiveDataRe
 		repo1.delete(entity).block();
 		Assertions.assertEquals(0, SelectQuery.from(MyEntity1.class, "entity").execute(lcClient).collectList().block().size());
 		Assertions.assertEquals(0, SelectQuery.from(MySubEntity1.class, "entity").execute(lcClient).collectList().block().size());
+	}
+	
+	@Test
+	public void testConstructorEntity1WithoutSubEntity() {
+		MyEntity1WithConstructor entity = new MyEntity1WithConstructor(null, "test", null);
+		repo1Ctor.save(entity).block();
+		
+		List<MyEntity1WithConstructor> list = repo1Ctor.findAll().collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity = list.get(0);
+		Assertions.assertEquals("test", entity.getValue());
+		Assertions.assertNull(entity.getSubEntity());
+		
+		entity.setValue("modified");
+		repo1Ctor.save(entity).block();
+		list = repo1Ctor.findAll().collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity = list.get(0);
+		Assertions.assertEquals("modified", entity.getValue());
+		Assertions.assertNull(entity.getSubEntity());
+		Assertions.assertNull(entity.lazyGetSubEntity().block());
+		Assertions.assertNull(entity.lazyGetSubEntity().block());
+		
+		repo1Ctor.deleteAll(list).block();
+		Assertions.assertEquals(0, repo1Ctor.findAll().collectList().block().size());
+	}
+	
+	@Test
+	public void testConstructorEntity1WithSubEntity() {
+		MyEntity1WithConstructor entity = new MyEntity1WithConstructor(null, "test", null);
+		MySubEntity1WithConstructor subEntity = new MySubEntity1WithConstructor(null, "sub test", entity);
+		entity.setSubEntity(subEntity);
+		repo1Ctor.save(entity).block();
+		
+		List<MyEntity1WithConstructor> list = repo1Ctor.findAll().collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity = list.get(0);
+		Assertions.assertEquals("test", entity.getValue());
+		Assertions.assertNull(entity.getSubEntity());
+		subEntity = entity.lazyGetSubEntity().block();
+		Assertions.assertEquals("sub test", subEntity.getSubValue());
+		Assertions.assertEquals("sub test", entity.getSubEntity().getSubValue());
+		Assertions.assertTrue(subEntity == entity.lazyGetSubEntity().block());
+		
+		list = repo1Ctor.findByValue("abcd").collectList().block();
+		Assertions.assertEquals(0, list.size());
+		
+		list = repo1Ctor.findByValue("test").collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity = list.get(0);
+		Assertions.assertEquals("test", entity.getValue());
+		Assertions.assertNotNull(entity.getSubEntity());
+		Assertions.assertEquals("sub test", entity.getSubEntity().getSubValue());
+		Assertions.assertTrue(entity.getSubEntity().getParent() == entity);
+		
+		// update entity value
+		entity.setValue("test 2");
+		repo1Ctor.save(entity).block();
+		list = repo1Ctor.findAll().collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity = list.get(0);
+		Assertions.assertEquals("test 2", entity.getValue());
+		subEntity = entity.lazyGetSubEntity().block();
+		Assertions.assertEquals("sub test", subEntity.getSubValue());
+		Assertions.assertEquals("sub test", entity.getSubEntity().getSubValue());
+		
+		// update sub entity value, save parent entity
+		subEntity.setSubValue("sub test 2");
+		repo1Ctor.save(entity).block();
+		list = repo1Ctor.findAll().collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity = list.get(0);
+		Assertions.assertEquals("test 2", entity.getValue());
+		subEntity = entity.lazyGetSubEntity().block();
+		Assertions.assertEquals("sub test 2", subEntity.getSubValue());
+		Assertions.assertEquals("sub test 2", entity.getSubEntity().getSubValue());
+		Assertions.assertEquals(1, SelectQuery.from(MyEntity1WithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(1, SelectQuery.from(MySubEntity1WithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		
+		// change sub entity
+		subEntity = new MySubEntity1WithConstructor(null, "new one", entity);
+		entity.setSubEntity(subEntity);
+		repo1Ctor.save(entity).block();
+		list = repo1Ctor.findAll().collectList().block();
+		Assertions.assertEquals(1, list.size());
+		entity = list.get(0);
+		Assertions.assertEquals("test 2", entity.getValue());
+		subEntity = entity.lazyGetSubEntity().block();
+		Assertions.assertEquals("new one", subEntity.getSubValue());
+		Assertions.assertEquals("new one", entity.getSubEntity().getSubValue());
+		Assertions.assertEquals(1, SelectQuery.from(MyEntity1WithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		// the old one must be removed
+		Assertions.assertEquals(1, SelectQuery.from(MySubEntity1WithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		
+		repo1Ctor.delete(entity).block();
+		Assertions.assertEquals(0, SelectQuery.from(MyEntity1WithConstructor.class, "entity").execute(lcClient).collectList().block().size());
+		Assertions.assertEquals(0, SelectQuery.from(MySubEntity1WithConstructor.class, "entity").execute(lcClient).collectList().block().size());
 	}
 	
 	@Test

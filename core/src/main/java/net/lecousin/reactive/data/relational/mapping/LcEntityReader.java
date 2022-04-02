@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational.mapping;
 
+import org.apache.commons.lang3.mutable.MutableObject;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.core.convert.ConversionService;
@@ -96,19 +97,21 @@ public class LcEntityReader {
 				if (entityType.isConstructorArgument(property))
 					continue;
 
-				Object value = readProperty(property, source, result);
+				MutableObject<Object> value = readProperty(property, source, result, property.getTypeInformation().getType());
 
 				if (value != null) {
-					propertyAccessor.setProperty(property, value);
+					propertyAccessor.setProperty(property, value.getValue());
+				} else if (property.isIdProperty() || ModelUtils.isPropertyPartOfCompositeId(property)) {
+					throw new MappingException("Property " + entityType.getName() + "." + property.getName() + " must be returned by the query to be mapped");
 				}
 			}
 		}
-		state.loaded(result);
+		state.loaded(result); 
 
 		return result;
 	}
 	
-	protected Object readProperty(RelationalPersistentProperty property, PropertiesSource source, Object instance) {
+	protected MutableObject<Object> readProperty(RelationalPersistentProperty property, PropertiesSource source, Object instance, Class<?> targetType) {
 		if (property.isEntity()) {
 			return readEntityProperty(property, instance, source);
 		}
@@ -117,21 +120,21 @@ public class LcEntityReader {
 			return null;
 
 		Object value = source.getPropertyValue(property);
-		return readValue(value, property.getTypeInformation());
+		return new MutableObject<>(readValue(value, targetType));
 	}
 	
-	public Object readValue(@Nullable Object value, TypeInformation<?> type) {
+	public Object readValue(@Nullable Object value, Class<?> type) {
 		if (null == value)
 			return null;
 		
-		value = client.getSchemaDialect().convertFromDataBase(value, type.getType());
+		value = client.getSchemaDialect().convertFromDataBase(value, type);
 
-		if (conversions.hasCustomReadTarget(value.getClass(), type.getType())) {
-			return conversionService.convert(value, type.getType());
-		} else if ((value instanceof String) && char[].class.equals(type.getType())) {
+		if (conversions.hasCustomReadTarget(value.getClass(), type)) {
+			return conversionService.convert(value, type);
+		} else if ((value instanceof String) && char[].class.equals(type)) {
 			return ((String)value).toCharArray();
 		} else {
-			return getPotentiallyConvertedSimpleRead(value, type.getType());
+			return getPotentiallyConvertedSimpleRead(value, type);
 		}
 	}
 
@@ -158,7 +161,7 @@ public class LcEntityReader {
 		return conversionService.convert(value, target);
 	}
 
-	protected <T> T readEntityProperty(RelationalPersistentProperty property, Object parentInstance, PropertiesSource source) {
+	protected <T> MutableObject<T> readEntityProperty(RelationalPersistentProperty property, Object parentInstance, PropertiesSource source) {
 		@SuppressWarnings("unchecked")
 		RelationalPersistentEntity<T> entityType = (RelationalPersistentEntity<T>) client.getMappingContext().getRequiredPersistentEntity(property.getActualType());
 
@@ -169,22 +172,23 @@ public class LcEntityReader {
 		throw new MappingException("Sub-entity without @ForeignKey is not supported: " + property.getName());
 	}
 	
-	protected <T> T readForeignKeyEntity(RelationalPersistentProperty property, Object parentInstance, RelationalPersistentEntity<T> entityType, PropertiesSource source) {
+	protected <T> MutableObject<T> readForeignKeyEntity(RelationalPersistentProperty property, Object parentInstance, RelationalPersistentEntity<T> entityType, PropertiesSource source) {
 		if (!source.isPropertyPresent(property))
 			return null;
 
 		Object value = source.getPropertyValue(property);
 		if (value == null)
-			return null; // foreign key is null
+			return new MutableObject<>(null); // foreign key is null
 		T instance = getOrCreateInstance(entityType, source, value);
 		EntityState state = EntityState.get(instance, client, entityType);
 		if (!state.isLoaded()) {
 			state.setPersistedField(instance, entityType.getRequiredIdProperty().getField(), value, true);
 		}
-		ModelUtils.setReverseLink(instance, parentInstance, property);
+		if (parentInstance != null)
+			ModelUtils.setReverseLink(instance, parentInstance, property);
 		if (!state.isLoaded())
 			state.lazyLoaded();
-		return instance;
+		return new MutableObject<>(instance);
 	}
 	
 	protected <T> T getOrCreateInstance(RelationalPersistentEntity<T> entityType, PropertiesSource source) {
@@ -207,7 +211,7 @@ public class LcEntityReader {
 				return instance;
 		}
 		
-		PropertiesSourceParameterValueProvider parameterValueProvider = new PropertiesSourceParameterValueProvider(entityType, source, conversionService);
+		PropertiesSourceParameterValueProvider parameterValueProvider = new PropertiesSourceParameterValueProvider(entityType, source);
 		T instance = client.getMapper().createInstance(entityType, parameterValueProvider::getParameterValue);
 		
 		if (id != null)
@@ -216,16 +220,14 @@ public class LcEntityReader {
 		return instance;
 	}
 	
-	public static class PropertiesSourceParameterValueProvider implements ParameterValueProvider<RelationalPersistentProperty> {
+	public class PropertiesSourceParameterValueProvider implements ParameterValueProvider<RelationalPersistentProperty> {
 
 		private final RelationalPersistentEntity<?> entityType;
 		private final PropertiesSource source;
-		private final ConversionService conversionService;
 
-		public PropertiesSourceParameterValueProvider(RelationalPersistentEntity<?> entityType, PropertiesSource source, ConversionService conversionService) {
+		public PropertiesSourceParameterValueProvider(RelationalPersistentEntity<?> entityType, PropertiesSource source) {
 			this.entityType = entityType;
 			this.source = source;
-			this.conversionService = conversionService;
 		}
 
 		/*
@@ -237,20 +239,20 @@ public class LcEntityReader {
 		public <T> T getParameterValue(Parameter<T, RelationalPersistentProperty> parameter) {
 			String paramName = parameter.getName();
 			Assert.notNull(paramName, "Parameter name must not be null");
-			RelationalPersistentProperty property = entityType.getRequiredPersistentProperty(paramName);
-
-			if (!source.isPropertyPresent(property))
+			RelationalPersistentProperty property = entityType.getPersistentProperty(paramName);
+			if (property == null)
 				return null;
-			Object value = source.getPropertyValue(property);
-			if (value == null)
-				return null;
-
 			Class<T> type = parameter.getType().getType();
 
-			if (type.isInstance(value)) {
-				return type.cast(value);
+			MutableObject<Object> value = readProperty(property, source, null, type);
+			if (value == null)
+				return null;
+			Object v = value.getValue();
+
+			if (type.isInstance(v)) {
+				return type.cast(v);
 			}
-			return conversionService.convert(value, type);
+			return conversionService.convert(v, type);
 		}
 	}
 	
