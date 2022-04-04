@@ -77,10 +77,6 @@ public class EntityInstance<T> {
 		return meta;
 	}
 
-	public Object getValue(String propertyName) {
-		return getValue(meta.getRequiredProperty(propertyName));
-	}
-	
 	public Object getValue(PropertyMetadata property) {
 		if (property.isPersistent())
 			return getPropertyAccessor().getProperty(property.getRequiredSpringProperty());
