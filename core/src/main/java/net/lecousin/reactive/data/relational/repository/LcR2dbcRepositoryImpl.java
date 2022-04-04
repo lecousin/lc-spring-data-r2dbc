@@ -1,3 +1,16 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.repository;
 
 import java.util.List;
@@ -6,8 +19,6 @@ import org.reactivestreams.Publisher;
 import org.springframework.data.r2dbc.convert.R2dbcConverter;
 import org.springframework.data.r2dbc.core.R2dbcEntityOperations;
 import org.springframework.data.r2dbc.repository.support.SimpleR2dbcRepository;
-import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Conditions;
 import org.springframework.data.relational.core.sql.Delete;
@@ -20,6 +31,8 @@ import org.springframework.util.Assert;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
@@ -27,6 +40,14 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+/**
+ * Implementation of a repository.
+ * 
+ * @author Guillaume Le Cousin
+ *
+ * @param <T> type of entity
+ * @param <ID> type of primary key
+ */
 @SuppressWarnings("java:S119") // name of parameter ID
 public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> implements LcR2dbcRepository<T, ID> {
 
@@ -49,15 +70,15 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	@Override
 	public Mono<T> findById(ID id) {
 		Assert.notNull(id, "Id must not be null in findById");
-		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
-		RelationalPersistentProperty idProperty = entity.getRequiredIdProperty();
+		EntityMetadata entity = lcClient.getRequiredEntity(entityInfo.getJavaType());
+		PropertyMetadata idProperty = entity.getRequiredIdProperty();
 		return SelectQuery.from(entityInfo.getJavaType(), "e").where(Criteria.property("e", idProperty.getName()).is(id)).execute(lcClient).next();
 	}
 	
 	@Override
 	public Flux<T> findAllById(Publisher<ID> idPublisher) {
-		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
-		RelationalPersistentProperty idProperty = entity.getRequiredIdProperty();
+		EntityMetadata entity = lcClient.getRequiredEntity(entityInfo.getJavaType());
+		PropertyMetadata idProperty = entity.getRequiredIdProperty();
 		return Flux.from(idPublisher)
 			.buffer().filter(ids -> !ids.isEmpty())
 			.concatMap(ids -> {
@@ -70,8 +91,8 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	@Override
 	public Mono<Boolean> existsById(ID id) {
 		Assert.notNull(id, "Id must not be null in existsById");
-		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
-		RelationalPersistentProperty idProperty = entity.getRequiredIdProperty();
+		EntityMetadata entity = lcClient.getRequiredEntity(entityInfo.getJavaType());
+		PropertyMetadata idProperty = entity.getRequiredIdProperty();
 		Table table = Table.create(entity.getTableName());
 		Column idColumn = Column.create(idProperty.getColumnName(), table);
 		Object idValue = lcClient.getSchemaDialect().convertToDataBase(id, idProperty);
@@ -113,15 +134,15 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	
 	@Override
 	public Mono<Void> deleteAll() {
-		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType(), lcClient.getMappingContext()))
+		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType()))
 			return deleteAll(findAll());
 		return entityOperations.delete(entityInfo.getJavaType()).all().then();
 	}
 	
 	@Override
 	public Mono<Void> deleteAllById(Iterable<? extends ID> ids) {
-		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
-		RelationalPersistentProperty idProperty = entity.getRequiredIdProperty();
+		EntityMetadata entity = lcClient.getRequiredEntity(entityInfo.getJavaType());
+		PropertyMetadata idProperty = entity.getRequiredIdProperty();
 
 		Table table = Table.create(entity.getTableName());
 		Column idColumn = Column.create(idProperty.getColumnName(), table);
@@ -136,12 +157,12 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	@Override
 	public Mono<Void> deleteById(ID id) {
 		Assert.notNull(id, "Id must not be null in deleteById");
-		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType(), lcClient.getMappingContext()))
+		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType()))
 			return findById(id).flatMap(this::delete);
-		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
+		EntityMetadata entity = lcClient.getRequiredEntity(entityInfo.getJavaType());
 		if (!entity.hasIdProperty())
 			return findById(id).flatMap(this::delete);
-		RelationalPersistentProperty idProperty = entity.getRequiredIdProperty();
+		PropertyMetadata idProperty = entity.getRequiredIdProperty();
 		Table table = Table.create(entity.getTableName());
 		Column idColumn = Column.create(idProperty.getColumnName(), table);
 		Object idValue = lcClient.getSchemaDialect().convertToDataBase(id, idProperty);
@@ -153,9 +174,9 @@ public class LcR2dbcRepositoryImpl<T, ID> extends SimpleR2dbcRepository<T, ID> i
 	
 	@Override
 	public Mono<Void> deleteById(Publisher<ID> idPublisher) {
-		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType(), lcClient.getMappingContext()))
+		if (ModelUtils.hasCascadeDeleteImpacts(entityInfo.getJavaType()))
 			return deleteAll(findAllById(idPublisher));
-		RelationalPersistentEntity<?> entity = lcClient.getMappingContext().getRequiredPersistentEntity(entityInfo.getJavaType());
+		EntityMetadata entity = lcClient.getRequiredEntity(entityInfo.getJavaType());
 		if (!entity.hasIdProperty())
 			return deleteAll(findAllById(idPublisher));
 		return Flux.from(idPublisher)

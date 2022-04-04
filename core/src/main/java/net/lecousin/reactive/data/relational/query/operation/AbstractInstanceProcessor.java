@@ -1,3 +1,16 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.query.operation;
 
 import java.util.ArrayList;
@@ -8,37 +21,37 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import org.apache.commons.lang3.mutable.MutableObject;
-import org.springframework.data.mapping.PersistentPropertyAccessor;
-import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.lang.Nullable;
 
-import net.lecousin.reactive.data.relational.annotations.ForeignKey;
-import net.lecousin.reactive.data.relational.enhance.EntityState;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
+import net.lecousin.reactive.data.relational.model.metadata.EntityInstance;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyStaticMetadata;
 import reactor.core.publisher.Mono;
 
+/**
+ * Abstract class to process requests on specific entity instances.
+ * 
+ * @author Guillaume Le Cousin
+ *
+ * @param <R> type of request
+ */
 @SuppressWarnings("rawtypes")
 abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Request> extends AbstractProcessor<R> {
 
 	/** Requests, by table, by instance. */
-	private Map<RelationalPersistentEntity<?>, Map<Object, R>> requests = new HashMap<>();
+	private Map<EntityMetadata, Map<Object, R>> requests = new HashMap<>();
 	
 	abstract static class Request extends AbstractProcessor.Request {
-		Object instance;
-		EntityState state;
-		PersistentPropertyAccessor<?> accessor;
+		EntityInstance<?> entity;
 		
 		boolean processed = false;
 		boolean toProcess = true;
 		
-		<T> Request(RelationalPersistentEntity<T> entityType, T instance, EntityState state, PersistentPropertyAccessor<T> accessor) {
-			super(entityType);
-			this.instance = instance;
-			this.state = state;
-			this.accessor = accessor;
+		<T> Request(EntityInstance<T> entity) {
+			this.entity = entity;
 		}
 		
 		@Override
@@ -52,23 +65,23 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 		}
 	}
 	
-	public <T> R addToProcess(Operation op, T instance, @Nullable RelationalPersistentEntity<T> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
-		return addRequest(op, instance, entity, state, accessor);
+	public <T> R addToProcess(Operation op, EntityInstance<T> instance) {
+		return addRequest(op, instance);
 	}
 	
-	public <T> R addToNotProcess(Operation op, T instance, @Nullable RelationalPersistentEntity<T> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
-		R request = addRequest(op, instance, entity, state, accessor);
+	public <T> R addToNotProcess(Operation op, EntityInstance<T> instance) {
+		R request = addRequest(op, instance);
 		request.toProcess = false;
 		return request;
 	}
 	
-	List<R> getPendingRequests(RelationalPersistentEntity<?> entity, Predicate<R> predicate) {
+	List<R> getPendingRequests(EntityMetadata type, Predicate<R> predicate) {
 		List<R> list = new LinkedList<>();
-		Map<Object, R> map = requests.get(entity);
+		Map<Object, R> map = requests.get(type);
 		if (map == null)
 			return list;
 		for (R request : map.values()) {
-			if (request.toProcess && !request.executed && request.state.isPersisted() && request.state.isLoaded() && predicate.test(request))
+			if (request.toProcess && !request.executed && request.entity.getState().isPersisted() && request.entity.getState().isLoaded() && predicate.test(request))
 				list.add(request);
 		}
 		return list;
@@ -98,55 +111,43 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 	}
 	
 	private void processForeignKeys(Operation op, R request) {
-		for (RelationalPersistentProperty property : request.entityType) {
-			ForeignKey fkAnnotation = property.findAnnotation(ForeignKey.class);
-			if (fkAnnotation != null) {
-				ForeignTableInfo fti = LcEntityTypeInfo.get(property.getActualType()).getForeignTableWithFieldForJoinKey(property.getName(), request.entityType.getType());
-				processForeignKey(op, request, property, fkAnnotation, fti);
-			}
+		for (PropertyMetadata property : request.entity.getMetadata().getForeignKeys()) {
+			PropertyStaticMetadata foreignTable = EntityStaticMetadata.get(property.getType()).getForeignTableForJoinKey(property.getName(), request.entity.getType());
+			processForeignKey(op, request, property, foreignTable);
 		}
 	}
 	
 	private void processForeignTables(Operation op, R request) {
-		for (ForeignTableInfo fti : LcEntityTypeInfo.get(request.instance.getClass()).getForeignTables()) {
-			boolean isCollection = fti.isCollection();
-			RelationalPersistentEntity<?> foreignEntity = op.lcClient.getMappingContext().getRequiredPersistentEntity(isCollection ? fti.getCollectionElementType() : fti.getField().getType());
-			RelationalPersistentProperty fkProperty = foreignEntity.getRequiredPersistentProperty(fti.getAnnotation().joinKey());
-			ForeignKey fk = fkProperty.findAnnotation(ForeignKey.class);
+		for (PropertyStaticMetadata foreignTable : EntityStaticMetadata.get(request.entity.getType()).getForeignTables()) {
+			EntityMetadata foreignEntityType = op.lcClient.getRequiredEntity(foreignTable.getTypeOrCollectionElementType());
+			PropertyMetadata fkProperty = foreignEntityType.getRequiredPersistentProperty(foreignTable.getForeignTableAnnotation().joinKey());
 			MutableObject<?> foreignFieldValue;
 			try {
-				foreignFieldValue = request.state.getForeignTableField(request.instance, fti.getField().getName());
+				foreignFieldValue = request.entity.getState().getForeignTableField(request.entity.getEntity(), foreignTable);
 			} catch (Exception e) {
 				throw new ModelAccessException("Unable to get foreign table field", e);
 			}
 			
-			processForeignTableField(op, request, fti, foreignFieldValue, foreignEntity, fkProperty, fk);
+			processForeignTableField(op, request, foreignTable, foreignFieldValue, fkProperty);
 		}
 	}
 	
-	protected abstract <T> R createRequest(T instance, EntityState state, RelationalPersistentEntity<T> entity, PersistentPropertyAccessor<T> accessor);
+	protected abstract <T> R createRequest(EntityInstance<T> instance);
 	
 	protected abstract boolean doProcess(Operation op, R request);
 	
-	protected abstract void processForeignKey(Operation op, R request, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation, @Nullable ForeignTableInfo foreignTableInfo);
+	protected abstract void processForeignKey(Operation op, R request, PropertyMetadata fkProperty, @Nullable PropertyStaticMetadata foreignTableInfo);
 	
-	@SuppressWarnings("java:S107")
-	protected abstract <T> void processForeignTableField(Operation op, R request, ForeignTableInfo foreignTableInfo, @Nullable MutableObject<?> foreignFieldValue, RelationalPersistentEntity<T> foreignEntity, RelationalPersistentProperty fkProperty, ForeignKey fkAnnotation);
+	protected abstract void processForeignTableField(Operation op, R request, PropertyStaticMetadata foreignTableInfo, @Nullable MutableObject<?> foreignFieldValue, PropertyMetadata fkProperty);
 	
 	@SuppressWarnings({ "java:S3824", "unchecked" })
-	private <T> R addRequest(Operation op, T instance, @Nullable RelationalPersistentEntity<T> entity, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
-		if (entity == null)
-			entity = (RelationalPersistentEntity<T>) op.lcClient.getMappingContext().getRequiredPersistentEntity(instance.getClass());
-		if (accessor == null)
-			accessor = entity.getPropertyAccessor(instance);
-		if (state == null)
-			state = EntityState.get(instance, op.lcClient, entity);
-		instance = op.cache.getOrSet(state, entity, accessor, op.lcClient);
-		Map<Object, R> map = requests.computeIfAbsent(entity, e -> new HashMap<>());
-		R r = map.get(instance);
+	private <T> R addRequest(Operation op, EntityInstance<T> instance) {
+		instance = op.cache.getOrSetInstance(instance);
+		Map<Object, R> map = requests.computeIfAbsent(instance.getMetadata(), e -> new HashMap<>());
+		R r = map.get(instance.getEntity());
 		if (r == null) {
-			r = createRequest(instance, state, entity, accessor);
-			map.put(instance, r);
+			r = createRequest(instance);
+			map.put(instance.getEntity(), r);
 		}
 		return r;
 	}
@@ -154,7 +155,7 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 	@Override
 	protected Mono<Void> executeRequests(Operation op) {
 		List<Mono<Void>> executions = new LinkedList<>();
-		for (Map.Entry<RelationalPersistentEntity<?>, Map<Object, R>> entity : requests.entrySet()) {
+		for (Map.Entry<EntityMetadata, Map<Object, R>> entity : requests.entrySet()) {
 			List<R> ready = new LinkedList<>();
 			for (R request : entity.getValue().values()) {
 				if (canExecuteRequest(request))
@@ -170,6 +171,6 @@ abstract class AbstractInstanceProcessor<R extends AbstractInstanceProcessor.Req
 		return Operation.executeParallel(executions);
 	}
 	
-	protected abstract Mono<Void> doRequests(Operation op, RelationalPersistentEntity<?> entityType, List<R> requests);
+	protected abstract Mono<Void> doRequests(Operation op, EntityMetadata entityType, List<R> requests);
 	
 }

@@ -8,15 +8,13 @@ import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
-import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.enhance.Enhancer;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.ModelException;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
@@ -63,23 +61,16 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 		}
 	}
 	
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testGetStateWithoutEntityType() throws Exception {
-		Entity entity = new Entity();
-		LcReactiveDataRelationalClient client = Mockito.mock(LcReactiveDataRelationalClient.class);
-		MappingContext mappingContext = Mockito.mock(MappingContext.class);
-		RelationalPersistentEntity entityType = Mockito.mock(RelationalPersistentEntity.class);
-		Mockito.when(client.getMappingContext()).thenReturn(mappingContext);
-		Mockito.when(mappingContext.getRequiredPersistentEntity(entity.getClass())).thenReturn(entityType);
-		EntityState.get(entity, client);
-	}
-	
 	@Test
 	public void testGetEntityStateError() throws Exception {
 		Entity entity = new Entity();
 		try {
-			EntityState.get(entity, null);
+			EntityState.get(entity, (EntityMetadata) null);
+		} catch (Exception e) {
+			// ok
+		}
+		try {
+			EntityState.get(entity, (LcReactiveDataRelationalClient) null);
 		} catch (Exception e) {
 			// ok
 		}
@@ -112,13 +103,13 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	
 	@Test
 	public void testPrintSchema() {
-		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(getAllCompatibleEntities());
+		RelationalDatabaseSchema schema = SchemaBuilderFromEntities.build(lcClient.getEntities(getAllCompatibleEntities()));
 		lcClient.getSchemaDialect().createSchemaContent(schema).print(System.out);
 	}
 	
 	@Test
 	public void testSchema() {
-		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(getAllCompatibleEntities());
+		RelationalDatabaseSchema schema = SchemaBuilderFromEntities.build(lcClient.getEntities(getAllCompatibleEntities()));
 		try {
 			schema.getTable("Toto");
 			throw new AssertionError();
@@ -150,7 +141,7 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	
 	@Test
 	public void testSchemaDialect() {
-		RelationalDatabaseSchema schema = new SchemaBuilderFromEntities(lcClient).build(getAllCompatibleEntities());
+		RelationalDatabaseSchema schema = SchemaBuilderFromEntities.build(lcClient.getEntities(getAllCompatibleEntities()));
 		Table table = schema.getTable("basic");
 		Column col = table.getColumn("str");
 		try {

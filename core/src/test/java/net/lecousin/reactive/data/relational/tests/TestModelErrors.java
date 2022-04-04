@@ -7,10 +7,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.mapping.MappingException;
 
 import net.lecousin.reactive.data.relational.enhance.EntityState;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
+import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
 
 class TestModelErrors {
 
@@ -21,18 +21,11 @@ class TestModelErrors {
 	
 	@Test
 	void test() throws Exception {
-		Assertions.assertThrows(ModelAccessException.class, () -> LcEntityTypeInfo.get(getClass()));
-		Assertions.assertThrows(ModelException.class, () -> LcEntityTypeInfo.setClasses(Arrays.asList(getClass())));
+		Assertions.assertThrows(ModelAccessException.class, () -> EntityStaticMetadata.get(getClass()));
+		Assertions.assertThrows(ModelException.class, () -> EntityStaticMetadata.setClasses(Arrays.asList(getClass())));
 		
-		LcEntityTypeInfo.setClasses(Arrays.asList(NonEnhancedEntity.class));
-		LcEntityTypeInfo ti = LcEntityTypeInfo.get(NonEnhancedEntity.class);
-		Assertions.assertThrows(MappingException.class, () -> ti.getRequiredForeignTableFieldForJoinKey("test", getClass()));
-		Assertions.assertThrows(MappingException.class, () -> ti.getRequiredForeignTableFieldForProperty("test"));
-		Assertions.assertThrows(MappingException.class, () -> ti.getRequiredForeignTableForProperty("test"));
-		Assertions.assertNull(ti.getForeignTableFieldForJoinKey("test", getClass()));
-		Assertions.assertNull(ti.getForeignTableFieldForProperty("test"));
-		Assertions.assertNull(ti.getForeignTableForProperty("test"));
-		Assertions.assertNull(ti.getJoinTable("test"));
+		EntityStaticMetadata.setClasses(Arrays.asList(NonEnhancedEntity.class));
+		EntityStaticMetadata ti = EntityStaticMetadata.get(NonEnhancedEntity.class);
 		Assertions.assertNull(ti.getJoinTableElementsForJoinTableClass("test", getClass()));
 		
 		Assertions.assertNull(ModelUtils.getAsCollection(this));

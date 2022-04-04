@@ -1,23 +1,40 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.mapping;
 
 import java.math.BigDecimal;
 import java.util.Optional;
 
 import org.springframework.core.convert.ConversionService;
-import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.convert.CustomConversions;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
-import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.lang.Nullable;
 import org.springframework.r2dbc.core.Parameter;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
-import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
 
+/**
+ * Write properties to an OutboundRow.
+ * 
+ * @author Guillaume Le Cousin
+ *
+ */
 public class LcEntityWriter {
 
 	private LcMappingR2dbcConverter converter;
@@ -42,16 +59,16 @@ public class LcEntityWriter {
 			return;
 		}
 
-		RelationalPersistentEntity<?> entity = converter.getMappingContext().getRequiredPersistentEntity(userClass);
-		PersistentPropertyAccessor<?> propertyAccessor = entity.getPropertyAccessor(source);
+		EntityMetadata entity = converter.getLcClient().getRequiredEntity(userClass);
+		PersistentPropertyAccessor<?> propertyAccessor = entity.getSpringMetadata().getPropertyAccessor(source);
 
 		writeProperties(sink, entity, propertyAccessor);
 	}
 	
 	@SuppressWarnings("java:S135") // number of continue
-	private void writeProperties(OutboundRow sink, RelationalPersistentEntity<?> entity, PersistentPropertyAccessor<?> accessor) {
+	private void writeProperties(OutboundRow sink, EntityMetadata entity, PersistentPropertyAccessor<?> accessor) {
 
-		for (RelationalPersistentProperty property : entity) {
+		for (PropertyMetadata property : entity.getPersistentProperties()) {
 			if (!property.isWritable())
 				continue;
 			
@@ -59,15 +76,15 @@ public class LcEntityWriter {
 		}
 	}
 	
-	public void writeProperty(OutboundRow sink, RelationalPersistentProperty property, PersistentPropertyAccessor<?> accessor) {
-		Object value = accessor.getProperty(property);
+	public void writeProperty(OutboundRow sink, PropertyMetadata property, PersistentPropertyAccessor<?> accessor) {
+		Object value = accessor.getProperty(property.getRequiredSpringProperty());
 
-		if (property.isAnnotationPresent(ForeignKey.class)) {
-			RelationalPersistentEntity<?> fe = converter.getMappingContext().getRequiredPersistentEntity(property.getActualType());
-			RelationalPersistentProperty idProperty = fe.getRequiredIdProperty();
+		if (property.isForeignKey()) {
+			EntityMetadata fe = converter.getLcClient().getRequiredEntity(property.getType());
+			PropertyMetadata idProperty = fe.getRequiredIdProperty();
 			if (value != null) {
 				// get the id instead of the entity
-				value = EntityState.get(value, converter.getLcClient(), fe).getPersistedValue(idProperty.getName());
+				value = EntityState.get(value, fe).getPersistedValue(idProperty.getName());
 			}
 			if (value == null) {
 				sink.put(property.getColumnName(), Parameter.empty(getPotentiallyConvertedSimpleNullType(idProperty.getType())));
@@ -82,14 +99,10 @@ public class LcEntityWriter {
 		
 		value = converter.getLcClient().getSchemaDialect().convertToDataBase(value, property);
 
-		if (conversions.isSimpleType(value.getClass())) {
-			writeSimple(sink, value, property);
-		} else {
-			throw new InvalidDataAccessApiUsageException("Nested entities are not supported");
-		}
+		writeSimple(sink, value, property);
 	}
 	
-	protected void writeNull(OutboundRow sink, RelationalPersistentProperty property) {
+	protected void writeNull(OutboundRow sink, PropertyMetadata property) {
 		sink.put(property.getColumnName(), Parameter.empty(getPotentiallyConvertedSimpleNullType(property.getType())));
 	}
 	
@@ -109,7 +122,7 @@ public class LcEntityWriter {
 		return type;
 	}
 	
-	protected void writeSimple(OutboundRow sink, Object value, RelationalPersistentProperty property) {
+	protected void writeSimple(OutboundRow sink, Object value, PropertyMetadata property) {
 		Object converted = getPotentiallyConvertedSimpleWrite(value);
 		Assert.notNull(converted, "Converted value must not be null");
 		sink.put(property.getColumnName(), Parameter.from(converted));

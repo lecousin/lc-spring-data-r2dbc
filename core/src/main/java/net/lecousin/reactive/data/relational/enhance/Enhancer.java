@@ -1,3 +1,16 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.enhance;
 
 import java.util.ArrayList;
@@ -10,11 +23,7 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
-import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -34,16 +43,21 @@ import javassist.bytecode.SignatureAttribute.TypeArgument;
 import javassist.bytecode.annotation.Annotation;
 import javassist.bytecode.annotation.BooleanMemberValue;
 import javassist.bytecode.annotation.StringMemberValue;
-import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.JoinTable;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.ModelException;
+import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple4;
 import reactor.util.function.Tuples;
 
+/**
+ * Modify entity classes byte code.
+ * 
+ * @author Guillaume Le Cousin
+ *
+ */
 public final class Enhancer {
 	
 	private static final Log logger = LogFactory.getLog(Enhancer.class);
@@ -78,9 +92,6 @@ public final class Enhancer {
 		// add state attribute
 		addStateAttribute();
 		
-		// persistent fields accessor
-		enhancePersistentFields();
-		
 		// lazy methods
 		enhanceLazyMethods();
 		
@@ -99,7 +110,7 @@ public final class Enhancer {
 		List<Class<?>> result = loadIntoJvm(classes.values());
 		
 		// set to cache
-		LcEntityTypeInfo.setClasses(result);
+		EntityStaticMetadata.setClasses(result);
 	}
 	
 	private List<Class<?>> loadIntoJvm(Collection<CtClass> classes) throws ModelException {
@@ -168,16 +179,6 @@ public final class Enhancer {
 		}
 	}
 	
-	private static boolean isPersistent(CtField field) {
-		if (field.hasAnnotation(Transient.class) || field.hasAnnotation(Autowired.class) || field.hasAnnotation(Value.class))
-			return false;
-		return field.hasAnnotation(Id.class) ||
-			field.hasAnnotation(Column.class) ||
-    		field.hasAnnotation(ColumnDefinition.class) ||
-    		field.hasAnnotation(Version.class) ||
-    		field.hasAnnotation(ForeignKey.class);
-	}
-	
 	private static boolean hasField(CtClass cl, String name) {
 		try {
 			cl.getDeclaredField(name);
@@ -205,34 +206,6 @@ public final class Enhancer {
         Annotation annot = new Annotation(Transient.class.getName(), cpool);
         attr.addAnnotation(annot);
         f.getFieldInfo().addAttribute(attr);
-	}
-	
-	private void enhancePersistentFields() throws ModelException {
-		for (CtClass cl : classes.values())
-			try {
-				enhancePersistentFields(cl);
-			} catch (Exception e) {
-				throw new ModelException("Error enhancing entity class " + cl.getName(), e);
-			}
-	}
-	
-	private static void enhancePersistentFields(CtClass cl) throws CannotCompileException {
-		for (CtField field : cl.getDeclaredFields()) {
-        	if (!isPersistent(field))
-        		continue;
-        	
-        	String accessorSuffix = Character.toUpperCase(field.getName().charAt(0)) + field.getName().substring(1);
-        	try {
-        		CtMethod accessor = cl.getDeclaredMethod("set" + accessorSuffix);
-        		enhanceSetter(field, accessor);
-        	} catch (NotFoundException e) {
-        		// ignore
-        	}
-        }
-	}
-	
-	private static void enhanceSetter(CtField field, CtMethod setter) throws CannotCompileException {
-		setter.insertBefore("if ($0._lcState != null) { $0._lcState.fieldSet(\"" + field.getName() + "\", $1); }");
 	}
 	
 	@SuppressWarnings("java:S3776")
@@ -478,7 +451,7 @@ public final class Enhancer {
 					String getter = "$0.get" + method.getName().substring(7) + "()";
 					method.setBody("return " + getter + " != null ? " + getter + "._lcState.load(" + getter + ") : reactor.core.publisher.Mono.empty();");
 				} else {
-					method.setBody("return $0._lcState.load($0).map($0._lcState.getFieldMapper($0, \"" + propertyName + "\"));");
+					method.setBody("return $0._lcState.load($0).map($0._lcState.getFieldMapper(\"" + propertyName + "\"));");
 				}
 			}
 		}

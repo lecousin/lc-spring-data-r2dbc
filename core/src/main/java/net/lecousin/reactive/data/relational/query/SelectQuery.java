@@ -1,5 +1,19 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.query;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -11,11 +25,10 @@ import org.springframework.data.relational.core.mapping.RelationalPersistentProp
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.JoinTableInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
+import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyStaticMetadata;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -24,6 +37,8 @@ import reactor.util.function.Tuples;
 
 /**
  * Specifies a SELECT operation, possibly with joins, where clause, limit and order by clause.
+ * 
+ * @author Guillaume Le Cousin
  * 
  * @param <T> type of entity this select will return
  */
@@ -119,26 +134,23 @@ public class SelectQuery<T> {
 			if (join.targetType != null)
 				continue;
 			RelationalPersistentEntity<?> joinSourceEntity = mapper.getMappingContext().getRequiredPersistentEntity(join.source.targetType);
-			RelationalPersistentProperty property = joinSourceEntity.getPersistentProperty(join.propertyName);
-			if (property != null) {
-				join.targetType = property.getActualType();
+			RelationalPersistentProperty joinProperty = joinSourceEntity.getPersistentProperty(join.propertyName);
+			if (joinProperty != null) {
+				join.targetType = joinProperty.getActualType();
 				continue;
 			}
-			LcEntityTypeInfo sourceInfo = LcEntityTypeInfo.get(join.source.targetType);
-			ForeignTableInfo ft = sourceInfo.getForeignTableWithFieldForProperty(join.propertyName);
-			if (ft != null) {
-				if (ft.isCollection())
-					join.targetType = ft.getCollectionElementType();
-				else
-					join.targetType = ft.getField().getType();
+			EntityStaticMetadata sourceInfo = EntityStaticMetadata.get(join.source.targetType);
+			PropertyStaticMetadata property = sourceInfo.getRequiredProperty(join.propertyName);
+			if (property.isForeignTable()) {
+				join.targetType = property.getTypeOrCollectionElementType();
 				continue;
 			}
-			JoinTableInfo joinInfo = sourceInfo.getJoinTable(join.propertyName);
-			if (joinInfo != null) {
-				TableReference newJoin = new TableReference(join.source, joinInfo.getJoinForeignTable().getField().getName(), ModelUtils.getCollectionType(joinInfo.getJoinForeignTable().getField()), join.source.alias + "__join__" + join.alias);
+			if (property.isJoinTable()) {
+				Field joinTableFDoreignTableField = property.getJoinTableForeignTable().getField();
+				TableReference newJoin = new TableReference(join.source, joinTableFDoreignTableField.getName(), ModelUtils.getCollectionType(joinTableFDoreignTableField), join.source.alias + "__join__" + join.alias);
 				join.source = newJoin;
-				join.propertyName = joinInfo.getJoinTargetFieldName();
-				join.targetType = ModelUtils.getCollectionType(joinInfo.getField());
+				join.propertyName = property.getJoinTableTargetFieldName();
+				join.targetType = property.getCollectionElementType();
 				tableAliases.put(newJoin.alias, newJoin);
 				joins.add(i, newJoin);
 				continue;

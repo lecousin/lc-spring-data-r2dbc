@@ -1,3 +1,16 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.query;
 
 import java.util.ArrayList;
@@ -20,6 +33,8 @@ import org.springframework.util.StringUtils;
  * Specify an INSERT query, with multiple rows.<br/>
  * As Spring Data R2DBC does not support it, we define a custom request, but it cannot be used with MySql which does not support to return all generated values.<br/>
  * An InsertMultiple can be used in a SqlQuery to be executed.
+ * 
+ * @author Guillaume Le Cousin
  */
 public class InsertMultiple {
 

@@ -1,3 +1,16 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.query;
 
 import java.lang.reflect.Field;
@@ -17,9 +30,6 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.core.CollectionFactory;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.mapping.MappingException;
-import org.springframework.data.mapping.context.MappingContext;
-import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.OrderByField;
@@ -34,14 +44,13 @@ import org.springframework.data.relational.core.sql.Table;
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
-import net.lecousin.reactive.data.relational.annotations.CompositeId;
-import net.lecousin.reactive.data.relational.annotations.ForeignTable;
-import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.mapping.LcEntityReader;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.model.PropertiesSource;
 import net.lecousin.reactive.data.relational.model.PropertiesSourceMap;
+import net.lecousin.reactive.data.relational.model.metadata.EntityInstance;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
 import net.lecousin.reactive.data.relational.query.SelectQuery.TableReference;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria.PropertyOperand;
@@ -53,6 +62,13 @@ import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple3;
 
+/**
+ * Orchestrate the execution of a {@link SelectQuery}
+ * 
+ * @author Guillaume Le Cousin
+ *
+ * @param <T> type of entity
+ */
 public class SelectExecution<T> {
 	
 	private static final Log logger = LogFactory.getLog(SelectExecution.class);
@@ -76,18 +92,19 @@ public class SelectExecution<T> {
 	
 	public Mono<Long> executeCount() {
 		query.setJoinsTargetType(client.getMapper());
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		EntityMetadata meta = client.getRequiredEntity(query.from.targetType);
 		SelectMapping mapping = buildSelectMapping();
 		List<Expression> idColumns;
-		if (entity.hasIdProperty())
-			idColumns = Collections.singletonList(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)));
-		else if (entity.isAnnotationPresent(CompositeId.class)) {
-			String[] properties = entity.getRequiredAnnotation(CompositeId.class).properties();
-			idColumns = new ArrayList<>(properties.length);
-			for (String property : properties)
-				idColumns.add(Column.create(entity.getRequiredPersistentProperty(property).getColumnName(), mapping.tableByAlias.get(query.from.alias)));
-		} else
+		if (meta.hasIdProperty()) {
+			idColumns = Collections.singletonList(Column.create(meta.getRequiredIdProperty().getColumnName(), mapping.tableByAlias.get(query.from.alias)));
+		} else if (meta.hasCompositeId()) {
+			List<PropertyMetadata> properties = meta.getCompositeIdProperties();
+			idColumns = new ArrayList<>(properties.size());
+			for (PropertyMetadata property : properties)
+				idColumns.add(Column.create(property.getColumnName(), mapping.tableByAlias.get(query.from.alias)));
+		} else {
 			throw new IllegalArgumentException("Cannot count distinct entities without an Id column or a CompoisteId");
+		}
 		BuildSelect select = Select.builder()
 			.select(client.getSchemaDialect().countDistinct(idColumns))
 			.from(mapping.tableByAlias.get(query.from.alias));
@@ -125,19 +142,18 @@ public class SelectExecution<T> {
 		return false;
 	}
 	
-	private boolean isMany(TableReference table) {
+	private static boolean isMany(TableReference table) {
 		if (table.source == null)
 			return false;
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(table.source.targetType);
 		try {
-			Field field = entity.getType().getDeclaredField(table.propertyName);
+			Field field = table.source.targetType.getDeclaredField(table.propertyName);
 			return ModelUtils.isCollection(field);
 		} catch (Exception e) {
 			return false;
 		}
 	}
 	
-	private boolean isManyFromRoot(TableReference table) {
+	private static boolean isManyFromRoot(TableReference table) {
 		while (table.source != null) {
 			if (isMany(table))
 				return true;
@@ -241,7 +257,7 @@ public class SelectExecution<T> {
 			.flatMap(ids -> {
 				if (logger.isDebugEnabled())
 					logger.debug("Pre-selected ids bunch: " + Objects.toString(ids));
-				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getIdProperty().getName();
+				String idPropertyName = mapping.entitiesByAlias.get(query.from.alias).getRequiredIdProperty().getName();
 				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false, true).execute().fetch().all();
 				return Flux.create((Consumer<FluxSink<T>>)sink -> {
 					RowHandlerSorted handler = new RowHandlerSorted(mapping, sink, ids);
@@ -260,7 +276,7 @@ public class SelectExecution<T> {
 	}
 	
 	private static class SelectMapping {
-		private Map<String, RelationalPersistentEntity<?>> entitiesByAlias = new HashMap<>();
+		private Map<String, EntityMetadata> entitiesByAlias = new HashMap<>();
 		private Map<String, Table> tableByAlias = new HashMap<>();
 		private Map<String, Map<String, String>> fieldAliasesByTableAlias = new HashMap<>();
 		private List<SelectField> fields = new LinkedList<>();
@@ -274,40 +290,40 @@ public class SelectExecution<T> {
 	
 	private static class SelectField {
 		private String tableAlias;
-		private RelationalPersistentProperty property;
+		private PropertyMetadata property;
 		private String fieldAlias;
 
-		public SelectField(String tableAlias, RelationalPersistentProperty property, String fieldAlias) {
+		public SelectField(String tableAlias, PropertyMetadata property, String fieldAlias) {
 			this.tableAlias = tableAlias;
 			this.property = property;
 			this.fieldAlias = fieldAlias;
 		}
 		
 		public Column toSql() {
-			return Column.create(property.getColumnName(), Table.create(property.getOwner().getTableName()).as(tableAlias)).as(fieldAlias);
+			return Column.create(property.getColumnName(), Table.create(property.getEntity().getTableName()).as(tableAlias)).as(fieldAlias);
 		}
 	}
 	
 	
 	private SelectMapping buildSelectMapping() {
 		SelectMapping mapping = new SelectMapping();
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		EntityMetadata meta = client.getRequiredEntity(query.from.targetType);
 		Map<String, String> fieldAliases = new HashMap<>();
 		mapping.fieldAliasesByTableAlias.put(query.from.alias, fieldAliases);
-		mapping.entitiesByAlias.put(query.from.alias, entity);
-		mapping.tableByAlias.put(query.from.alias, Table.create(entity.getTableName()).as(query.from.alias));
-		for (RelationalPersistentProperty property : entity) {
+		mapping.entitiesByAlias.put(query.from.alias, meta);
+		mapping.tableByAlias.put(query.from.alias, Table.create(meta.getTableName()).as(query.from.alias));
+		for (PropertyMetadata property : meta.getPersistentProperties()) {
 			String alias = mapping.generateAlias();
 			mapping.fields.add(new SelectField(query.from.alias, property, alias));
 			fieldAliases.put(property.getName(), alias);
 		}
 		for (TableReference join : query.joins) {
-			RelationalPersistentEntity<?> joinEntity = client.getMappingContext().getRequiredPersistentEntity(join.targetType); 
+			EntityMetadata joinEntity = client.getRequiredEntity(join.targetType); 
 			fieldAliases = new HashMap<>();
 			mapping.fieldAliasesByTableAlias.put(join.alias, fieldAliases);
 			mapping.entitiesByAlias.put(join.alias, joinEntity);
 			mapping.tableByAlias.put(join.alias, Table.create(joinEntity.getTableName()).as(join.alias));
-			for (RelationalPersistentProperty property : joinEntity) {
+			for (PropertyMetadata property : joinEntity.getPersistentProperties()) {
 				String alias = mapping.generateAlias();
 				mapping.fields.add(new SelectField(join.alias, property, alias));
 				fieldAliases.put(property.getName(), alias);
@@ -336,21 +352,22 @@ public class SelectExecution<T> {
 			select = ((SelectWhere)select).where(criteria.accept(new CriteriaSqlBuilder(mapping.entitiesByAlias, mapping.tableByAlias, q)));
 		}
 		if (orderById) {
-			RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+			EntityMetadata entity = client.getRequiredEntity(query.from.targetType);
 			if (entity.hasIdProperty()) {
+				String idPropertyName = entity.getRequiredIdProperty().getName();
 				select = ((SelectOrdered)select).orderBy(
 					Column.aliased(
-						entity.getRequiredIdProperty().getName(),
+						idPropertyName,
 						mapping.tableByAlias.get(query.from.alias),
-						mapping.fieldAliasesByTableAlias.get(query.from.alias).get(entity.getRequiredIdProperty().getName())
+						mapping.fieldAliasesByTableAlias.get(query.from.alias).get(idPropertyName)
 					)
 				);
-			} else if (entity.isAnnotationPresent(CompositeId.class)) {
-				String[] properties = entity.getRequiredAnnotation(CompositeId.class).properties();
-				Column[] columns = new Column[properties.length];
-				for (int i = 0; i < properties.length; ++i) {
-					RelationalPersistentProperty property = entity.getRequiredPersistentProperty(properties[i]);
-					columns[i] = Column.aliased(
+			} else if (entity.hasCompositeId()) {
+				List<PropertyMetadata> properties = entity.getCompositeIdProperties();
+				Column[] columns = new Column[properties.size()];
+				int i = 0;
+				for (PropertyMetadata property : properties) {
+					columns[i++] = Column.aliased(
 						property.getName(),
 						mapping.tableByAlias.get(query.from.alias),
 						mapping.fieldAliasesByTableAlias.get(query.from.alias).get(property.getName())
@@ -376,8 +393,8 @@ public class SelectExecution<T> {
 			List<OrderByField> list = new ArrayList<>(query.orderBy.size());
 			for (Tuple3<String, String, Boolean> orderBy : query.orderBy) {
 				TableReference table = query.tableAliases.get(orderBy.getT1());
-				RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(table.targetType);
-				RelationalPersistentProperty p = e.getRequiredPersistentProperty(orderBy.getT2());
+				EntityMetadata e = client.getRequiredEntity(table.targetType);
+				PropertyMetadata p = e.getRequiredPersistentProperty(orderBy.getT2());
 				OrderByField o = OrderByField.from(Column.create(p.getColumnName(), Table.create(e.getTableName()).as(table.alias)), orderBy.getT3().booleanValue() ? Direction.ASC : Direction.DESC);
 				list.add(o);
 			}
@@ -392,9 +409,9 @@ public class SelectExecution<T> {
 			// we need a group by query to handle order by correctly
 			return buildDistinctRootIdSqlUsingGroupBy(mapping);
 		
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		EntityMetadata entity = client.getRequiredEntity(query.from.targetType);
 		BuildSelect select = Select.builder()
-			.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
+			.select(Column.create(entity.getRequiredIdProperty().getColumnName(), mapping.tableByAlias.get(query.from.alias)))
 			.distinct()
 			.from(mapping.tableByAlias.get(query.from.alias));
 		select = addLimit(select);
@@ -416,9 +433,9 @@ public class SelectExecution<T> {
 	}
 	
 	private SqlQuery<Select> buildDistinctRootIdSqlUsingGroupBy(SelectMapping mapping) {
-		RelationalPersistentEntity<?> entity = client.getMappingContext().getRequiredPersistentEntity(query.from.targetType);
+		EntityMetadata entity = client.getRequiredEntity(query.from.targetType);
 		BuildSelect select = Select.builder()
-			.select(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)))
+			.select(Column.create(entity.getRequiredIdProperty().getColumnName(), mapping.tableByAlias.get(query.from.alias)))
 			.from(mapping.tableByAlias.get(query.from.alias))
 			;
 		
@@ -432,12 +449,12 @@ public class SelectExecution<T> {
 			@Override
 			protected String finalizeQuery(String sql) {
 				StringBuilder s = new StringBuilder(sql);
-				s.append(" GROUP BY ").append(Column.create(entity.getIdColumn(), mapping.tableByAlias.get(query.from.alias)));
+				s.append(" GROUP BY ").append(Column.create(entity.getRequiredIdProperty().getColumnName(), mapping.tableByAlias.get(query.from.alias)));
 				s.append(" ORDER BY ");
 				for (Tuple3<String, String, Boolean> orderBy : query.orderBy) {
 					TableReference table = query.tableAliases.get(orderBy.getT1());
-					RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(table.targetType);
-					RelationalPersistentProperty p = e.getRequiredPersistentProperty(orderBy.getT2());
+					EntityMetadata e = client.getRequiredEntity(table.targetType);
+					PropertyMetadata p = e.getRequiredPersistentProperty(orderBy.getT2());
 					Column col = Column.create(p.getColumnName(), Table.create(e.getTableName()).as(table.alias));
 					if (orderBy.getT3().booleanValue()) {
 						s.append("MIN(").append(col).append(") ASC");
@@ -460,94 +477,79 @@ public class SelectExecution<T> {
 	}
 	
 	private BuildSelect join(BuildSelect select, TableReference join, SelectMapping mapping) {
-		RelationalPersistentEntity<?> sourceEntity = client.getMappingContext().getRequiredPersistentEntity(join.source.targetType); 
-		RelationalPersistentEntity<?> targetEntity = client.getMappingContext().getRequiredPersistentEntity(join.targetType); 
-		RelationalPersistentProperty property = sourceEntity.getPersistentProperty(join.propertyName);
-		if (property != null) {
+		EntityMetadata sourceEntity = client.getRequiredEntity(join.source.targetType); 
+		EntityMetadata targetEntity = client.getRequiredEntity(join.targetType); 
+		PropertyMetadata property = sourceEntity.getProperty(join.propertyName);
+		if (property != null && property.isPersistent()) {
 			Table joinTargetTable = mapping.tableByAlias.get(join.alias);
-			Column joinTarget = Column.create(targetEntity.getIdColumn(), joinTargetTable);
+			Column joinTarget = Column.create(targetEntity.getRequiredIdProperty().getColumnName(), joinTargetTable);
 			Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
 			Column joinSource = Column.create(property.getColumnName(), joinSourceTable);
 			return ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
 		}
-		ForeignTable ft = LcEntityTypeInfo.get(join.source.targetType).getRequiredForeignTableForProperty(join.propertyName);
-		property = targetEntity.getRequiredPersistentProperty(ft.joinKey());
+		PropertyMetadata foreignTable = sourceEntity.getRequiredForeignTableProperty(join.propertyName);
+		property = targetEntity.getRequiredPersistentProperty(foreignTable.getForeignTableAnnotation().joinKey());
 
 		Table joinTargetTable = mapping.tableByAlias.get(join.alias);
 		Column joinTarget = Column.create(property.getColumnName(), joinTargetTable);
 		Table joinSourceTable = mapping.tableByAlias.get(join.source.alias);
-		Column joinSource = Column.create(sourceEntity.getIdColumn(), joinSourceTable);
+		Column joinSource = Column.create(sourceEntity.getRequiredIdProperty().getColumnName(), joinSourceTable);
 		return ((SelectJoin)select).leftOuterJoin(joinTargetTable).on(joinTarget).equals(joinSource);
 	}
 
 	private static class JoinStatus {
-		private RelationalPersistentEntity<?> entityType;
+		private EntityMetadata entityType;
 		private Function<PropertiesSource, Object> idGetter;
 		private Map<String, String> aliases;
 		
-		private Field joinField;
-		private boolean joinFieldIsCollection;
+		private PropertyMetadata joinProperty;
 		
 		private List<JoinStatus> joins;
 		
-		private Object currentInstance = null;
+		private EntityInstance<?> currentEntityInstance = null;
 		private Object currentId = null;
-		private EntityState currentInstanceState;
 		
 		@SuppressWarnings("java:S3011")
-		private JoinStatus(TableReference table, TableReference fromJoin, SelectMapping mapping, List<TableReference> allJoins, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) throws ReflectiveOperationException {
-			this.entityType = mappingContext.getRequiredPersistentEntity(table.targetType);
-			this.idGetter = ModelUtils.idGetter(entityType);
+		private JoinStatus(TableReference table, TableReference fromJoin, SelectMapping mapping, List<TableReference> allJoins, LcReactiveDataRelationalClient client) throws ReflectiveOperationException {
+			this.entityType = client.getRequiredEntity(table.targetType);
+			this.idGetter = ModelUtils.idGetter(entityType.getSpringMetadata());
 			this.aliases = mapping.fieldAliasesByTableAlias.get(table.alias);
 			
-			if (fromJoin != null) {
-				joinField = fromJoin.targetType.getDeclaredField(table.propertyName);
-				joinField.setAccessible(true);
-				joinFieldIsCollection = ModelUtils.isCollection(joinField);
-			}
+			if (fromJoin != null)
+				joinProperty = client.getRequiredEntity(fromJoin.targetType).getRequiredProperty(table.propertyName);
 			
 			this.joins = new LinkedList<>();
 			for (TableReference join : allJoins) {
 				if (join.source == table) {
-					this.joins.add(new JoinStatus(join, table, mapping, allJoins, mappingContext));
+					this.joins.add(new JoinStatus(join, table, mapping, allJoins, client));
 				}
 			}
 		}
 		
-		private void reset(Object parentInstance, LcReactiveDataRelationalClient client) {
-			if (currentInstance == null)
+		private void reset(EntityInstance<?> parentInstance) {
+			if (currentEntityInstance == null)
 				return;
 
-			if (parentInstance != null && joinField.isAnnotationPresent(ForeignTable.class))
-				try {
-					EntityState.get(parentInstance, client).foreignTableLoaded(joinField, joinField.get(parentInstance));
-				} catch (Exception e) {
-					throw new MappingException("Error accessing to foreign table field " + joinField.getName() + " on " + joinField.getDeclaringClass().getName(), e);
-				}
+			if (parentInstance != null && joinProperty.isForeignTable())
+				parentInstance.getState().foreignTableLoaded(joinProperty.getStaticMetadata().getField(), ModelUtils.getFieldValue(parentInstance.getEntity(), joinProperty.getStaticMetadata().getField()));
 
 			for (JoinStatus join : joins)
-				join.reset(currentInstance, client);
+				join.reset(currentEntityInstance);
 			
-			currentInstance = null;
+			currentEntityInstance = null;
 			currentId = null;
-			currentInstanceState = null;
 		}
 		
-		private void readNewInstance(Object id, PropertiesSource source, LcEntityReader reader, LcReactiveDataRelationalClient client) {
-			reset(null, client);
+		private void readNewInstance(Object id, PropertiesSource source, LcEntityReader reader) {
+			reset(null);
 			currentId = id;
 			if (id != null) {
-				currentInstance = reader.getCache().getById(entityType.getType(), id);
-				if (currentInstance != null) {
-					currentInstanceState = EntityState.get(currentInstance, client, entityType);
-					if (!currentInstanceState.isLoaded()) {
-						currentInstance = null;
-					}
-				}
+				currentEntityInstance = reader.getCache().getInstanceById(entityType.getType(), id);
+				if (currentEntityInstance != null && !currentEntityInstance.getState().isLoaded())
+					currentEntityInstance = null;
 			}
-			if (currentInstance == null) {
-				currentInstance = reader.read(entityType, source);
-				currentInstanceState = EntityState.get(currentInstance, client, entityType);
+			if (currentEntityInstance == null) {
+				currentEntityInstance = reader.read(entityType, source);
 			}
 		}
 	}
@@ -560,7 +562,7 @@ public class SelectExecution<T> {
 		protected RowHandler(SelectMapping mapping, FluxSink<T> sink) {
 			this.sink = sink;
 			try {
-				this.rootStatus = new JoinStatus(query.from, null, mapping, query.joins, client.getMappingContext());
+				this.rootStatus = new JoinStatus(query.from, null, mapping, query.joins, client);
 			} catch (Exception e) {
 				throw new MappingException("Error initializing row mapper", e);
 			}
@@ -571,17 +573,17 @@ public class SelectExecution<T> {
 				logger.debug("Result row = " + row);
 			PropertiesSource source = new PropertiesSourceMap(row, rootStatus.aliases);
 			Object rootId = rootStatus.idGetter.apply(source);
-			if (rootStatus.currentInstance != null) {
+			if (rootStatus.currentEntityInstance != null) {
 				if (rootId != null && !rootStatus.currentId.equals(rootId)) {
 					@SuppressWarnings("unchecked")
-					T instance = (T) rootStatus.currentInstance;
+					EntityInstance<T> instance = (EntityInstance<T>) rootStatus.currentEntityInstance;
 					Object id = rootStatus.currentId;
-					rootStatus.reset(null, client);
-					newRootReady(instance, id);
-					rootStatus.readNewInstance(rootId, source, reader, client);
+					rootStatus.reset(null);
+					newRootReady(instance.getEntity(), id);
+					rootStatus.readNewInstance(rootId, source, reader);
 				}
 			} else {
-				rootStatus.readNewInstance(rootId, source, reader, client);
+				rootStatus.readNewInstance(rootId, source, reader);
 			}
 			fillLinkedEntities(rootStatus, row);
 		}
@@ -589,12 +591,12 @@ public class SelectExecution<T> {
 		public void handleEnd() {
 			if (logger.isDebugEnabled())
 				logger.debug("End of rows");
-			if (rootStatus.currentInstance != null) {
+			if (rootStatus.currentEntityInstance != null) {
 				@SuppressWarnings("unchecked")
-				T instance = (T) rootStatus.currentInstance;
+				EntityInstance<T> instance = (EntityInstance<T>) rootStatus.currentEntityInstance;
 				Object id = rootStatus.currentId;
-				rootStatus.reset(null, client);
-				newRootReady(instance, id);
+				rootStatus.reset(null);
+				newRootReady(instance.getEntity(), id);
 			}
 			endOfRoots();
 		}
@@ -625,19 +627,23 @@ public class SelectExecution<T> {
 			Object id = join.idGetter.apply(source);
 			if (id == null) {
 				// left join without any match
-				if (join.joinFieldIsCollection && join.joinField.get(parent.currentInstance) == null)
-					join.joinField.set(parent.currentInstance, CollectionFactory.createCollection(join.joinField.getType(), ModelUtils.getCollectionType(join.joinField), 0));
+				if (join.joinProperty.isCollection() && ModelUtils.getFieldValue(parent.currentEntityInstance.getEntity(), join.joinProperty.getStaticMetadata().getField()) == null)
+					ModelUtils.setFieldValue(
+						parent.currentEntityInstance.getEntity(),
+						join.joinProperty.getStaticMetadata().getField(),
+						CollectionFactory.createCollection(join.joinProperty.getType(), ModelUtils.getCollectionType(join.joinProperty.getStaticMetadata().getField()), 0)
+					);
 				return;
 			}
 			if (!id.equals(join.currentId)) {
-				join.readNewInstance(id, source, reader, client);
-				if (join.joinFieldIsCollection)
-					ModelUtils.addToCollectionField(join.joinField, parent.currentInstance, join.currentInstance);
+				join.readNewInstance(id, source, reader);
+				if (join.joinProperty.isCollection())
+					ModelUtils.addToCollectionField(join.joinProperty.getStaticMetadata().getField(), parent.currentEntityInstance.getEntity(), join.currentEntityInstance.getEntity());
 				else {
-					if (LcEntityTypeInfo.isForeignTableField(join.joinField))
-						parent.currentInstanceState.setForeignTableField(parent.currentInstance, join.joinField, join.currentInstance, true);
+					if (join.joinProperty.isForeignTable())
+						parent.currentEntityInstance.getState().setForeignTableField(parent.currentEntityInstance.getEntity(), join.joinProperty.getStaticMetadata(), join.currentEntityInstance.getEntity());
 					else
-						parent.currentInstanceState.setPersistedField(parent.currentInstance, join.joinField, join.currentInstance, true);
+						ModelUtils.setFieldValue(parent.currentEntityInstance.getEntity(), join.joinProperty.getStaticMetadata().getField(), join.currentEntityInstance.getEntity());
 				}
 			}
 			fillLinkedEntities(join, row);

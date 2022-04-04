@@ -1,6 +1,22 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.schema.dialect;
 
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,6 +36,7 @@ import org.springframework.data.relational.core.sql.Functions;
 import org.springframework.data.relational.core.sql.SimpleFunction;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
 import net.lecousin.reactive.data.relational.schema.Column;
 import net.lecousin.reactive.data.relational.schema.Index;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
@@ -27,6 +44,12 @@ import net.lecousin.reactive.data.relational.schema.SchemaException;
 import net.lecousin.reactive.data.relational.schema.Sequence;
 import net.lecousin.reactive.data.relational.schema.Table;
 
+/**
+ * Base class to implement a database dialect.
+ * 
+ * @author Guillaume Le Cousin
+ *
+ */
 @SuppressWarnings({
 	"java:S1172", "unused", // unused parameters are present because implementations may need them
 	"java:S3400" // we don't want constants
@@ -49,7 +72,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public abstract boolean isCompatible(R2dbcDialect r2dbcDialect);
 	
-	public Object convertToDataBase(Object value, RelationalPersistentProperty property) {
+	public Object convertToDataBase(Object value, PropertyMetadata property) {
 		return value;
 	}
 	
@@ -58,7 +81,15 @@ public abstract class RelationalDatabaseSchemaDialect {
 	}
 
 	@SuppressWarnings("java:S3776") // complexity
-	public String getColumnType(Column col, Class<?> type, ColumnDefinition def) {
+	public String getColumnType(Column col, Type genericType, ColumnDefinition def) {
+		Class<?> type;
+		if (genericType instanceof Class) {
+			type = (Class<?>)genericType;
+		} else if (genericType instanceof ParameterizedType) {
+			type = (Class<?>)((ParameterizedType)genericType).getRawType();
+		} else {
+			throw new SchemaException("Column type not supported: " + genericType + " on column " + col.getName() + " with " + getName());
+		}
 		if (boolean.class.equals(type) || Boolean.class.equals(type))
 			return getColumnTypeBoolean(col, type, def);
 		if (byte.class.equals(type) || Byte.class.equals(type))
@@ -95,11 +126,29 @@ public abstract class RelationalDatabaseSchemaDialect {
 			return getColumnTypeUUID(col, type, def);
 		if (Enum.class.isAssignableFrom(type))
 			return getColumnTypeEnum(col, type, def);
+		if (isArrayColumnSupported()) {
+			Type elementType = null;
+			if (type.isArray())
+				elementType = type.getComponentType();
+			else if (Collection.class.isAssignableFrom(type) && genericType instanceof ParameterizedType)
+				elementType = ((ParameterizedType)genericType).getActualTypeArguments()[0];
+			if (elementType != null) {
+				return getArrayColumnType(col, genericType, type, elementType, def);
+			}
+		}
 		throw new SchemaException("Column type not supported: " + type.getName() + " on column " + col.getName() + " with " + getName());
 	}
 	
 	public boolean isTimeZoneSupported() {
 		return true;
+	}
+	
+	public boolean isArrayColumnSupported() {
+		return false;
+	}
+	
+	protected String getArrayColumnType(Column col, Type genericType, Class<?> type, Type genericElementType, ColumnDefinition def) {
+		throw new SchemaException("Array column not supported");
 	}
 
 	protected String getColumnTypeBoolean(Column col, Class<?> type, ColumnDefinition def) {

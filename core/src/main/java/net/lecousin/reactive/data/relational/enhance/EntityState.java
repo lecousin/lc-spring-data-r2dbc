@@ -1,72 +1,79 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.enhance;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.apache.commons.lang3.mutable.MutableObject;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.CollectionFactory;
-import org.springframework.data.annotation.Transient;
 import org.springframework.data.mapping.MappingException;
-import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
+import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
+import net.lecousin.reactive.data.relational.model.metadata.EntityInstance;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyStaticMetadata;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import reactor.core.CorePublisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@SuppressWarnings({"java:S3011"})
+/**
+ * Internal state of an entity, allowing to implement features such as lazy loading, updated attributes detection...
+ * 
+ * @author Guillaume Le Cousin
+ *
+ */
 public class EntityState {
 
-	private LcReactiveDataRelationalClient client;
-	private RelationalPersistentEntity<?> entityType;
+	private EntityMetadata entityType;
 	private boolean persisted = false;
 	private boolean loaded = false;
 	private Mono<?> loading = null;
 	private Map<String, Object> persistedValues = new HashMap<>();
-	private Set<String> modifiedFields = new HashSet<>();
 	private Map<String, CorePublisher<?>> foreignTablesLoaded = new HashMap<>();
 	
 	private static final String ENTITY_ALIAS = "entity";
 	
-	public EntityState(LcReactiveDataRelationalClient client, RelationalPersistentEntity<?> entityType) {
-		this.client = client;
+	public EntityState(@NonNull EntityMetadata entityType) {
 		this.entityType = entityType;
 	}
 
-	public static EntityState get(Object entity, LcReactiveDataRelationalClient client) {
-		return get(entity, client, null);
+	public static EntityState get(@NonNull Object entity, @NonNull LcReactiveDataRelationalClient client) {
+		return get(entity, client.getRequiredEntity(entity.getClass()));
 	}
 	
-	public static EntityState get(Object entity, LcReactiveDataRelationalClient client, @Nullable RelationalPersistentEntity<?> entityType) {
+	@SuppressWarnings("java:S3011")
+	public static EntityState get(@NonNull Object entity, @NonNull EntityMetadata entityType) {
 		try {
-			Field fieldInfo = LcEntityTypeInfo.get(entity.getClass()).getStateField();
+			Field fieldInfo = entityType.getStaticMetadata().getStateField();
 			EntityState state = (EntityState) fieldInfo.get(entity);
 			if (state == null) {
-				RelationalPersistentEntity<?> type;
-				if (entityType == null)
-					type = client.getMappingContext().getRequiredPersistentEntity(entity.getClass());
-				else
-					type = entityType;
-				state = new EntityState(client, type);
+				state = new EntityState(entityType);
 				fieldInfo.set(entity, state);
 			}
 			return state;
@@ -75,12 +82,16 @@ public class EntityState {
 		}
 	}
 	
-	public boolean isPersisted() {
-		return persisted;
+	public EntityMetadata getMetadata() {
+		return entityType;
 	}
 	
-	public boolean isFieldModified(String name) {
-		return modifiedFields.contains(name);
+	public LcReactiveDataRelationalClient getClient() {
+		return entityType.getClient();
+	}
+	
+	public boolean isPersisted() {
+		return persisted;
 	}
 	
 	@Nullable
@@ -93,7 +104,6 @@ public class EntityState {
 		loaded = false;
 		loading = null;
 		persistedValues.clear();
-		modifiedFields.clear();
 		foreignTablesLoaded.clear();
 	}
 	
@@ -107,14 +117,19 @@ public class EntityState {
 	}
 	
 	@SuppressWarnings("unchecked")
-	public synchronized <T> Mono<T> loading(Supplier<Mono<T>> doLoading) {
+	public synchronized <T> Mono<EntityInstance<T>> loading(EntityInstance<T> instance, Supplier<Mono<EntityInstance<T>>> doLoading) {
 		if (loading != null)
-			return (Mono<T>) loading;
+			return (Mono<EntityInstance<T>>) loading;
+		if (loaded)
+			return Mono.just(instance);
 		loading = doLoading.get().doOnSuccess(entity -> {
+			if (entity == null)
+				deleted();
+			else
+				loaded(entity.getEntity());
 			loading = null;
-			loaded(entity);
 		}).cache();
-		return (Mono<T>) loading;
+		return (Mono<EntityInstance<T>>) loading;
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -130,15 +145,9 @@ public class EntityState {
 	}
 	
 	private void updatePersistedValues(Object entity) {
-		modifiedFields.clear();
 		persistedValues.clear();
-		for (Field f : entity.getClass().getDeclaredFields()) {
-			if (Enhancer.STATE_FIELD_NAME.equals(f.getName()) ||
-				f.isAnnotationPresent(Transient.class) ||
-				f.isAnnotationPresent(Autowired.class) ||
-				f.isAnnotationPresent(Value.class))
-				continue;
-			f.setAccessible(true);
+		for (PropertyMetadata property : entityType.getProperties()) {
+			Field f = property.getStaticMetadata().getField();
 			try {
 				savePersistedValue(f, f.get(entity));
 			} catch (Exception e) {
@@ -158,127 +167,56 @@ public class EntityState {
 	}
 	
 	public <T> Mono<T> load(T entity) {
-		return client.lazyLoad(entity, this, entityType);
+		return entityType.getClient().lazyLoad(entity);
 	}
 	
-	public void fieldSet(String fieldName, Object newValue) {
-		if (Objects.equals(newValue, persistedValues.get(fieldName))) {
-			modifiedFields.remove(fieldName);
-			return;
-		}
-		modifiedFields.add(fieldName);
+	public void restorePersistedValue(Object instance, PropertyStaticMetadata property) {
+		Field field = property.getField();
+		ModelUtils.setFieldValue(instance, field, persistedValues.get(field.getName()));
 	}
 	
-	public void fieldSet(String fieldName, boolean newValue) {
-		fieldSet(fieldName, Boolean.valueOf(newValue));
-	}
-	
-	public void fieldSet(String fieldName, byte newValue) {
-		fieldSet(fieldName, Byte.valueOf(newValue));
-	}
-	
-	public void fieldSet(String fieldName, short newValue) {
-		fieldSet(fieldName, Short.valueOf(newValue));
-	}
-	
-	public void fieldSet(String fieldName, int newValue) {
-		fieldSet(fieldName, Integer.valueOf(newValue));
-	}
-	
-	public void fieldSet(String fieldName, long newValue) {
-		fieldSet(fieldName, Long.valueOf(newValue));
-	}
-	
-	public void fieldSet(String fieldName, float newValue) {
-		fieldSet(fieldName, Float.valueOf(newValue));
-	}
-	
-	public void fieldSet(String fieldName, double newValue) {
-		fieldSet(fieldName, Double.valueOf(newValue));
-	}
-	
-	public void fieldSet(String fieldName, char newValue) {
-		fieldSet(fieldName, Character.valueOf(newValue));
-	}
-	
-	public void setPersistedField(Object instance, Field field, Object value, boolean saved) {
-		field.setAccessible(true);
-		try {
-			field.set(instance, value);
-		} catch (Exception e) {
-			throw new ModelAccessException("Error setting field " + field.getName() + " on " + instance, e);
-		}
-		if (Objects.equals(value, persistedValues.get(field.getName()))) {
-			modifiedFields.remove(field.getName());
-		} else if (saved) {
-			modifiedFields.remove(field.getName());
-			savePersistedValue(field, value);
-		} else {
-			modifiedFields.add(field.getName());
-		}
-	}
-	
-	public void restorePersistedValue(Object instance, Field field) {
-		field.setAccessible(true);
-		Object value = persistedValues.get(field.getName());
-		try {
-			field.set(instance, value);
-		} catch (Exception e) {
-			throw new ModelAccessException("Error setting field " + field.getName() + " on " + instance, e);
-		}
-		modifiedFields.remove(field.getName());
-	}
-	
-	public void setForeignTableField(Object instance, Field field, Object value, boolean saved) {
-		setPersistedField(instance, field, value, saved);
+	public void setForeignTableField(Object instance, PropertyStaticMetadata property, Object value) {
+		Field field = property.getField();
+		ModelUtils.setFieldValue(instance, field, value);
 		foreignTablesLoaded.put(field.getName(), null);
-	}
-	
-	@Nullable
-	public <T> MutableObject<T> getForeignTableField(Object entity, String fieldName) throws IllegalAccessException, NoSuchFieldException {
-		return getForeignTableField(entity, entity.getClass().getDeclaredField(fieldName));
 	}
 	
 	@SuppressWarnings("unchecked")
 	@Nullable
-	public <T> MutableObject<T> getForeignTableField(Object entity, Field field) throws IllegalAccessException {
-		field.setAccessible(true);
+	public <T> MutableObject<T> getForeignTableField(Object entity, PropertyStaticMetadata property) throws IllegalAccessException {
+		Field field = property.getField();
 		Object instance = field.get(entity);
 		if (instance != null)
 			return new MutableObject<>((T) instance);
-		if (foreignTablesLoaded.containsKey(field.getName()) || (persistedValues.containsKey(field.getName()) && persistedValues.get(field.getName()) != null))
+		String name = field.getName();
+		if (foreignTablesLoaded.containsKey(name) || (persistedValues.containsKey(name) && persistedValues.get(name) != null))
 			return new MutableObject<>(null);
 		return null;
 	}
-
+	
 	@SuppressWarnings("unchecked")
 	public <T> Mono<T> lazyGetForeignTableField(Object entity, String fieldName, String joinKey) {
 		try {
 			CorePublisher<?> foreignLoading = foreignTablesLoaded.get(fieldName);
 			if (foreignLoading != null)
 				return (Mono<T>)foreignLoading;
-			MutableObject<T> instance = getForeignTableField(entity, fieldName);
+			PropertyMetadata property = entityType.getRequiredProperty(fieldName);
+			MutableObject<T> instance = getForeignTableField(entity, property.getStaticMetadata());
 			if (instance != null)
 				return instance.getValue() != null ? Mono.just(instance.getValue()) : Mono.empty();
-			Field field = entity.getClass().getDeclaredField(fieldName);
-			Object id = ModelUtils.getRequiredId(entity, entityType, null);
-			RelationalPersistentEntity<?> elementEntity = client.getMappingContext().getRequiredPersistentEntity(field.getType());
-			RelationalPersistentProperty fkProperty = elementEntity.getRequiredPersistentProperty(joinKey);
+			Field field = property.getStaticMetadata().getField();
+			EntityInstance<?> entityInstance = new EntityInstance<>(entity, this);
+			Object id = entityInstance.getId();
+			LcReactiveDataRelationalClient client = getClient();
+			PropertyMetadata fkProperty = client.getRequiredEntity(field.getType()).getRequiredProperty(joinKey);
 			Mono<T> select = SelectQuery.from((Class<T>) field.getType(), ENTITY_ALIAS)
 				.where(Criteria.property(ENTITY_ALIAS, fkProperty.getName()).is(id))
 				.execute(client)
 				.next()
 				.doOnNext(inst -> {
-					try {
-						field.setAccessible(true);
-						field.set(entity, inst);
-						savePersistedValue(field, inst);
-						Field fk = field.getType().getDeclaredField(joinKey);
-						fk.setAccessible(true);
-						fk.set(inst, entity);
-					} catch (Exception e) {
-						throw new ModelAccessException("Unable to set " + fieldName, e);
-					}
+					ModelUtils.setFieldValue(entity, field, inst);
+					savePersistedValue(field, inst);
+					ModelUtils.setFieldValue(inst, fkProperty.getStaticMetadata().getField(), entity);
 				});
 			select = select.cache();
 			foreignTablesLoaded.put(fieldName, select);
@@ -294,7 +232,8 @@ public class EntityState {
 			CorePublisher<?> foreignLoading = foreignTablesLoaded.get(fieldName);
 			if (foreignLoading != null)
 				return (Flux<T>)foreignLoading;
-			MutableObject<?> instance = getForeignTableField(entity, fieldName);
+			PropertyMetadata property = entityType.getRequiredProperty(fieldName);
+			MutableObject<?> instance = getForeignTableField(entity, property.getStaticMetadata());
 			if (instance != null) {
 				if (instance.getValue() == null)
 					return Flux.empty();
@@ -304,20 +243,19 @@ public class EntityState {
 				return Flux.fromIterable((Iterable<T>) collection);
 			}
 
-			Field field = entity.getClass().getDeclaredField(fieldName);
-			field.setAccessible(true);
-			Object id = ModelUtils.getRequiredId(entity, entityType, null);
+			Field field = property.getStaticMetadata().getField();
+			EntityInstance<?> entityInstance = new EntityInstance<>(entity, this);
+			Object id = entityInstance.getId();
 			Class<?> elementType = ModelUtils.getCollectionType(field);
 			if (elementType == null)
 				throw new MappingException("Property is not a collection: " + fieldName);
-			RelationalPersistentEntity<?> elementEntity = client.getMappingContext().getRequiredPersistentEntity(elementType);
-			RelationalPersistentProperty fkProperty = elementEntity.getRequiredPersistentProperty(joinKey);
+			LcReactiveDataRelationalClient client = getClient();
+			PropertyMetadata fkProperty = client.getRequiredEntity(elementType).getRequiredProperty(joinKey);
 			Flux<T> flux = SelectQuery.from((Class<T>) elementType, "element")
 				.where(Criteria.property("element", fkProperty.getName()).is(id))
 				.execute(client);
 				
-			Field fk = elementType.getDeclaredField(joinKey);
-			fk.setAccessible(true);
+			Field fk = fkProperty.getStaticMetadata().getField();
 			if (field.getType().isArray())
 				flux = toArray(flux, field, entity, elementType, fk);
 			else
@@ -330,7 +268,7 @@ public class EntityState {
 		}
 	}
 	
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"unchecked", "java:S3011"})
 	public <T> Flux<T> lazyGetJoinTableField(Object entity, String joinFieldName, int joinFieldKeyNumber) {
 		return lazyGetForeignTableCollectionField(entity, joinFieldName + "_join", Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + joinFieldKeyNumber)
 			.map(joinEntity -> {
@@ -344,6 +282,7 @@ public class EntityState {
 			});
 	}
 	
+	@SuppressWarnings("java:S3011")
 	private static <T> Flux<T> toArray(Flux<T> flux, Field field, Object entity, Class<?> elementType, Field fk) {
 		return flux.collectList().flatMapMany(list -> {
 			Object array = list.toArray((Object[])Array.newInstance(elementType, list.size()));
@@ -362,7 +301,7 @@ public class EntityState {
 		});
 	}
 	
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings({ "unchecked", "rawtypes", "java:S3011" })
 	private <T> Flux<T> toCollection(Flux<T> flux, Field field, Object entity, Class<?> elementType, Field fk) throws IllegalAccessException {
 		final Object col = CollectionFactory.createCollection(field.getType(), elementType, 10);
 		field.set(entity, col);
@@ -384,17 +323,10 @@ public class EntityState {
 	}
 	
 	@SuppressWarnings("unchecked")
-	public <T, R> Function<T, R> getFieldMapper(Object entity, String fieldName) {
+	public <T, R> Function<T, R> getFieldMapper(String fieldName) {
 		try {
-			Field field = entity.getClass().getDeclaredField(fieldName);
-			field.setAccessible(true);
-			return e -> {
-				try {
-					return (R) field.get(e);
-				} catch (Exception err) {
-					throw new ModelAccessException("Unable to access field " + fieldName, err);
-				}
-			};
+			PropertyMetadata property = entityType.getRequiredProperty(fieldName);
+			return e -> (R) ModelUtils.getFieldValue(e, property.getStaticMetadata().getField());
 		} catch (Exception e) {
 			throw new ModelAccessException("Unable to access field " + fieldName, e);
 		}

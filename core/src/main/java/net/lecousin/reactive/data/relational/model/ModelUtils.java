@@ -1,3 +1,16 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.model;
 
 import java.lang.reflect.Array;
@@ -8,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
@@ -16,73 +28,49 @@ import java.util.function.Function;
 import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.core.CollectionFactory;
 import org.springframework.data.mapping.MappingException;
-import org.springframework.data.mapping.PersistentPropertyAccessor;
-import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.data.relational.core.sql.Column;
-import org.springframework.data.relational.core.sql.Condition;
-import org.springframework.data.relational.core.sql.Conditions;
-import org.springframework.data.relational.core.sql.SQL;
-import org.springframework.data.relational.core.sql.Table;
+import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 
-import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
-import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.CompositeId;
-import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo.ForeignTableInfo;
-import net.lecousin.reactive.data.relational.query.SqlQuery;
-import net.lecousin.reactive.data.relational.query.criteria.Criteria;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyStaticMetadata;
 
+/**
+ * Utility methods.
+ * 
+ * @author Guillaume Le Cousin
+ *
+ */
 public class ModelUtils {
 	
 	private ModelUtils() {
 		// no instance
 	}
 	
-	/** Check if a property may be null.<br/>
-	 * It cannot be null if:<ul>
-	 * <li>the type is a primitive type</li>
-	 * <li>this is the id property</li>
-	 * <li>this is a foreign key, and it is specified as non optional</li>
-	 * <li>this is not a foreign key, and the column definition specifies the column as nullable</li>
-	 * </ul>
-	 * 
-	 * @param property
-	 * @return
-	 */
-	public static boolean isNullable(RelationalPersistentProperty property) {
-		if (property.getRawType().isPrimitive())
-			return false;
-		if (property.isIdProperty())
-			return false;
-		ForeignKey fk = property.findAnnotation(ForeignKey.class);
-		if (fk != null)
-			return fk.optional();
-		ColumnDefinition def = property.findAnnotation(ColumnDefinition.class);
-		if (def != null)
-			return def.nullable();
-		return true;
-	}
-
-	/** Check if a property may be updated.
-	 * 
-	 * @param property
-	 * @return
-	 */
-	public static boolean isUpdatable(RelationalPersistentProperty property) {
-		if (!property.isWritable())
-			return false;
-		if (property.isIdProperty())
-			return false;
-		ColumnDefinition def = property.findAnnotation(ColumnDefinition.class);
-		if (def != null)
-			return def.updatable();
-		return true;
+	@SuppressWarnings("java:S3011")
+	public static Object getFieldValue(@NonNull Object instance, @NonNull Field field) {
+		try {
+			return field.get(instance);
+		} catch (IllegalAccessException e) {
+			throw new ModelAccessException("Unable to get value from field " + field.getName() + " in class " + field.getDeclaringClass().getName(), e);
+		}
 	}
 	
+	@SuppressWarnings("java:S3011")
+	public static void setFieldValue(@NonNull Object instance, @NonNull Field field, @Nullable Object value) {
+		try {
+			field.set(instance, value);
+		} catch (IllegalAccessException e) {
+			throw new ModelAccessException("Unable to set value into field " + field.getName() + " in class " + field.getDeclaringClass().getName() + " with value " + value, e);
+		}
+	}
+	
+
 	/** Set the foreign table field on the given instance to the given linkedInstance.
 	 * 
 	 * @param instance entity having the foreign table field
@@ -91,13 +79,9 @@ public class ModelUtils {
 	 */
 	@SuppressWarnings("java:S3011")
 	public static void setReverseLink(Object instance, Object linkedInstance, RelationalPersistentProperty linkedProperty) {
-		ForeignTableInfo ft = LcEntityTypeInfo.get(instance.getClass()).getForeignTableWithFieldForJoinKey(linkedProperty.getName(), linkedInstance.getClass());
+		PropertyStaticMetadata ft = EntityStaticMetadata.get(instance.getClass()).getForeignTableForJoinKey(linkedProperty.getName(), linkedInstance.getClass());
 		if (ft != null && !ft.isCollection())
-			try {
-				ft.getField().set(instance, linkedInstance);
-			} catch (Exception e) {
-				throw new ModelAccessException("Unable to set ForeignTable field " + ft.getField().getName() + " on " + instance.getClass().getSimpleName() + " with value " + linkedInstance, e);
-			}
+			setFieldValue(instance, ft.getField(), linkedInstance);
 	}
 	
 	/** Retrieve all fields from the class and its super classes.
@@ -116,20 +100,6 @@ public class ModelUtils {
 			return;
 		Collections.addAll(fields, cl.getDeclaredFields());
 		getAllFields(cl.getSuperclass(), fields);
-	}
-	
-	/** Return the identifier for the given entity.
-	 * 
-	 * @param instance entity
-	 * @param entityType entity type
-	 * @return identifier
-	 */
-	public static Object getRequiredId(Object instance, RelationalPersistentEntity<?> entityType, @Nullable PersistentPropertyAccessor<?> accessor) {
-		RelationalPersistentProperty idProperty = entityType.getRequiredIdProperty();
-		Object id = (accessor != null ? accessor : entityType.getPropertyAccessor(instance)).getProperty(idProperty);
-		if (id == null)
-			throw new InvalidEntityStateException("Entity is supposed to be persisted to database, but it's Id property is null");
-		return id;
 	}
 	
 	/** Check if the given field is a collection.
@@ -165,8 +135,11 @@ public class ModelUtils {
 	public static <T> Collection<T> getAsCollection(Object value) {
 		if (value instanceof Collection)
 			return (Collection<T>) value;
-		if (value.getClass().isArray())
+		if (value.getClass().isArray()) {
+			if (value.getClass().getComponentType().isPrimitive())
+				return (Collection<T>)PrimitiveArraysUtil.primitiveArrayToCollection(value);
 			return Arrays.asList((T[]) value);
+		}
 		return null;
 	}
 	
@@ -255,34 +228,14 @@ public class ModelUtils {
 		collectionInstance.remove(elementToRemove);
 	}
 	
-	@SuppressWarnings("java:S3011")
-	public static Object getDatabaseValue(Object instance, RelationalPersistentProperty property, LcReactiveDataRelationalClient client) {
-		Field f = property.getRequiredField();
-		f.setAccessible(true);
-		Object value;
-		try {
-			value = f.get(instance);
-		} catch (IllegalAccessException e) {
-			throw new ModelAccessException("Unable to get field value", e);
-		}
-		if (value == null)
-			return null;
-		if (property.isAnnotationPresent(ForeignKey.class)) {
-			RelationalPersistentEntity<?> e = client.getMappingContext().getRequiredPersistentEntity(value.getClass());
-			value = e.getPropertyAccessor(value).getProperty(e.getRequiredIdProperty());
-		} else {
-			value = client.getSchemaDialect().convertToDataBase(value, property);
-		}
-		return value;
-	}
 	
-	public static Object getPersistedDatabaseValue(EntityState state, RelationalPersistentProperty property, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
+	public static Object getPersistedDatabaseValue(EntityState state, PropertyMetadata property) {
 		Object value = state.getPersistedValue(property.getName());
 		if (value == null)
 			return null;
-		if (property.isAnnotationPresent(ForeignKey.class)) {
-			RelationalPersistentEntity<?> e = mappingContext.getRequiredPersistentEntity(value.getClass());
-			value = e.getPropertyAccessor(value).getProperty(e.getRequiredIdProperty());
+		if (property.isForeignKey()) {
+			EntityMetadata e = property.getClient().getRequiredEntity(value.getClass());
+			value = e.getSpringMetadata().getPropertyAccessor(value).getProperty(e.getRequiredIdProperty().getRequiredSpringProperty());
 		}
 		return value;
 	}
@@ -301,25 +254,7 @@ public class ModelUtils {
 		return ArrayUtils.contains(id.properties(), property.getName());
 	}
 	
-	public static Object getId(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
-		if (entityType.hasIdProperty())
-			return getIdPropertyValue(entityType, accessor);
-		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getIdFromProperties(getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, client);
-		return getIdFromProperties(entityType, accessor, client);
-	}
 	
-	public static Object getIdPropertyValue(RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor) {
-		return accessor.getProperty(entityType.getRequiredIdProperty());
-	}
-	
-	public static CompositeIdValue getIdFromProperties(Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
-		CompositeIdValue id = new CompositeIdValue();
-		for (RelationalPersistentProperty property : properties) {
-			id.add(property.getName(), getDatabaseValue(accessor.getBean(), property, client));
-		}
-		return id;
-	}
 	
 	public static Object getId(RelationalPersistentEntity<?> entityType, PropertiesSource source) {
 		return idGetter(entityType).apply(source);
@@ -350,61 +285,16 @@ public class ModelUtils {
 		};
 	}
 	
-	public static Condition getConditionOnId(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
-		if (entityType.hasIdProperty())
-			return getConditionOnProperties(query, entityType, Arrays.asList(entityType.getRequiredIdProperty()), accessor, client);
-		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getConditionOnProperties(query, entityType, getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, client);
-		return getConditionOnProperties(query, entityType, entityType, accessor, client);
-	}
-	
-	public static Condition getConditionOnProperties(SqlQuery<?> query, RelationalPersistentEntity<?> entityType, Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
-		Iterator<RelationalPersistentProperty> it = properties.iterator();
-		Condition condition = null;
-		Table table = Table.create(entityType.getTableName());
-		do {
-			RelationalPersistentProperty property = it.next();
-			Object value = getDatabaseValue(accessor.getBean(), property, client);
-			Condition propertyCondition = Conditions.isEqual(Column.create(property.getColumnName(), table), value != null ? query.marker(value) : SQL.nullLiteral());
-			condition = condition != null ? condition.and(propertyCondition) : propertyCondition;
-		} while (it.hasNext());
-		return condition;
-	}
-	
-	public static Criteria getCriteriaOnId(String entityName, RelationalPersistentEntity<?> entityType, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
-		if (entityType.hasIdProperty())
-			return getCriteriaOnProperties(entityName, Arrays.asList(entityType.getRequiredIdProperty()), accessor, client);
-		if (entityType.isAnnotationPresent(CompositeId.class))
-			return getCriteriaOnProperties(entityName, getProperties(entityType, entityType.getRequiredAnnotation(CompositeId.class).properties()), accessor, client);
-		return getCriteriaOnProperties(entityName, entityType, accessor, client);
-	}
-	
-	public static Criteria getCriteriaOnProperties(String entityName, Iterable<RelationalPersistentProperty> properties, PersistentPropertyAccessor<?> accessor, LcReactiveDataRelationalClient client) {
-		Iterator<RelationalPersistentProperty> it = properties.iterator();
-		Criteria condition = null;
-		do {
-			RelationalPersistentProperty property = it.next();
-			Object value = getDatabaseValue(accessor.getBean(), property, client);
-			Criteria propertyCondition = value != null ? Criteria.property(entityName, property.getName()).is(value) : Criteria.property(entityName, property.getName()).isNull();
-			condition = condition != null ? condition.and(propertyCondition) : propertyCondition;
-		} while (it.hasNext());
-		return condition;
-	}
-	
-	public static boolean hasCascadeDeleteImpacts(Class<?> entityType, MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext) {
-		LcEntityTypeInfo typeInfo = LcEntityTypeInfo.get(entityType);
-		if (!typeInfo.getForeignTables().isEmpty() || !typeInfo.getJoinTables().isEmpty())
+	public static boolean hasCascadeDeleteImpacts(Class<?> entityType) {
+		EntityStaticMetadata typeInfo = EntityStaticMetadata.get(entityType);
+		if (typeInfo.hasForeignTable() || typeInfo.hasJoinTable())
 			return true;
-		RelationalPersistentEntity<?> entity = mappingContext.getRequiredPersistentEntity(entityType);
-		for (RelationalPersistentProperty property : entity) {
-			ForeignKey fkAnnotation = property.findAnnotation(ForeignKey.class);
-			if (fkAnnotation == null)
-				continue;
-			if (fkAnnotation.cascadeDelete())
+		for (PropertyStaticMetadata fk : typeInfo.getForeignKeys()) {
+			if (fk.getForeignKeyAnnotation().cascadeDelete())
 				return true;
-			LcEntityTypeInfo foreignInfo = LcEntityTypeInfo.get(property.getActualType());
-			ForeignTableInfo ft = foreignInfo.getForeignTableWithFieldForJoinKey(property.getName(), entityType);
-			if (ft != null && !ft.getAnnotation().optional())
+			EntityStaticMetadata foreignInfo = EntityStaticMetadata.get(fk.getType());
+			PropertyStaticMetadata ft = foreignInfo.getForeignTableForJoinKey(fk.getName(), entityType);
+			if (ft != null && !ft.getForeignTableAnnotation().optional())
 				return true;
 		}
 		return false;

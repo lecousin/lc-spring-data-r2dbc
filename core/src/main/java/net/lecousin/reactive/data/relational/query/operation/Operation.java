@@ -1,21 +1,36 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.query.operation;
 
 import java.util.LinkedList;
 import java.util.List;
 
-import org.springframework.data.mapping.PersistentPropertyAccessor;
-import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.lang.Nullable;
-
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
-import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.EntityCache;
+import net.lecousin.reactive.data.relational.model.metadata.EntityInstance;
 import net.lecousin.reactive.data.relational.query.operation.DeleteProcessor.DeleteRequest;
 import net.lecousin.reactive.data.relational.query.operation.SaveProcessor.SaveRequest;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+/**
+ * Orchestrate a global save operation, with underlying insert, update and delete necessary to synchronize the database with the entities.
+ * 
+ * @author Guillaume Le Cousin
+ *
+ */
 public class Operation {
 	
 	LcReactiveDataRelationalClient lcClient;
@@ -34,14 +49,14 @@ public class Operation {
 	}
 	
 	@SuppressWarnings("unchecked")
-	public <T> SaveRequest addToSave(T entity, @Nullable RelationalPersistentEntity<T> entityType, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
-		SaveRequest request = save.addToProcess(this, entity, entityType, state, accessor);
-		delete.addToNotProcess(this, entity, (RelationalPersistentEntity<T>) request.entityType, request.state, (PersistentPropertyAccessor<T>) request.accessor);
+	public <T> SaveRequest addToSave(EntityInstance<T> entity) {
+		SaveRequest request = save.addToProcess(this, entity);
+		delete.addToNotProcess(this, entity);
 		return request;
 	}
 	
-	public <T> DeleteRequest addToDelete(T entity, @Nullable RelationalPersistentEntity<T> entityType, @Nullable EntityState state, @Nullable PersistentPropertyAccessor<T> accessor) {
-		return delete.addToProcess(this, entity, entityType, state, accessor);
+	public <T> DeleteRequest addToDelete(EntityInstance<T> entity) {
+		return delete.addToProcess(this, entity);
 	}
 
 	void toCall(Runnable fct) {

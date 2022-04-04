@@ -1,6 +1,10 @@
 package net.lecousin.reactive.data.relational.postgres;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
 import org.springframework.data.r2dbc.dialect.PostgresDialect;
@@ -11,6 +15,8 @@ import org.springframework.data.relational.core.sql.SQL;
 import org.springframework.data.relational.core.sql.SimpleFunction;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
+import net.lecousin.reactive.data.relational.model.PrimitiveArraysUtil;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
 import net.lecousin.reactive.data.relational.schema.Column;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 
@@ -27,8 +33,45 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 	
 	@Override
+	public boolean isArrayColumnSupported() {
+		return true;
+	}
+	
+	@Override
+	public Object convertToDataBase(Object value, PropertyMetadata property) {
+		if (value != null) {
+			Class<?> type = value.getClass();
+			if (type.isArray()) {
+				Class<?> t = type.getComponentType();
+				if (t.isPrimitive() && !byte.class.equals(t) && !char.class.equals(t))
+					return PrimitiveArraysUtil.primitiveArrayToObjectArray(value);
+			} else if (Collection.class.isAssignableFrom(type)) {
+				ParameterizedType pt = (ParameterizedType)property.getGenericType();
+				Object[] array = (Object[])Array.newInstance((Class<?>)pt.getActualTypeArguments()[0], ((Collection<?>)value).size());
+				return ((Collection<?>)value).toArray(array);
+			}
+		}
+		return super.convertToDataBase(value, property);
+	}
+	
+	@Override
+	public Object convertFromDataBase(Object value, Class<?> targetType) {
+		if (value != null && targetType.isArray()) {
+			Class<?> t = targetType.getComponentType();
+			if (t.isPrimitive() && !byte.class.equals(t) && !char.class.equals(t))
+				return PrimitiveArraysUtil.objectArrayToPrimitiveArray(value, targetType.getComponentType());
+		}
+		return super.convertFromDataBase(value, targetType);
+	}
+	
+	@Override
 	protected void addAutoIncrement(Column col, StringBuilder sql) {
 		// nothing to add
+	}
+	
+	@Override
+	protected String getArrayColumnType(Column col, Type genericType, Class<?> type, Type genericElementType, ColumnDefinition def) {
+		return getColumnType(col, genericElementType, def) + "[]";
 	}
 	
 	@Override

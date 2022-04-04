@@ -26,10 +26,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
-import net.lecousin.reactive.data.relational.model.LcEntityTypeInfo;
+import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcEntityTemplate;
 import net.lecousin.reactive.data.relational.schema.RelationalDatabaseSchema;
+import net.lecousin.reactive.data.relational.test.arraycolumns.EntityWithArrays;
 import net.lecousin.reactive.data.relational.test.simplemodel.DateTypesWithTimeZone;
 
 @DataR2dbcTest
@@ -74,9 +75,11 @@ public abstract class AbstractLcReactiveDataRelationalTest {
 	}
 	
 	protected Collection<Class<?>> getAllCompatibleEntities() {
-		Collection<Class<?>> entities = new LinkedList<>(LcEntityTypeInfo.getClasses());
+		Collection<Class<?>> entities = new LinkedList<>(EntityStaticMetadata.getClasses());
 		if (!lcClient.getSchemaDialect().isTimeZoneSupported())
 			entities.remove(DateTypesWithTimeZone.class);
+		if (!lcClient.getSchemaDialect().isArrayColumnSupported())
+			entities.remove(EntityWithArrays.class);
 		return entities;
 	}
 	

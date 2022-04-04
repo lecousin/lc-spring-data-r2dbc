@@ -62,4 +62,6 @@ entities:
         - MultipleDbEntity1
       - db2:
         - MultipleDbEntity2
+    - arraycolumns:
+      - EntityWithArrays
         

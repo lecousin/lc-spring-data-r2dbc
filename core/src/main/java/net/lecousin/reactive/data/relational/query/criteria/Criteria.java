@@ -1,3 +1,16 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.query.criteria;
 
 import java.util.ArrayList;
@@ -9,6 +22,8 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 
 /**
  * Criteria to use in where clause of a database query.
+ * 
+ * @author Guillaume Le Cousin
  */
 public interface Criteria {
 	
@@ -100,7 +115,8 @@ public interface Criteria {
 		LIKE,
 		NOT_LIKE,
 		IN,
-		NOT_IN;
+		NOT_IN,
+		ARRAY_CONTAINS;
 	}
 	
 	/** Property operand. */
@@ -236,6 +252,11 @@ public interface Criteria {
 		/** Create a NOT IN condition to compare this property with the set of given values. */
 		public Criteria notIn(Collection<?> values) {
 			return new PropertyOperation(this, PropertyOperator.NOT_IN, values);
+		}
+		
+		/** Create a condition on an array property that returns true if the array property contains the specified value. */
+		public Criteria arrayContains(Object value) {
+			return new PropertyOperation(this, PropertyOperator.ARRAY_CONTAINS, value);
 		}
 		
 		/** Apply the UPPER function to this property to use in a comparison operation. */

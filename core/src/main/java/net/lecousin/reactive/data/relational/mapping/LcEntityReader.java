@@ -1,3 +1,16 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package net.lecousin.reactive.data.relational.mapping;
 
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -25,7 +38,15 @@ import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.EntityCache;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.model.PropertiesSource;
+import net.lecousin.reactive.data.relational.model.metadata.EntityInstance;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
 
+/**
+ * Entity mapper.
+ * 
+ * @author Guillaume Le Cousin
+ *
+ */
 public class LcEntityReader {
 	
 	private static final Log logger = LogFactory.getLog(LcEntityReader.class);
@@ -79,25 +100,24 @@ public class LcEntityReader {
 			return conversionService.convert(source.getSource(), rawType);
 		}
 		
-		return read((RelationalPersistentEntity<T>) client.getMappingContext().getRequiredPersistentEntity(type), source);
+		return (T) read(client.getRequiredEntity(type), source).getEntity();
 	}
 	
-	public <T> T read(RelationalPersistentEntity<T> entityType, PropertiesSource source) {
+	public <T> EntityInstance<T> read(EntityMetadata entityType, PropertiesSource source) {
 		if (logger.isDebugEnabled())
 			logger.debug("Read <" + source.getSource() + "> into " + entityType.getName());
 		
-		T result = getOrCreateInstance(entityType, source);
-		EntityState state = EntityState.get(result, client, entityType);
+		EntityInstance<T> result = getOrCreateInstance(entityType, source);
 
-		if (entityType.requiresPropertyPopulation()) {
-			ConvertingPropertyAccessor<T> propertyAccessor = new ConvertingPropertyAccessor<>(entityType.getPropertyAccessor(result), conversionService);
+		if (entityType.getSpringMetadata().requiresPropertyPopulation()) {
+			ConvertingPropertyAccessor<T> propertyAccessor = new ConvertingPropertyAccessor<>(result.getPropertyAccessor(), conversionService);
 
-			for (RelationalPersistentProperty property : entityType) {
+			for (RelationalPersistentProperty property : entityType.getSpringMetadata()) {
 
-				if (entityType.isConstructorArgument(property))
+				if (entityType.getSpringMetadata().isConstructorArgument(property))
 					continue;
 
-				MutableObject<Object> value = readProperty(property, source, result, property.getTypeInformation().getType());
+				MutableObject<Object> value = readProperty(property, source, result.getEntity(), property.getTypeInformation().getType());
 
 				if (value != null) {
 					propertyAccessor.setProperty(property, value.getValue());
@@ -106,7 +126,7 @@ public class LcEntityReader {
 				}
 			}
 		}
-		state.loaded(result); 
+		result.getState().loaded(result.getEntity()); 
 
 		return result;
 	}
@@ -162,8 +182,7 @@ public class LcEntityReader {
 	}
 
 	protected <T> MutableObject<T> readEntityProperty(RelationalPersistentProperty property, Object parentInstance, PropertiesSource source) {
-		@SuppressWarnings("unchecked")
-		RelationalPersistentEntity<T> entityType = (RelationalPersistentEntity<T>) client.getMappingContext().getRequiredPersistentEntity(property.getActualType());
+		EntityMetadata entityType = client.getRequiredEntity(property.getActualType());
 
 		if (property.isAnnotationPresent(ForeignKey.class))
 			return readForeignKeyEntity(property, parentInstance, entityType, source);
@@ -172,30 +191,30 @@ public class LcEntityReader {
 		throw new MappingException("Sub-entity without @ForeignKey is not supported: " + property.getName());
 	}
 	
-	protected <T> MutableObject<T> readForeignKeyEntity(RelationalPersistentProperty property, Object parentInstance, RelationalPersistentEntity<T> entityType, PropertiesSource source) {
+	protected <T> MutableObject<T> readForeignKeyEntity(RelationalPersistentProperty property, Object parentInstance, EntityMetadata entityType, PropertiesSource source) {
 		if (!source.isPropertyPresent(property))
 			return null;
 
 		Object value = source.getPropertyValue(property);
 		if (value == null)
 			return new MutableObject<>(null); // foreign key is null
-		T instance = getOrCreateInstance(entityType, source, value);
-		EntityState state = EntityState.get(instance, client, entityType);
+		EntityInstance<T> instance = getOrCreateInstance(entityType, source, value);
+		EntityState state = instance.getState();
 		if (!state.isLoaded()) {
-			state.setPersistedField(instance, entityType.getRequiredIdProperty().getField(), value, true);
+			instance.setValue(entityType.getRequiredIdProperty(), value);
 		}
 		if (parentInstance != null)
-			ModelUtils.setReverseLink(instance, parentInstance, property);
+			ModelUtils.setReverseLink(instance.getEntity(), parentInstance, property);
 		if (!state.isLoaded())
 			state.lazyLoaded();
-		return new MutableObject<>(instance);
+		return new MutableObject<>(instance.getEntity());
 	}
 	
-	protected <T> T getOrCreateInstance(RelationalPersistentEntity<T> entityType, PropertiesSource source) {
+	protected <T> EntityInstance<T> getOrCreateInstance(EntityMetadata entityType, PropertiesSource source) {
 		Object id;
 		
 		try {
-			id = ModelUtils.getId(entityType, source);
+			id = ModelUtils.getId(entityType.getSpringMetadata(), source);
 		} catch (Exception e) {
 			// not available
 			id = null;
@@ -204,18 +223,21 @@ public class LcEntityReader {
 		return getOrCreateInstance(entityType, source, id);
 	}
 	
-	protected <T> T getOrCreateInstance(RelationalPersistentEntity<T> entityType, PropertiesSource source, Object id) {
+	protected <T> EntityInstance<T> getOrCreateInstance(EntityMetadata entityType, PropertiesSource source, Object id) {
 		if (id != null) {
-			T instance = cache.getById(entityType.getType(), id);
+			@SuppressWarnings("unchecked")
+			EntityInstance<T> instance = cache.getInstanceById((Class<T>) entityType.getType(), id);
 			if (instance != null)
 				return instance;
 		}
 		
-		PropertiesSourceParameterValueProvider parameterValueProvider = new PropertiesSourceParameterValueProvider(entityType, source);
-		T instance = client.getMapper().createInstance(entityType, parameterValueProvider::getParameterValue);
+		PropertiesSourceParameterValueProvider parameterValueProvider = new PropertiesSourceParameterValueProvider(entityType.getSpringMetadata(), source);
+		@SuppressWarnings("unchecked")
+		T entity = (T) client.getMapper().createInstance(entityType.getSpringMetadata(), parameterValueProvider::getParameterValue);
+		EntityInstance<T> instance = client.getInstance(entity);
 		
 		if (id != null)
-			cache.setById(entityType.getType(), id, instance);
+			cache.setInstanceById(id, instance);
 		
 		return instance;
 	}

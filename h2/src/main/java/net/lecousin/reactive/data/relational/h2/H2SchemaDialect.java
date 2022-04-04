@@ -3,9 +3,9 @@ package net.lecousin.reactive.data.relational.h2;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.r2dbc.dialect.H2Dialect;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 
 import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
 import net.lecousin.reactive.data.relational.schema.Column;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
 
@@ -22,11 +22,11 @@ public class H2SchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 	
 	@Override
-	public Object convertToDataBase(Object value, RelationalPersistentProperty property) {
+	public Object convertToDataBase(Object value, PropertyMetadata property) {
 		if (value instanceof java.time.OffsetTime)
 			return value.toString();
 		if (value instanceof String) {
-			ColumnDefinition def = property.findAnnotation(ColumnDefinition.class);
+			ColumnDefinition def = property.getRequiredSpringProperty().findAnnotation(ColumnDefinition.class);
 			if (def != null && def.min() > 0 && ((String)value).length() < def.min())
 				value = StringUtils.rightPad((String)value, (int)def.min(), ' ');
 		}
