@@ -463,6 +463,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		entity.setTimeLocalDate(java.time.LocalDate.of(year, month, day));
 		entity.setTimeLocalTime(java.time.LocalTime.of(hour, minute, second, nano));
 		entity.setTimeLocalDateTime(java.time.LocalDateTime.of(year, month, day, hour, minute, second, nano));
+		entity.setTimeLocalDateTimeWithoutPrecision(java.time.LocalDateTime.of(year, month, day, hour, minute, second, nano));
 		
 		entity = repoDate.save(entity).block();
 		
@@ -476,6 +477,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals(second, entity.getTimeLocalTime().getSecond());		
 		Assertions.assertEquals(nano, entity.getTimeLocalTime().getNano());
 		Assertions.assertEquals(java.time.LocalDateTime.of(year, month, day, hour, minute, second, nano), entity.getTimeLocalDateTime());
+		Assertions.assertEquals(java.time.LocalDateTime.of(year, month, day, hour, minute, second, nano), entity.getTimeLocalDateTimeWithoutPrecision());
 		
 		Assertions.assertNotNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToYear().is(year)).execute(lcClient).blockFirst());
 		Assertions.assertNull(SelectQuery.from(DateTypes.class, "e").where(Criteria.property("e", "timeInstant").dateToYear().is(year + 1)).execute(lcClient).blockFirst());

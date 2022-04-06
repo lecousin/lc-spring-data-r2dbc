@@ -124,10 +124,6 @@ public class EntityStaticMetadata {
 		return properties.values();
 	}
 	
-	public @Nullable PropertyStaticMetadata getProperty(String name) {
-		return properties.get(name);
-	}
-	
 	public @NonNull PropertyStaticMetadata getRequiredProperty(String name) {
 		PropertyStaticMetadata p = properties.get(name);
 		if (p != null)

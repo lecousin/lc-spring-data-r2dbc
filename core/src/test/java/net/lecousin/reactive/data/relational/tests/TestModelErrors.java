@@ -5,7 +5,9 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mapping.MappingException;
+import org.springframework.data.relational.core.mapping.Column;
 
+import net.lecousin.reactive.data.relational.annotations.CompositeId;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelException;
@@ -31,6 +33,25 @@ class TestModelErrors {
 		Assertions.assertNull(ModelUtils.getAsCollection(this));
 		Assertions.assertNull(ModelUtils.getCollectionType(NonEnhancedEntity.class.getDeclaredField("_lcState")));
 		Assertions.assertThrows(MappingException.class, () -> ModelUtils.getRequiredCollectionType(NonEnhancedEntity.class.getDeclaredField("_lcState")));
+	}
+	
+	@CompositeId(properties = { "hello", "world" }, indexName = "test")
+	public static class InvalidCompositeId {
+		@SuppressWarnings("unused")
+		private EntityState _lcState;
+
+		@Column
+		private String text;
+	}
+	
+	@Test
+	void testInvalidCompositeId() throws Exception {
+		try {
+			EntityStaticMetadata.setClasses(Arrays.asList(InvalidCompositeId.class));
+			throw new AssertionError();
+		} catch (ModelAccessException e) {
+			Assertions.assertTrue(e.getMessage().contains("hello does not exist"));
+		}
 	}
 
 }

@@ -67,10 +67,6 @@ public class PropertyMetadata {
 		return meta;
 	}
 	
-	public @Nullable RelationalPersistentProperty getSpringProperty() {
-		return property;
-	}
-	
 	public @NonNull RelationalPersistentProperty getRequiredSpringProperty() {
 		if (property != null)
 			return property;

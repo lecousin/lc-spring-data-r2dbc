@@ -104,8 +104,7 @@ class PropertyUpdater extends AbstractProcessor<PropertyUpdater.Request> {
 				assignments.add(AssignValue.create(Column.create(versionProperty.getColumnName(), table), SQL.literalOf(new ColumnIncrement(Column.create(versionProperty.getColumnName(), table), op.lcClient))));
 			Condition where = Conditions.in(Column.create(property.getColumnName(), table), values);
 			for (SaveRequest save : op.save.getPendingRequests(property.getEntity(), s -> update.getValue().contains(ModelUtils.getPersistedDatabaseValue(s.entity.getState(), property)))) {
-				if (save.entity.getState().isPersisted())
-					where = where.and(save.entity.getConditionOnId(query).not());
+				where = where.and(save.entity.getConditionOnId(query).not());
 				save.entity.setValue(property, update.getKey());
 			}
 			query.setQuery(

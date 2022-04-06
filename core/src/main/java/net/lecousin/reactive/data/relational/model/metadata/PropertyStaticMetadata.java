@@ -44,7 +44,6 @@ public class PropertyStaticMetadata {
 	
 	private JoinTable joinTableAnnotation;
 	private PropertyStaticMetadata joinForeignTable;
-	private String joinSourceFieldName;
 	private String joinTargetFieldName;
 	
 	private boolean isCollection;
@@ -65,10 +64,8 @@ public class PropertyStaticMetadata {
 	void setJoinForeignTable(PropertyStaticMetadata joinForeignTable) {
 		this.joinForeignTable = joinForeignTable;
 		if (joinForeignTable.getForeignTableAnnotation().joinKey().equals(ATTRIBUTE1)) {
-			joinSourceFieldName = ATTRIBUTE1;
 			joinTargetFieldName = ATTRIBUTE2;
 		} else {
-			joinSourceFieldName = ATTRIBUTE2;
 			joinTargetFieldName = ATTRIBUTE1;
 		}
 	}
@@ -121,17 +118,9 @@ public class PropertyStaticMetadata {
 		return joinTableAnnotation != null;
 	}
 	
-	public JoinTable getJoinTableAnnotation() {
-		return joinTableAnnotation;
-	}
-	
 	/** Returns the foreign table property generated for this join table property. */
 	public PropertyStaticMetadata getJoinTableForeignTable() {
 		return joinForeignTable;
-	}
-	
-	public String getJoinTableSourceFieldName() {
-		return joinSourceFieldName;
 	}
 	
 	public String getJoinTableTargetFieldName() {

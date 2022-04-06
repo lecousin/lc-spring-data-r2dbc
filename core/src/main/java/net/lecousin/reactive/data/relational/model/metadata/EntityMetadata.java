@@ -137,7 +137,7 @@ public class EntityMetadata {
 	}
 	
 	public @Nullable CompositeId getCompositeIdAnnotation() {
-		return entity.findAnnotation(CompositeId.class);
+		return meta.getCompositeId();
 	}
 	
 	public @NonNull CompositeId getRequiredCompositeId() {

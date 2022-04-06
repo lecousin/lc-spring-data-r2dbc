@@ -27,6 +27,9 @@ public class DateTypes {
 	@Column
 	@ColumnDefinition(precision = 3) // to milliseconds 
 	private java.time.LocalDateTime timeLocalDateTime;
+	
+	@Column
+	private java.time.LocalDateTime timeLocalDateTimeWithoutPrecision;
 
 	public Long getId() {
 		return id;
@@ -66,6 +69,14 @@ public class DateTypes {
 
 	public void setTimeLocalDateTime(java.time.LocalDateTime timeLocalDateTime) {
 		this.timeLocalDateTime = timeLocalDateTime;
+	}
+
+	public java.time.LocalDateTime getTimeLocalDateTimeWithoutPrecision() {
+		return timeLocalDateTimeWithoutPrecision;
+	}
+
+	public void setTimeLocalDateTimeWithoutPrecision(java.time.LocalDateTime timeLocalDateTimeWithoutPrecision) {
+		this.timeLocalDateTimeWithoutPrecision = timeLocalDateTimeWithoutPrecision;
 	}
 
 }

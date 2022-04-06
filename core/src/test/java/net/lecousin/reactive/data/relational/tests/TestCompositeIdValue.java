@@ -36,6 +36,10 @@ class TestCompositeIdValue {
 		c2.add("test2", 2);
 		Assertions.assertTrue(c.equals(c2));
 		Assertions.assertTrue(c2.equals(c));
+		c.add("test3", 3);
+		c2.add("test4", 4);
+		Assertions.assertFalse(c.equals(c2));
+		Assertions.assertFalse(c2.equals(c));
 	}
 
 }
