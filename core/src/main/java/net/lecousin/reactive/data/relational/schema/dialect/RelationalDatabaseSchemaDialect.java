@@ -60,6 +60,51 @@ public abstract class RelationalDatabaseSchemaDialect {
 	public static final int DEFAULT_FLOATING_POINT_SCALE = 2;
 	public static final int DEFAULT_TIME_PRECISION = 3;
 	
+	public interface ColumnTypeMapper {
+		String getColumnType(Column col, Type genericType, Class<?> rawType, ColumnDefinition def);
+	}
+	
+	protected Map<Class<?>, ColumnTypeMapper> classToColumnType = new HashMap<>();
+	
+	protected RelationalDatabaseSchemaDialect() {
+		classToColumnType.put(boolean.class, this::getColumnTypeBoolean);
+		classToColumnType.put(Boolean.class, this::getColumnTypeBoolean);
+		classToColumnType.put(byte.class, this::getColumnTypeByte);
+		classToColumnType.put(Byte.class, this::getColumnTypeByte);
+		classToColumnType.put(short.class, this::getColumnTypeShort);
+		classToColumnType.put(Short.class, this::getColumnTypeShort);
+		classToColumnType.put(int.class, this::getColumnTypeInteger);
+		classToColumnType.put(Integer.class, this::getColumnTypeInteger);
+		classToColumnType.put(long.class, this::getColumnTypeLong);
+		classToColumnType.put(Long.class, this::getColumnTypeLong);
+		classToColumnType.put(float.class, this::getColumnTypeFloat);
+		classToColumnType.put(Float.class, this::getColumnTypeFloat);
+		classToColumnType.put(double.class, this::getColumnTypeDouble);
+		classToColumnType.put(Double.class, this::getColumnTypeDouble);
+		classToColumnType.put(BigDecimal.class, this::getColumnTypeBigDecimal);
+		classToColumnType.put(String.class, this::getColumnTypeString);
+		classToColumnType.put(char[].class, this::getColumnTypeString);
+		classToColumnType.put(char.class, this::getColumnTypeChar);
+		classToColumnType.put(Character.class, this::getColumnTypeChar);
+		classToColumnType.put(java.time.LocalDate.class, this::getColumnTypeDate);
+		classToColumnType.put(java.time.LocalTime.class, this::getColumnTypeTime);
+		if (!isTimeZoneSupported())
+			classToColumnType.put(java.time.OffsetTime.class, (col, gt, t, def) -> { throw new SchemaException("Time with timezone not supported by " + getName() + " for column " + col.getName() + " with type " + t.getName()); });
+		else
+			classToColumnType.put(java.time.OffsetTime.class, this::getColumnTypeTimeWithTimeZone);
+		classToColumnType.put(java.time.LocalDateTime.class, this::getColumnTypeDateTime);
+		if (!isTimeZoneSupported())
+			classToColumnType.put(java.time.ZonedDateTime.class, (col, gt, t, def) -> { throw new SchemaException("DateTime with timezone not supported by " + getName() + " for column " + col.getName() + " with type " + t.getName()); });
+		else
+			classToColumnType.put(java.time.ZonedDateTime.class, this::getColumnTypeDateTimeWithTimeZone);
+		classToColumnType.put(java.time.Instant.class, this::getColumnTypeTimestamp);
+		classToColumnType.put(UUID.class, this::getColumnTypeUUID);
+	}
+	
+	public abstract String getName();
+	
+	public abstract boolean isCompatible(R2dbcDialect r2dbcDialect);
+	
 	public static RelationalDatabaseSchemaDialect getDialect(R2dbcDialect r2dbcDialect) {
 		return ServiceLoader.load(RelationalDatabaseSchemaDialect.class).stream()
 			.map(Provider::get)
@@ -67,10 +112,6 @@ public abstract class RelationalDatabaseSchemaDialect {
 			.findFirst()
 			.orElseThrow();
 	}
-	
-	public abstract String getName();
-	
-	public abstract boolean isCompatible(R2dbcDialect r2dbcDialect);
 	
 	public Object convertToDataBase(Object value, PropertyMetadata property) {
 		return value;
@@ -80,7 +121,6 @@ public abstract class RelationalDatabaseSchemaDialect {
 		return value;
 	}
 
-	@SuppressWarnings("java:S3776") // complexity
 	public String getColumnType(Column col, Type genericType, ColumnDefinition def) {
 		Class<?> type;
 		if (genericType instanceof Class) {
@@ -90,42 +130,11 @@ public abstract class RelationalDatabaseSchemaDialect {
 		} else {
 			throw new SchemaException("Column type not supported: " + genericType + " on column " + col.getName() + " with " + getName());
 		}
-		if (boolean.class.equals(type) || Boolean.class.equals(type))
-			return getColumnTypeBoolean(col, type, def);
-		if (byte.class.equals(type) || Byte.class.equals(type))
-			return getColumnTypeByte(col, type, def);
-		if (short.class.equals(type) || Short.class.equals(type))
-			return getColumnTypeShort(col, type, def);
-		if (int.class.equals(type) || Integer.class.equals(type))
-			return getColumnTypeInteger(col, type, def);
-		if (long.class.equals(type) || Long.class.equals(type))
-			return getColumnTypeLong(col, type, def);
-		if (float.class.equals(type) || Float.class.equals(type))
-			return getColumnTypeFloat(col, type, def);
-		if (double.class.equals(type) || Double.class.equals(type))
-			return getColumnTypeDouble(col, type, def);
-		if (BigDecimal.class.equals(type))
-			return getColumnTypeBigDecimal(col, type, def);
-		if (String.class.equals(type) || char[].class.equals(type))
-			return getColumnTypeString(col, type, def);
-		if (char.class.equals(type) || Character.class.equals(type))
-			return getColumnTypeChar(col, type, def);
-		if (java.time.LocalDate.class.equals(type))
-			return getColumnTypeDate(col, type, def);
-		if (java.time.LocalTime.class.equals(type))
-			return getColumnTypeTime(col, type, def);
-		if (java.time.OffsetTime.class.equals(type))
-			return getColumnTypeTimeWithTimeZone(col, type, def);
-		if (java.time.LocalDateTime.class.equals(type))
-			return getColumnTypeDateTime(col, type, def);
-		if (java.time.ZonedDateTime.class.equals(type))
-			return getColumnTypeDateTimeWithTimeZone(col, type, def);
-		if (java.time.Instant.class.equals(type))
-			return getColumnTypeTimestamp(col, type, def);
-		if (UUID.class.equals(type))
-			return getColumnTypeUUID(col, type, def);
+		ColumnTypeMapper mapper = classToColumnType.get(type);
+		if (mapper != null)
+			return mapper.getColumnType(col, genericType, type, def);
 		if (Enum.class.isAssignableFrom(type))
-			return getColumnTypeEnum(col, type, def);
+			return getColumnTypeEnum(col, genericType, type, def);
 		if (isArrayColumnSupported()) {
 			Type elementType = null;
 			if (type.isArray())
@@ -136,50 +145,42 @@ public abstract class RelationalDatabaseSchemaDialect {
 				return getArrayColumnType(col, genericType, type, elementType, def);
 			}
 		}
+		return customColumnTypes(col, genericType, type, def);
+	}
+	
+	protected String customColumnTypes(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		throw new SchemaException("Column type not supported: " + type.getName() + " on column " + col.getName() + " with " + getName());
 	}
-	
-	public boolean isTimeZoneSupported() {
-		return true;
-	}
-	
-	public boolean isArrayColumnSupported() {
-		return false;
-	}
-	
-	protected String getArrayColumnType(Column col, Type genericType, Class<?> type, Type genericElementType, ColumnDefinition def) {
-		throw new SchemaException("Array column not supported");
-	}
 
-	protected String getColumnTypeBoolean(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeBoolean(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "BOOLEAN";
 	}
 	
-	protected String getColumnTypeByte(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeByte(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "TINYINT";
 	}
 	
-	protected String getColumnTypeShort(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeShort(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "SMALLINT";
 	}
 	
-	protected String getColumnTypeInteger(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeInteger(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "INT";
 	}
 	
-	protected String getColumnTypeLong(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeLong(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "BIGINT";
 	}
 	
-	protected String getColumnTypeFloat(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeFloat(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "FLOAT";
 	}
 	
-	protected String getColumnTypeDouble(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeDouble(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "DOUBLE";
 	}
 	
-	protected String getColumnTypeBigDecimal(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeBigDecimal(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_FLOATING_POINT_PRECISION;
@@ -189,11 +190,11 @@ public abstract class RelationalDatabaseSchemaDialect {
 		return "DECIMAL(" + precision + "," + scale + ")";
 	}
 	
-	protected String getColumnTypeChar(Column col, Class<?> type, ColumnDefinition def) {
-		return getColumnTypeShort(col, type, def);
+	protected String getColumnTypeChar(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
+		return getColumnTypeShort(col, genericType, type, def);
 	}
 	
-	protected String getColumnTypeString(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeString(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		if (def != null) {
 			if (def.max() > Integer.MAX_VALUE) {
 				// large text
@@ -206,60 +207,68 @@ public abstract class RelationalDatabaseSchemaDialect {
 		}
 		return "VARCHAR";
 	}
+	
+	public boolean isTimeZoneSupported() {
+		return true;
+	}
 
-	protected String getColumnTypeTimestamp(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeTimestamp(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_TIME_PRECISION;
 		return "TIMESTAMP(" + precision + ")";
 	}
 
-	protected String getColumnTypeDate(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeDate(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "DATE";
 	}
 
-	protected String getColumnTypeTime(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeTime(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_TIME_PRECISION;
 		return "TIME(" + precision + ")";
 	}
 
-	protected String getColumnTypeTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
-		if (!isTimeZoneSupported())
-			throw new SchemaException("Time with timezone not supported by " + getName() + " for column " + col.getName() + " on type " + type.getName());
+	protected String getColumnTypeTimeWithTimeZone(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_TIME_PRECISION;
 		return "TIME(" + precision + ") WITH TIME ZONE";
 	}
 
-	protected String getColumnTypeDateTime(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeDateTime(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_TIME_PRECISION;
 		return "DATETIME(" + precision + ")";
 	}
 
-	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
-		if (!isTimeZoneSupported())
-			throw new SchemaException("DateTime with timezone not supported by " + getName() + " for column " + col.getName() + " on type " + type.getName());
+	protected String getColumnTypeDateTimeWithTimeZone(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_TIME_PRECISION;
 		return "DATETIME(" + precision + ") WITH TIME ZONE";
 	}
 
-	protected String getColumnTypeUUID(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeUUID(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "UUID";
 	}
 
-	protected String getColumnTypeEnum(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeEnum(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int max = 1;
 		for (Object enumValue : type.getEnumConstants()) {
 			max = Math.max(max, enumValue.toString().length());
 		}
 		return "VARCHAR(" + max + ")";
+	}
+	
+	public boolean isArrayColumnSupported() {
+		return false;
+	}
+	
+	protected String getArrayColumnType(Column col, Type genericType, Class<?> type, Type genericElementType, ColumnDefinition def) {
+		throw new SchemaException("Array column not supported");
 	}
 
 	public SchemaStatements dropSchemaContent(RelationalDatabaseSchema schema) {

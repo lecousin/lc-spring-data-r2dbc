@@ -1,5 +1,6 @@
 package net.lecousin.reactive.data.relational.mysql;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,7 +63,7 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 	
 	@Override
-	protected String getColumnTypeString(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeString(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		if (def != null) {
 			if (def.max() > 255) {
 				// large text
@@ -82,12 +83,12 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 
 	@Override
-	protected String getColumnTypeUUID(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeUUID(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "VARCHAR(36)";
 	}
 	
 	@Override
-	protected String getColumnTypeEnum(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeEnum(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		StringBuilder s = new StringBuilder(256);
 		s.append("ENUM(");
 		boolean first = true;

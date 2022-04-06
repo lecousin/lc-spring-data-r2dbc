@@ -22,6 +22,16 @@ import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSc
 
 public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 
+	public PostgresSchemaDialect() {
+		classToColumnType.put(io.r2dbc.postgresql.codec.Box.class, (col, gt, t, def) -> "box");
+		classToColumnType.put(io.r2dbc.postgresql.codec.Circle.class, (col, gt, t, def) -> "circle");
+		classToColumnType.put(io.r2dbc.postgresql.codec.Line.class, (col, gt, t, def) -> "line");
+		classToColumnType.put(io.r2dbc.postgresql.codec.Lseg.class, (col, gt, t, def) -> "lseg");
+		classToColumnType.put(io.r2dbc.postgresql.codec.Point.class, (col, gt, t, def) -> "point");
+		classToColumnType.put(io.r2dbc.postgresql.codec.Path.class, (col, gt, t, def) -> "path");
+		classToColumnType.put(io.r2dbc.postgresql.codec.Polygon.class, (col, gt, t, def) -> "polygon");
+	}
+	
 	@Override
 	public String getName() {
 		return "PostgreSQL";
@@ -75,43 +85,43 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 	
 	@Override
-	protected String getColumnTypeByte(Column col, Class<?> type, ColumnDefinition def) {
-		return getColumnTypeShort(col, type, def);
+	protected String getColumnTypeByte(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
+		return getColumnTypeShort(col, genericType, type, def);
 	}
 	
 	@Override
-	protected String getColumnTypeShort(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeShort(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		if (col.isAutoIncrement())
 			return "SMALLSERIAL";
 		return "SMALLINT";
 	}
 	
 	@Override
-	protected String getColumnTypeInteger(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeInteger(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		if (col.isAutoIncrement())
 			return "SERIAL";
 		return "INTEGER";
 	}
 	
 	@Override
-	protected String getColumnTypeLong(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeLong(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		if (col.isAutoIncrement())
 			return "BIGSERIAL";
 		return "BIGINT";
 	}
 	
 	@Override
-	protected String getColumnTypeFloat(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeFloat(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "REAL";
 	}
 	
 	@Override
-	protected String getColumnTypeDouble(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeDouble(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "DOUBLE PRECISION";
 	}
 	
 	@Override
-	protected String getColumnTypeDateTime(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeDateTime(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_TIME_PRECISION;
@@ -119,7 +129,7 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 	
 	@Override
-	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeDateTimeWithTimeZone(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_TIME_PRECISION;
@@ -127,7 +137,7 @@ public class PostgresSchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 
 	@Override
-	protected String getColumnTypeString(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeString(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		if (def != null) {
 			if (def.max() > Integer.MAX_VALUE) {
 				// large text

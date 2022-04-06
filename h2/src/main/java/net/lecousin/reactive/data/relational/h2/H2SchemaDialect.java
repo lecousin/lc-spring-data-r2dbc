@@ -1,5 +1,7 @@
 package net.lecousin.reactive.data.relational.h2;
 
+import java.lang.reflect.Type;
+
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.r2dbc.dialect.H2Dialect;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
@@ -41,13 +43,13 @@ public class H2SchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 	
 	@Override
-	protected String getColumnTypeFloat(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeFloat(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "REAL";
 	}
 
 
 	@Override
-	protected String getColumnTypeDateTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeDateTimeWithTimeZone(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		int precision = def != null ? def.precision() : -1;
 		if (precision < 0)
 			precision = DEFAULT_TIME_PRECISION;
@@ -55,7 +57,7 @@ public class H2SchemaDialect extends RelationalDatabaseSchemaDialect {
 	}
 
 	@Override
-	protected String getColumnTypeTimeWithTimeZone(Column col, Class<?> type, ColumnDefinition def) {
+	protected String getColumnTypeTimeWithTimeZone(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
 		return "VARCHAR";
 	}
 	

@@ -172,9 +172,6 @@ public class LcEntityReader {
 		if (value == null || target == null || ClassUtils.isAssignableValue(target, value))
 			return value;
 
-		if (conversions.hasCustomReadTarget(value.getClass(), target))
-			return conversionService.convert(value, target);
-
 		if (Enum.class.isAssignableFrom(target))
 			return Enum.valueOf((Class<Enum>) target, value.toString());
 
