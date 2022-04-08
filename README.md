@@ -49,9 +49,9 @@ Features are detailed with examples in the [wiki section](https://github.com/lec
  - commons-lang3 version 3.12.0, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.apache.commons/commons-lang3.svg)
  - javassist version 3.28.0-GA, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.javassist/javassist.svg)
 
- - H2 (io.r2dbc:r2dbc-h2) version 0.8.5.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-h2.svg)
+ - H2 (io.r2dbc:r2dbc-h2) version 0.9.1.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-h2.svg)
  - MySql (dev.miku:r2dbc-mysql) version 0.8.2.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/dev.miku/r2dbc-mysql.svg)
- - Postgres (io.r2dbc:r2dbc-postgresql) version 0.8.12.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-postgresql.svg)
+ - Postgres (org.postgresql:r2dbc-postgresql) version 0.9.1.RELEASE, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.postgresql/r2dbc-postgresql.svg)
 
 # Configuration
 

@@ -51,7 +51,7 @@ Features are detailed with examples in the [wiki section](https://github.com/lec
 
  - H2 (io.r2dbc:r2dbc-h2) version ${r2dbc-h2.version}, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-h2.svg)
  - MySql (dev.miku:r2dbc-mysql) version ${r2dbc-mysql.version}, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/dev.miku/r2dbc-mysql.svg)
- - Postgres (io.r2dbc:r2dbc-postgresql) version ${r2dbc-postgres.version}, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/io.r2dbc/r2dbc-postgresql.svg)
+ - Postgres (org.postgresql:r2dbc-postgresql) version ${r2dbc-postgres.version}, Latest version: ![Maven Central](https://img.shields.io/maven-central/v/org.postgresql/r2dbc-postgresql.svg)
 
 # Configuration
 
