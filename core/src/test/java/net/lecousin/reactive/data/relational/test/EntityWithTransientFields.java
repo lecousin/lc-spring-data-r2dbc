@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 
 @Table("basic")
-public class Entity {
+public class EntityWithTransientFields {
 
 	@Column
 	private String str;

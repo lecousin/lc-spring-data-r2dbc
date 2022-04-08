@@ -45,4 +45,24 @@ class TestEnhancerErrors {
 		}
 	}
 	
+	@Test
+	void testInvalidJoinTable_InvalidLazyGetter() {
+		try {
+			Enhancer.enhance(Arrays.asList("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable3", "net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable4"));
+			throw new AssertionError();
+		} catch (Throwable e) {
+			// ok
+		}
+	}
+	
+	@Test
+	void testInvalidJoinTable_InvalidJoinSetter() {
+		try {
+			Enhancer.enhance(Arrays.asList("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable5", "net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable6"));
+			throw new AssertionError();
+		} catch (Exception e) {
+			// ok
+		}
+	}
+
 }

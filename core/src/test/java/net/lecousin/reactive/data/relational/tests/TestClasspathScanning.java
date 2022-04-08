@@ -29,6 +29,10 @@ class TestClasspathScanning {
 		fromScan.remove("net.lecousin.reactive.data.relational.tests.TestEnhancerErrors$JoinTo");
 		fromScan.remove("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable1");
 		fromScan.remove("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable2");
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable3");
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable4");
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable5");
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable6");
 		
 		System.out.println("from scan = " + fromScan);
 		System.out.println("from yaml = " + fromYaml);

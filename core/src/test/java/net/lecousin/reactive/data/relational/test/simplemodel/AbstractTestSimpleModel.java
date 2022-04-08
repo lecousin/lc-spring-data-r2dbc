@@ -527,6 +527,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		entity.setTimeOffsetTime(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)));
 		entity.setTimeZonedDateTime(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()));
 		entity.setTimeOffsetTimeWithoutPrecision(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)));
+		entity.setTimeZonedDateTimeWithoutPrecision(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()));
 		
 		entity = lcClient.save(entity).block();
 		
@@ -534,6 +535,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		Assertions.assertEquals(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)), entity.getTimeOffsetTime());
 		Assertions.assertEquals(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()).toEpochSecond(), entity.getTimeZonedDateTime().toEpochSecond());
 		Assertions.assertEquals(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)), entity.getTimeOffsetTimeWithoutPrecision());
+		Assertions.assertEquals(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()).toEpochSecond(), entity.getTimeZonedDateTimeWithoutPrecision().toEpochSecond());
 	}
 
 	@Test

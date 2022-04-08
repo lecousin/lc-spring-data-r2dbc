@@ -8,11 +8,13 @@ import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.enhance.Enhancer;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelException;
 import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
@@ -63,7 +65,7 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	
 	@Test
 	public void testGetEntityStateError() throws Exception {
-		Entity entity = new Entity();
+		EntityWithTransientFields entity = new EntityWithTransientFields();
 		try {
 			EntityState.get(entity, (EntityMetadata) null);
 		} catch (Exception e) {
@@ -78,16 +80,16 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	
 	@Test
 	public void testEntityTransientFields() throws Exception {
-		RelationalDatabaseSchema schema = lcClient.buildSchemaFromEntities(Arrays.asList(Entity.class));
+		RelationalDatabaseSchema schema = lcClient.buildSchemaFromEntities(Arrays.asList(EntityWithTransientFields.class));
 		lcClient.dropCreateSchemaContent(schema).block();
 		
-		Entity entity = new Entity();
+		EntityWithTransientFields entity = new EntityWithTransientFields();
 		entity.setStr("aTest");
 		entity.setTextNotSaved("should be null");
 		entity.setDefaultHello("world");
 		lcClient.save(entity).block();
 		
-		List<Entity> list = SelectQuery.from(Entity.class, "e").execute(lcClient).collectList().block();
+		List<EntityWithTransientFields> list = SelectQuery.from(EntityWithTransientFields.class, "e").execute(lcClient).collectList().block();
 		Assertions.assertEquals(1, list.size());
 		entity = list.get(0);
 		Assertions.assertEquals("aTest", entity.getStr());
@@ -97,8 +99,24 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 		
 		lcClient.delete(entity).block();
 
-		list = SelectQuery.from(Entity.class, "e").execute(lcClient).collectList().block();
+		list = SelectQuery.from(EntityWithTransientFields.class, "e").execute(lcClient).collectList().block();
 		Assertions.assertEquals(0, list.size());
+	}
+	
+	@Test
+	public void testEntityWithNonNullableProperty() {
+		RelationalDatabaseSchema schema = lcClient.buildSchemaFromEntities(Arrays.asList(EntityWithNonNullProperty.class));
+		lcClient.dropCreateSchemaContent(schema).block();
+		
+		EntityWithNonNullProperty entity1 = new EntityWithNonNullProperty();
+		Assertions.assertThrows(DataIntegrityViolationException.class, () -> lcClient.save(entity1).block());
+		entity1.setNonNullable(Boolean.TRUE);
+		lcClient.save(entity1).block();
+				
+		EntityWithNonNullProperty entity2 = SelectQuery.from(EntityWithNonNullProperty.class, "e").execute(lcClient).blockFirst();
+		Assertions.assertEquals(Boolean.TRUE, entity2.getNonNullable());
+		entity2.setNonNullable(null);
+		Assertions.assertThrows(DataIntegrityViolationException.class, () -> lcClient.save(entity2).block());
 	}
 	
 	@Test
@@ -163,6 +181,22 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 		} catch (IllegalArgumentException e) {
 			// ok
 		}
+	}
+	
+	@Test
+	public void testGetNonEntity() {
+		Assertions.assertThrows(ModelAccessException.class, () -> lcClient.getRequiredEntity(String.class));
+	}
+	
+	@Test
+	public void testSaveAndDeleteNonEntity() {
+		Assertions.assertThrows(ModelAccessException.class, () -> lcClient.save("hello").block());
+		Assertions.assertThrows(ModelAccessException.class, () -> lcClient.save(Arrays.asList("invalid")).blockFirst());
+		lcClient.save(Arrays.asList()).blockFirst(); // empty => no error
+		lcClient.saveAll(Arrays.asList()).block(); // empty => no error
+		Assertions.assertThrows(ModelAccessException.class, () -> lcClient.delete("hello").block());
+		Assertions.assertThrows(ModelAccessException.class, () -> lcClient.delete(Arrays.asList("invalid")).block());
+		lcClient.delete(Arrays.asList()).block(); // empty => no error
 	}
 
 }

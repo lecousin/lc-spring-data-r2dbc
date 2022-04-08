@@ -1,6 +1,7 @@
 entities:
   - net.lecousin.reactive.data.relational.test:
-    - Entity
+    - EntityWithTransientFields
+    - EntityWithNonNullProperty
     - simplemodel:
       - BooleanTypes
       - CharacterTypes
