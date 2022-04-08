@@ -30,7 +30,6 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.core.CollectionFactory;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.mapping.MappingException;
-import org.springframework.data.relational.core.sql.Aliased;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.OrderByField;
@@ -475,9 +474,6 @@ public class SelectExecution<T> {
 			@SuppressWarnings("java:S4449")
 			private String toSql(Column col, RenderContext renderContext) {
 				RenderNamingStrategy namingStrategy = renderContext.getNamingStrategy();
-				if (col instanceof Aliased)
-					return namingStrategy.getReferenceName(col).toSql(renderContext.getIdentifierProcessing());
-
 				return SqlIdentifier.from(namingStrategy.getReferenceName(col.getTable()), namingStrategy.getReferenceName(col)).toSql(renderContext.getIdentifierProcessing());
 			}
 		};

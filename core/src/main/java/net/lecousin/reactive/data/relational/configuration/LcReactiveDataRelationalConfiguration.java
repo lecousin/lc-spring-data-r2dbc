@@ -94,10 +94,10 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 	public R2dbcMappingContext r2dbcMappingContext(Optional<NamingStrategy> namingStrategy, R2dbcCustomConversions r2dbcCustomConversions) {
 		Assert.notNull(namingStrategy, "NamingStrategy must not be null!");
 
-		LcR2dbcMappingContext context = new LcR2dbcMappingContext(namingStrategy.orElse(NamingStrategy.INSTANCE));
-		context.setSimpleTypeHolder(r2dbcCustomConversions.getSimpleTypeHolder());
+		LcR2dbcMappingContext mappingContext = new LcR2dbcMappingContext(namingStrategy.orElse(NamingStrategy.INSTANCE));
+		mappingContext.setSimpleTypeHolder(r2dbcCustomConversions.getSimpleTypeHolder());
 
-		return context;
+		return mappingContext;
 	}
 
 	@Override

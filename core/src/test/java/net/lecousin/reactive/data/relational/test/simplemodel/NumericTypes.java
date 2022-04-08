@@ -6,6 +6,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 
 @Table
@@ -52,6 +53,9 @@ public class NumericTypes {
 	
 	@Column
 	private BigDecimal bigDec;
+	
+	@ColumnDefinition(precision = 10, scale = 2)
+	private BigDecimal bigDecWithDefinition;
 
 	public Short getId() {
 		return id;
@@ -163,6 +167,14 @@ public class NumericTypes {
 
 	public void setBigDec(BigDecimal bigDec) {
 		this.bigDec = bigDec;
+	}
+
+	public BigDecimal getBigDecWithDefinition() {
+		return bigDecWithDefinition;
+	}
+
+	public void setBigDecWithDefinition(BigDecimal bigDecWithDefinition) {
+		this.bigDecWithDefinition = bigDecWithDefinition;
 	}
 
 }

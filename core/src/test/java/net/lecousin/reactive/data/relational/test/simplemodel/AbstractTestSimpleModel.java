@@ -28,6 +28,7 @@ import org.springframework.data.mapping.MappingException;
 import org.springframework.data.r2dbc.mapping.OutboundRow;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
+import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
@@ -202,6 +203,9 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		e1.setDouble1(1.02d);
 		e1.setDouble2(null);
 		e1.setBigDec(null);
+		e1.setBigDecWithDefinition(null);
+		
+		Assertions.assertThrows(ModelAccessException.class, () -> lcClient.getInstance(e1).getRequiredPrimaryKey());
 		
 		NumericTypes e2 = new NumericTypes();
 		e2.setByte1((byte)11);
@@ -217,6 +221,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		e2.setDouble1(0.02d);
 		e2.setDouble2(1.2d);
 		e2.setBigDec(BigDecimal.ONE);
+		e2.setBigDec(BigDecimal.valueOf(123.45d));
 		
 		repoNum.saveAll(Arrays.asList(e1, e2)).collectList().block();
 		List<NumericTypes> list = repoNum.findAll().collectList().block();
@@ -235,6 +240,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 				Assertions.assertEquals(1.02d, e.getDouble1());
 				Assertions.assertNull(e.getDouble2());
 				Assertions.assertNull(e.getBigDec());
+				Assertions.assertNull(e.getBigDecWithDefinition());
 			} else {
 				Assertions.assertEquals((byte)11, e.getByte1());
 				Assertions.assertEquals((byte)1, e.getByte2());
@@ -249,6 +255,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 				Assertions.assertEquals(0.02d, e.getDouble1());
 				Assertions.assertEquals(1.2d, e.getDouble2());
 				Assertions.assertEquals(1d, e.getBigDec().doubleValue());
+				Assertions.assertEquals(123.45d, e.getBigDecWithDefinition().doubleValue());
 			}
 		}
 		

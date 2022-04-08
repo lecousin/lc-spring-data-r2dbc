@@ -14,7 +14,7 @@
 package net.lecousin.reactive.data.relational.model;
 
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.lang.Nullable;
+import org.springframework.lang.NonNull;
 
 import io.r2dbc.spi.Row;
 import io.r2dbc.spi.RowMetadata;
@@ -30,7 +30,7 @@ public class PropertiesSourceRow implements PropertiesSource {
 	private Row row;
 	private RowMetadata metadata;
 
-	public PropertiesSourceRow(Row row, @Nullable RowMetadata metadata) {
+	public PropertiesSourceRow(Row row, @NonNull RowMetadata metadata) {
 		this.row = row;
 		this.metadata = metadata;
 	}
@@ -42,10 +42,9 @@ public class PropertiesSourceRow implements PropertiesSource {
 	
 	@Override
 	public boolean isPropertyPresent(RelationalPersistentProperty property) {
-		if (metadata == null)
-			return true; // cannot know
 		try {
-			return metadata.getColumnMetadata(property.getColumnName().getReference()) != null;
+			metadata.getColumnMetadata(property.getColumnName().getReference());
+			return true;
 		} catch (Exception e) {
 			return false;
 		}

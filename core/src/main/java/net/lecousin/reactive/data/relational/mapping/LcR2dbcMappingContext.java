@@ -1,7 +1,6 @@
 package net.lecousin.reactive.data.relational.mapping;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.Optional;
 
 import org.springframework.data.mapping.model.Property;
@@ -52,24 +51,10 @@ public class LcR2dbcMappingContext extends R2dbcMappingContext {
 		if (isForceQuote())
 			return false;
 		Optional<Field> field = property.getField();
-		if (field.isPresent()) {
-			Column col = field.get().getAnnotation(Column.class);
-			if (col != null && StringUtils.hasText(col.value()))
-				return true;
-		}
-		Optional<Method> m = property.getGetter();
-		if (m.isPresent()) {
-			Column col = m.get().getAnnotation(Column.class);
-			if (col != null && StringUtils.hasText(col.value()))
-				return true;
-		}
-		m = property.getSetter();
-		if (m.isPresent()) {
-			Column col = m.get().getAnnotation(Column.class);
-			if (col != null && StringUtils.hasText(col.value()))
-				return true;
-		}
-		return false;
+		if (!field.isPresent())
+			return false; // not yet supported
+		Column col = field.get().getAnnotation(Column.class);
+		return col != null && StringUtils.hasText(col.value());
 	}
 
 }
