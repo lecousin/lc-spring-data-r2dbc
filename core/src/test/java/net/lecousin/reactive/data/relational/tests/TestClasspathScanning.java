@@ -23,7 +23,12 @@ class TestClasspathScanning {
 		List<String> fromYaml = config.getEntities();
 		Collections.sort(fromYaml);
 		
-		fromScan.remove("net.lecousin.reactive.data.relational.tests.TestEnhancerErrors$LoadedEntity"); // fake one for test
+		// fake entities for test
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.TestEnhancerErrors$LoadedEntity");
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.TestEnhancerErrors$JoinFrom");
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.TestEnhancerErrors$JoinTo");
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable1");
+		fromScan.remove("net.lecousin.reactive.data.relational.tests.invalid.InvalidJoinTable2");
 		
 		System.out.println("from scan = " + fromScan);
 		System.out.println("from yaml = " + fromYaml);
