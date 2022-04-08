@@ -1,0 +1,5 @@
+entities:
+  - net.lecousin.reactive.data.relational.postgres.test:
+    - geometry:
+      - PgGeometryEntity
+        

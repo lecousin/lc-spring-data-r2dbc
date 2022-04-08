@@ -52,7 +52,7 @@
     <commons-lang3.version>3.12.0</commons-lang3.version>
     
     <r2dbc-h2.version>0.8.5.RELEASE</r2dbc-h2.version>
-    <r2dbc-postgres.version>0.8.12.RELEASE</r2dbc-postgres.version>
+    <r2dbc-postgres.version>0.9.1.RELEASE</r2dbc-postgres.version>
     <r2dbc-mysql.version>0.8.2.RELEASE</r2dbc-mysql.version>
 
     <!-- Versions to force for dependencies -->    
