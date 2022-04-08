@@ -38,7 +38,7 @@ public class RelationalDatabaseSchema {
 	
 	public Table getTable(String name) {
 		for (Table table : tables)
-			if (table.getName().equals(name))
+			if (table.getReferenceName().equalsIgnoreCase(name))
 				return table;
 		throw new NoSuchElementException("Table " + name);
 	}
@@ -53,7 +53,7 @@ public class RelationalDatabaseSchema {
 	
 	public Sequence getSequence(String name) {
 		for (Sequence sequence : sequences)
-			if (sequence.getName().equals(name))
+			if (sequence.getReferenceName().equalsIgnoreCase(name))
 				return sequence;
 		throw new NoSuchElementException("Sequence " + name);
 	}

@@ -17,7 +17,7 @@ public class RootEntity {
 	@GeneratedValue
 	private Long id;
 	
-	@Column
+	@Column("value")
 	private String value;
 	
 	@ForeignTable(joinKey = "parent")

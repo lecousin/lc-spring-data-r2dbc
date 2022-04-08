@@ -119,15 +119,15 @@ public class MySqlSchemaDialect extends RelationalDatabaseSchemaDialect {
 			sql.append("CONSTRAINT UNIQUE INDEX ");
 		else
 			sql.append("INDEX ");
-		sql.append(index.getName());
+		sql.append(index.toSql());
 		sql.append('(');
 		boolean first = true;
-		for (String col : index.getColumns()) {
+		for (Column col : index.getColumns()) {
 			if (first)
 				first = false;
 			else
 				sql.append(',');
-			sql.append(col);
+			sql.append(col.toSql());
 		}
 		sql.append(')');
 	}

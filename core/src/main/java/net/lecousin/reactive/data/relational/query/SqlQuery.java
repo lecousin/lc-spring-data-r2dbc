@@ -72,7 +72,7 @@ public class SqlQuery<T> {
 		return SQL.bindMarker(marker.getPlaceholder());
 	}
 	
-	protected String finalizeQuery(String query) {
+	protected String finalizeQuery(String query, @SuppressWarnings({"unused", "java:S1172"}) RenderContext renderContext) {
 		return query;
 	}
 
@@ -95,16 +95,16 @@ public class SqlQuery<T> {
 				Assert.notNull(query, "Query must be set");
 				RenderContext renderContext = client.getDataAccess().getStatementMapper().getRenderContext();
 				if (query instanceof InsertMultiple)
-					return finalizeQuery(((InsertMultiple)query).render(renderContext));
+					return finalizeQuery(((InsertMultiple)query).render(renderContext), renderContext);
 				SqlRenderer renderer = renderContext != null ? SqlRenderer.create(renderContext) : SqlRenderer.create();
 				if (query instanceof Select)
-					return finalizeQuery(renderer.render((Select)query));
+					return finalizeQuery(renderer.render((Select)query), renderContext);
 				if (query instanceof Insert)
-					return finalizeQuery(renderer.render((Insert)query));
+					return finalizeQuery(renderer.render((Insert)query), renderContext);
 				if (query instanceof Update)
-					return finalizeQuery(renderer.render((Update)query));
+					return finalizeQuery(renderer.render((Update)query), renderContext);
 				if (query instanceof Delete)
-					return finalizeQuery(renderer.render((Delete)query));
+					return finalizeQuery(renderer.render((Delete)query), renderContext);
 				throw new IllegalArgumentException("Unexpected query type: " + query.getClass().getName());
 			}
 		};

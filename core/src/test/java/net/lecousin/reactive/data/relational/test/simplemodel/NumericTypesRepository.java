@@ -9,10 +9,10 @@ public interface NumericTypesRepository extends LcR2dbcRepository<NumericTypes, 
 
 	Flux<NumericTypes> findByLong1(long long1);
 	
-	@Query("SELECT id, long1 FROM NUMTYPES")
+	@Query("SELECT id, long1 FROM numeric_types")
 	Flux<NumericTypes> getAllOnlyWithIdAndLong1();
 
-	@Query("SELECT long1 FROM NUMTYPES")
+	@Query("SELECT long1 FROM numeric_types")
 	Flux<Long> getAllLong1();
 	
 }

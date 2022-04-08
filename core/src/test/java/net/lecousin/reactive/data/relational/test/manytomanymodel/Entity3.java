@@ -17,7 +17,7 @@ public class Entity3 {
 	@GeneratedValue
 	private Long id;
 
-	@Column
+	@Column("value")
 	private String value;
 	
 	@JoinTable

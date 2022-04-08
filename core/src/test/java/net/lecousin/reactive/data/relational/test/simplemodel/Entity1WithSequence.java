@@ -1,6 +1,7 @@
 package net.lecousin.reactive.data.relational.test.simplemodel;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
@@ -12,6 +13,7 @@ public class Entity1WithSequence {
 	@Id @GeneratedValue(strategy = Strategy.SEQUENCE, sequence = "my_sequence")
 	private Long id;
 	
+	@Column("value")
 	private String value;
 
 	public Long getId() {

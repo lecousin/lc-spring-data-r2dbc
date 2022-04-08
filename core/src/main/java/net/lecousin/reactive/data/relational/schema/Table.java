@@ -17,6 +17,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import org.springframework.data.relational.core.sql.IdentifierProcessing;
+import org.springframework.data.relational.core.sql.SqlIdentifier;
+
 /**
  * A relational Table, containing columns and indexes.
  * 
@@ -25,12 +28,14 @@ import java.util.NoSuchElementException;
  */
 public class Table {
 
-	private String name;
+	private SqlIdentifier sqlId;
+	private IdentifierProcessing idProcessing;
 	private List<Column> columns = new LinkedList<>();
 	private List<Index> indexes = new LinkedList<>();
 	
-	public Table(String name) {
-		this.name = name;
+	public Table(SqlIdentifier sqlId, IdentifierProcessing idProcessing) {
+		this.sqlId = sqlId;
+		this.idProcessing = idProcessing;
 	}
 	
 	public void add(Column col) {
@@ -41,10 +46,6 @@ public class Table {
 		indexes.add(index);
 	}
 
-	public String getName() {
-		return name;
-	}
-
 	public List<Column> getColumns() {
 		return columns;
 	}
@@ -52,10 +53,22 @@ public class Table {
 	public List<Index> getIndexes() {
 		return indexes;
 	}
+	
+	IdentifierProcessing idProcessing() {
+		return idProcessing;
+	}
+	
+	public String toSql() {
+		return sqlId.toSql(idProcessing);
+	}
+	
+	public String getReferenceName() {
+		return sqlId.getReference();
+	}
 
 	public Column getColumn(String name) {
 		for (Column col : columns)
-			if (col.getName().equals(name))
+			if (col.getReferenceName().equalsIgnoreCase(name))
 				return col;
 		throw new NoSuchElementException("Column <" + name + "> in table <" + name + ">");
 	}

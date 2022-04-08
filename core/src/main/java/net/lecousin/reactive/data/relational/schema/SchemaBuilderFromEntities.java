@@ -56,29 +56,21 @@ public class SchemaBuilderFromEntities {
 		return schema;
 	}
 	
-	protected static String getTableName(EntityMetadata entityType) {
-		return entityType.getTableName().toSql(entityType.getClient().getDialect().getIdentifierProcessing());
-	}
-	
-	protected static String getColumnName(PropertyMetadata property) {
-		return property.getColumnName().toSql(property.getClient().getDialect().getIdentifierProcessing());
-	}
-	
 	protected static Table buildTable(EntityMetadata entityType) {
-		Table table = new Table(getTableName(entityType));
+		Table table = new Table(entityType.getTableName(), entityType.getClient().getDialect().getIdentifierProcessing());
 		for (PropertyMetadata property : entityType.getPersistentProperties())
 			try {
-				table.add(buildColumn(property));
+				table.add(buildColumn(table, property));
 			} catch (Exception e) {
 				throw new MappingException("Error building schema for entity " + entityType.getName() + " on property " + property.getName(), e);
 			}
 		CompositeId compositeId = entityType.getCompositeIdAnnotation();
 		if (compositeId != null) {
-			Index index = new Index(compositeId.indexName());
+			Index index = new Index(compositeId.indexName(), entityType.getClient().getDialect().getIdentifierProcessing());
 			index.setUnique(true);
 			for (String propertyName : compositeId.properties()) {
 				PropertyMetadata property = entityType.getRequiredPersistentProperty(propertyName);
-				index.addColumn(property.getColumnName().toSql(entityType.getClient().getDialect().getIdentifierProcessing()));
+				index.addColumn(table.getColumn(property.getColumnName().getReference()));
 			}
 			table.add(index);
 		}
@@ -90,19 +82,19 @@ public class SchemaBuilderFromEntities {
 		if (indexesAnnotation != null)
 			Collections.addAll(indexes, indexesAnnotation.value());
 		for (net.lecousin.reactive.data.relational.annotations.Index i : indexes) {
-			Index index = new Index(i.name());
+			Index index = new Index(i.name(), entityType.getClient().getDialect().getIdentifierProcessing());
 			index.setUnique(i.unique());
 			for (String propertyName : i.properties()) {
 				PropertyMetadata property = entityType.getRequiredPersistentProperty(propertyName);
-				index.addColumn(getColumnName(property));
+				index.addColumn(table.getColumn(property.getColumnName().getReference()));
 			}
 			table.add(index);
 		}
 		return table;
 	}
 	
-	protected static Column buildColumn(PropertyMetadata property) {
-		Column col = new Column(property.getColumnName().toSql(property.getClient().getDialect().getIdentifierProcessing()));
+	protected static Column buildColumn(Table table, PropertyMetadata property) {
+		Column col = new Column(table, property.getColumnName());
 		if (property.isId())
 			col.setPrimaryKey(true);
 		col.setNullable(property.isNullable());
@@ -128,14 +120,14 @@ public class SchemaBuilderFromEntities {
 		Iterator<PropertyMetadata> keys = entityType.getForeignKeys().iterator();
 		if (!keys.hasNext())
 			return;
-		Table table = schema.getTable(getTableName(entityType));
+		Table table = schema.getTable(entityType.getTableName().getReference());
 		do {
 			PropertyMetadata fkProperty = keys.next();
-			Column fkColumn = table.getColumn(getColumnName(fkProperty));
+			Column fkColumn = table.getColumn(fkProperty.getColumnName().getReference());
 			EntityMetadata foreignType = entityType.getClient().getRequiredEntity(fkProperty.getType());
 			PropertyMetadata foreignId = foreignType.getRequiredIdProperty();
-			Table foreignTable = schema.getTable(getTableName(foreignType));
-			Column foreignColumn = foreignTable.getColumn(getColumnName(foreignId));
+			Table foreignTable = schema.getTable(foreignType.getTableName().getReference());
+			Column foreignColumn = foreignTable.getColumn(foreignId.getColumnName().getReference());
 			fkColumn.setForeignKeyReferences(Pair.of(foreignTable, foreignColumn));
 		} while (keys.hasNext());
 	}
@@ -149,7 +141,7 @@ public class SchemaBuilderFromEntities {
 					schema.getSequence(annotation.sequence());
 					// already defined
 				} catch (NoSuchElementException e) {
-					schema.add(new Sequence(annotation.sequence()));
+					schema.add(new Sequence(annotation.sequence(), entityType.getClient().getDialect().getIdentifierProcessing()));
 				}
 			}
 		}

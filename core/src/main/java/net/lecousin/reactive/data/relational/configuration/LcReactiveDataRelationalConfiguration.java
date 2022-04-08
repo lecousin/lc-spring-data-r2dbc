@@ -13,6 +13,8 @@
  */
 package net.lecousin.reactive.data.relational.configuration;
 
+import java.util.Optional;
+
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +26,7 @@ import org.springframework.data.r2dbc.convert.R2dbcCustomConversions;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.data.r2dbc.core.ReactiveDataAccessStrategy;
 import org.springframework.data.r2dbc.mapping.R2dbcMappingContext;
+import org.springframework.data.relational.core.mapping.NamingStrategy;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
 import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.lang.Nullable;
@@ -33,6 +36,7 @@ import org.springframework.util.Assert;
 import io.r2dbc.spi.ConnectionFactory;
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
+import net.lecousin.reactive.data.relational.mapping.LcR2dbcMappingContext;
 import net.lecousin.reactive.data.relational.mapping.LcReactiveDataAccessStrategy;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcEntityTemplate;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
@@ -85,6 +89,17 @@ public abstract class LcReactiveDataRelationalConfiguration extends AbstractR2db
 		return new LcR2dbcEntityTemplate(getLcClient(databaseClient, dataAccessStrategy));
 	}
 	
+	@Bean
+	@Override
+	public R2dbcMappingContext r2dbcMappingContext(Optional<NamingStrategy> namingStrategy, R2dbcCustomConversions r2dbcCustomConversions) {
+		Assert.notNull(namingStrategy, "NamingStrategy must not be null!");
+
+		LcR2dbcMappingContext context = new LcR2dbcMappingContext(namingStrategy.orElse(NamingStrategy.INSTANCE));
+		context.setSimpleTypeHolder(r2dbcCustomConversions.getSimpleTypeHolder());
+
+		return context;
+	}
+
 	@Override
 	public ConnectionFactory connectionFactory() {
 		return null;

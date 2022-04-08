@@ -15,7 +15,7 @@ public class MyEntity1WithConstructor {
 	@GeneratedValue
 	private Long id;
 	
-	@Column
+	@Column("value")
 	private String value;
 	
 	@ForeignTable(joinKey = "parent", optional = true)

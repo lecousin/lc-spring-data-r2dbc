@@ -28,6 +28,7 @@ import org.springframework.r2dbc.core.DatabaseClient;
 import io.r2dbc.spi.ConnectionFactory;
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.mapping.LcMappingR2dbcConverter;
+import net.lecousin.reactive.data.relational.mapping.LcR2dbcMappingContext;
 import net.lecousin.reactive.data.relational.mapping.LcReactiveDataAccessStrategy;
 import net.lecousin.reactive.data.relational.repository.LcR2dbcEntityTemplate;
 import net.lecousin.reactive.data.relational.schema.dialect.RelationalDatabaseSchemaDialect;
@@ -61,7 +62,7 @@ public abstract class LcR2dbcEntityOperationsBuilder {
 	}
 	
 	protected R2dbcMappingContext buildMappingContext() {
-		return new R2dbcMappingContext(NamingStrategy.INSTANCE);
+		return new LcR2dbcMappingContext(NamingStrategy.INSTANCE);
 	}
 	
 	protected R2dbcCustomConversions buildR2dbcCustomConversions(R2dbcDialect dialect) {

@@ -42,12 +42,18 @@ public class PropertiesSourceRow implements PropertiesSource {
 	
 	@Override
 	public boolean isPropertyPresent(RelationalPersistentProperty property) {
-		return metadata == null || metadata.getColumnNames().contains(property.getColumnName().toString());
+		if (metadata == null)
+			return true; // cannot know
+		try {
+			return metadata.getColumnMetadata(property.getColumnName().getReference()) != null;
+		} catch (Exception e) {
+			return false;
+		}
 	}
 	
 	@Override
 	public Object getPropertyValue(RelationalPersistentProperty property) {
-		return row.get(property.getColumnName().toString());
+		return row.get(property.getColumnName().getReference());
 	}
 	
 }

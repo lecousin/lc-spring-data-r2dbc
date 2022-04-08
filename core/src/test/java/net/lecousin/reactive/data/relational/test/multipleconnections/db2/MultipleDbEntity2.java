@@ -12,7 +12,7 @@ public class MultipleDbEntity2 {
 	@Id @GeneratedValue
 	private Long id;
 	
-	@Column
+	@Column("value")
 	private String value;
 
 	public Long getId() {

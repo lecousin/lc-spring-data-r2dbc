@@ -89,12 +89,12 @@ public abstract class RelationalDatabaseSchemaDialect {
 		classToColumnType.put(java.time.LocalDate.class, this::getColumnTypeDate);
 		classToColumnType.put(java.time.LocalTime.class, this::getColumnTypeTime);
 		if (!isTimeZoneSupported())
-			classToColumnType.put(java.time.OffsetTime.class, (col, gt, t, def) -> { throw new SchemaException("Time with timezone not supported by " + getName() + " for column " + col.getName() + " with type " + t.getName()); });
+			classToColumnType.put(java.time.OffsetTime.class, (col, gt, t, def) -> { throw new SchemaException("Time with timezone not supported by " + getName() + " for column " + col.getReferenceName() + " with type " + t.getName()); });
 		else
 			classToColumnType.put(java.time.OffsetTime.class, this::getColumnTypeTimeWithTimeZone);
 		classToColumnType.put(java.time.LocalDateTime.class, this::getColumnTypeDateTime);
 		if (!isTimeZoneSupported())
-			classToColumnType.put(java.time.ZonedDateTime.class, (col, gt, t, def) -> { throw new SchemaException("DateTime with timezone not supported by " + getName() + " for column " + col.getName() + " with type " + t.getName()); });
+			classToColumnType.put(java.time.ZonedDateTime.class, (col, gt, t, def) -> { throw new SchemaException("DateTime with timezone not supported by " + getName() + " for column " + col.getReferenceName() + " with type " + t.getName()); });
 		else
 			classToColumnType.put(java.time.ZonedDateTime.class, this::getColumnTypeDateTimeWithTimeZone);
 		classToColumnType.put(java.time.Instant.class, this::getColumnTypeTimestamp);
@@ -128,7 +128,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 		} else if (genericType instanceof ParameterizedType) {
 			type = (Class<?>)((ParameterizedType)genericType).getRawType();
 		} else {
-			throw new SchemaException("Column type not supported: " + genericType + " on column " + col.getName() + " with " + getName());
+			throw new SchemaException("Column type not supported: " + genericType + " on column " + col.getReferenceName() + " with " + getName());
 		}
 		ColumnTypeMapper mapper = classToColumnType.get(type);
 		if (mapper != null)
@@ -149,7 +149,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 	}
 	
 	protected String customColumnTypes(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
-		throw new SchemaException("Column type not supported: " + type.getName() + " on column " + col.getName() + " with " + getName());
+		throw new SchemaException("Column type not supported: " + type.getName() + " on column " + col.getReferenceName() + " with " + getName());
 	}
 
 	protected String getColumnTypeBoolean(Column col, Type genericType, Class<?> type, ColumnDefinition def) {
@@ -299,7 +299,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 	public String dropTable(Table table) {
 		StringBuilder sql = new StringBuilder();
 		sql.append("DROP TABLE IF EXISTS ");
-		sql.append(table.getName());
+		sql.append(table.toSql());
 		return sql.toString();
 	}
 	
@@ -420,7 +420,7 @@ public abstract class RelationalDatabaseSchemaDialect {
 	
 	public String createTable(Table table) {
 		StringBuilder sql = new StringBuilder();
-		sql.append("CREATE TABLE ").append(table.getName());
+		sql.append("CREATE TABLE ").append(table.toSql());
 		sql.append(" (");
 		boolean first = true;
 		for (Column col : table.getColumns()) {
@@ -446,24 +446,24 @@ public abstract class RelationalDatabaseSchemaDialect {
 		if (index.isUnique())
 			sql.append("UNIQUE ");
 		sql.append("INDEX ");
-		sql.append(index.getName());
+		sql.append(index.toSql());
 		sql.append(" ON ");
-		sql.append(table.getName());
+		sql.append(table.toSql());
 		sql.append('(');
 		boolean first = true;
-		for (String col : index.getColumns()) {
+		for (Column col : index.getColumns()) {
 			if (first)
 				first = false;
 			else
 				sql.append(',');
-			sql.append(col);
+			sql.append(col.toSql());
 		}
 		sql.append(')');
 		return sql.toString();
 	}
 	
 	protected void addColumnDefinition(Column col, StringBuilder sql) {
-		sql.append(col.getName());
+		sql.append(col.toSql());
 		sql.append(' ');
 		sql.append(col.getType());
 		if (col.isRandomUuid() && supportsUuidGeneration())
@@ -503,18 +503,18 @@ public abstract class RelationalDatabaseSchemaDialect {
 	protected String alterTableForeignKey(Table table, Column col) {
 		StringBuilder sql = new StringBuilder();
 		sql.append("ALTER TABLE ");
-		sql.append(table.getName());
+		sql.append(table.toSql());
 		addForeignKeyStatement(table, col, sql);
 		return sql.toString();
 	}
 	
 	protected void addForeignKeyStatement(Table table, Column col, StringBuilder sql) {
 		sql.append(" ADD FOREIGN KEY (");
-		sql.append(col.getName());
+		sql.append(col.toSql());
 		sql.append(") REFERENCES ");
-		sql.append(col.getForeignKeyReferences().getFirst().getName());
+		sql.append(col.getForeignKeyReferences().getFirst().toSql());
 		sql.append('(');
-		sql.append(col.getForeignKeyReferences().getSecond().getName());
+		sql.append(col.getForeignKeyReferences().getSecond().toSql());
 		sql.append(')');
 	}
 	
@@ -528,11 +528,11 @@ public abstract class RelationalDatabaseSchemaDialect {
 	}
 
 	protected String dropSequence(Sequence sequence) {
-		return "DROP SEQUENCE IF EXISTS " + sequence.getName();
+		return "DROP SEQUENCE IF EXISTS " + sequence.toSql();
 	}
 	
 	protected String createSequence(Sequence sequence) {
-		return "CREATE SEQUENCE " + sequence.getName() + " START WITH 1 INCREMENT BY 1";
+		return "CREATE SEQUENCE " + sequence.toSql() + " START WITH 1 INCREMENT BY 1";
 	}
 	
 	public String sequenceNextValueFunctionName() {

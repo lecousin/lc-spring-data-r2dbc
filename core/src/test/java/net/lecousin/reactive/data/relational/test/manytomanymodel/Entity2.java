@@ -17,7 +17,7 @@ public class Entity2 {
 	@GeneratedValue
 	private Long id;
 
-	@Column
+	@Column("value")
 	private String value;
 	
 	@ForeignTable(joinKey = "entity2")

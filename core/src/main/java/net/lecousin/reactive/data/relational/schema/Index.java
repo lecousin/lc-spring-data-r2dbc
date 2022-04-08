@@ -16,6 +16,8 @@ package net.lecousin.reactive.data.relational.schema;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.springframework.data.relational.core.sql.IdentifierProcessing;
+
 /**
  * Represent an index on columns in a database schema.
  * 
@@ -25,14 +27,16 @@ import java.util.List;
 public class Index {
 
 	private String name;
-	private List<String> columns = new LinkedList<>();
+	private IdentifierProcessing idProcessing;
+	private List<Column> columns = new LinkedList<>();
 	private boolean unique;
 	
-	public Index(String name) {
+	public Index(String name, IdentifierProcessing idProcessing) {
 		this.name = name;
+		this.idProcessing = idProcessing;
 	}
 	
-	public void addColumn(String col) {
+	public void addColumn(Column col) {
 		columns.add(col);
 	}
 
@@ -43,12 +47,16 @@ public class Index {
 	public void setUnique(boolean unique) {
 		this.unique = unique;
 	}
+	
+	public String toSql() {
+		return idProcessing.quote(name);
+	}
 
-	public String getName() {
+	public String getReferenceName() {
 		return name;
 	}
 
-	public List<String> getColumns() {
+	public List<Column> getColumns() {
 		return columns;
 	}
 

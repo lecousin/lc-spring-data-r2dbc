@@ -30,6 +30,7 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.core.CollectionFactory;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.mapping.MappingException;
+import org.springframework.data.relational.core.sql.Aliased;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.OrderByField;
@@ -40,7 +41,10 @@ import org.springframework.data.relational.core.sql.SelectBuilder.SelectFromAndO
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectJoin;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectOrdered;
 import org.springframework.data.relational.core.sql.SelectBuilder.SelectWhere;
+import org.springframework.data.relational.core.sql.SqlIdentifier;
 import org.springframework.data.relational.core.sql.Table;
+import org.springframework.data.relational.core.sql.render.RenderContext;
+import org.springframework.data.relational.core.sql.render.RenderNamingStrategy;
 import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
@@ -447,9 +451,9 @@ public class SelectExecution<T> {
 
 		SqlQuery<Select> q = new SqlQuery<>(client) {
 			@Override
-			protected String finalizeQuery(String sql) {
+			protected String finalizeQuery(String sql, RenderContext renderContext) {
 				StringBuilder s = new StringBuilder(sql);
-				s.append(" GROUP BY ").append(Column.create(entity.getRequiredIdProperty().getColumnName(), mapping.tableByAlias.get(query.from.alias)));
+				s.append(" GROUP BY ").append(toSql(Column.create(entity.getRequiredIdProperty().getColumnName(), mapping.tableByAlias.get(query.from.alias)), renderContext));
 				s.append(" ORDER BY ");
 				for (Tuple3<String, String, Boolean> orderBy : query.orderBy) {
 					TableReference table = query.tableAliases.get(orderBy.getT1());
@@ -457,15 +461,24 @@ public class SelectExecution<T> {
 					PropertyMetadata p = e.getRequiredPersistentProperty(orderBy.getT2());
 					Column col = Column.create(p.getColumnName(), Table.create(e.getTableName()).as(table.alias));
 					if (orderBy.getT3().booleanValue()) {
-						s.append("MIN(").append(col).append(") ASC");
+						s.append("MIN(").append(toSql(col, renderContext)).append(") ASC");
 					} else {
-						s.append("MAX(").append(col).append(") DESC");
+						s.append("MAX(").append(toSql(col, renderContext)).append(") DESC");
 					}
 				}
 				if (query.limit > 0) {
 					s.append(" LIMIT ").append(query.limit).append(" OFFSET ").append(query.offset);
 				}
 				return s.toString();
+			}
+			
+			@SuppressWarnings("java:S4449")
+			private String toSql(Column col, RenderContext renderContext) {
+				RenderNamingStrategy namingStrategy = renderContext.getNamingStrategy();
+				if (col instanceof Aliased)
+					return namingStrategy.getReferenceName(col).toSql(renderContext.getIdentifierProcessing());
+
+				return SqlIdentifier.from(namingStrategy.getReferenceName(col.getTable()), namingStrategy.getReferenceName(col)).toSql(renderContext.getIdentifierProcessing());
 			}
 		};
 		if (query.where != null) {

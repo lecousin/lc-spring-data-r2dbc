@@ -15,7 +15,7 @@ public class MyEntity2 {
 	@GeneratedValue
 	private Long id;
 	
-	@Column
+	@Column("value")
 	private String value;
 	
 	@ForeignKey(optional = true)

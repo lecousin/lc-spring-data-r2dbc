@@ -13,6 +13,7 @@
  */
 package net.lecousin.reactive.data.relational.schema;
 
+import org.springframework.data.relational.core.sql.SqlIdentifier;
 import org.springframework.data.util.Pair;
 
 /**
@@ -23,7 +24,8 @@ import org.springframework.data.util.Pair;
  */
 public class Column {
 
-	private String name;
+	private Table table;
+	private SqlIdentifier sqlId;
 	private String type;
 	private boolean primaryKey;
 	private boolean nullable;
@@ -31,8 +33,9 @@ public class Column {
 	private boolean randomUuid;
 	private Pair<Table, Column> foreignKeyReferences;
 	
-	public Column(String name) {
-		this.name = name;
+	public Column(Table table, SqlIdentifier sqlId) {
+		this.table = table;
+		this.sqlId = sqlId;
 	}
 
 	public boolean isPrimaryKey() {
@@ -67,10 +70,6 @@ public class Column {
 		this.randomUuid = randomUuid;
 	}
 
-	public String getName() {
-		return name;
-	}
-
 	public String getType() {
 		return type;
 	}
@@ -85,6 +84,14 @@ public class Column {
 
 	public void setForeignKeyReferences(Pair<Table, Column> foreignKeyReferences) {
 		this.foreignKeyReferences = foreignKeyReferences;
+	}
+	
+	public String toSql() {
+		return sqlId.toSql(table.idProcessing());
+	}
+	
+	public String getReferenceName() {
+		return sqlId.getReference();
 	}
 
 }

@@ -13,6 +13,8 @@
  */
 package net.lecousin.reactive.data.relational.schema;
 
+import org.springframework.data.relational.core.sql.IdentifierProcessing;
+
 /**
  * A sequence in a database schema.
  * 
@@ -22,12 +24,18 @@ package net.lecousin.reactive.data.relational.schema;
 public class Sequence {
 
 	private String name;
+	private IdentifierProcessing idProcessing;
 	
-	public Sequence(String name) {
+	public Sequence(String name, IdentifierProcessing idProcessing) {
 		this.name = name;
+		this.idProcessing = idProcessing;
 	}
-
-	public String getName() {
+	
+	public String toSql() {
+		return idProcessing.quote(name);
+	}
+	
+	public String getReferenceName() {
 		return name;
 	}
 
