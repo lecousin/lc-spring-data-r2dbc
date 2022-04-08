@@ -106,12 +106,9 @@ public class Operation {
 			return op;
 		
 		op = delete.doOperations(Operation.this);
-		Mono<Void> op2 = deleteWithoutLoading.doOperations(Operation.this);
-		if (op == null)
-			return op2;
-		if (op2 == null)
+		if (op != null)
 			return op;
-		return Mono.when(op, op2);
+		return deleteWithoutLoading.doOperations(Operation.this);
 	}
 
 	static Mono<Void> executeParallel(List<Mono<Void>> monos) {
