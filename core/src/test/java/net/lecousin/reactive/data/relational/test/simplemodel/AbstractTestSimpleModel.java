@@ -221,7 +221,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		e2.setDouble1(0.02d);
 		e2.setDouble2(1.2d);
 		e2.setBigDec(BigDecimal.ONE);
-		e2.setBigDec(BigDecimal.valueOf(123.45d));
+		e2.setBigDecWithDefinition(BigDecimal.valueOf(123.45d));
 		
 		repoNum.saveAll(Arrays.asList(e1, e2)).collectList().block();
 		List<NumericTypes> list = repoNum.findAll().collectList().block();
