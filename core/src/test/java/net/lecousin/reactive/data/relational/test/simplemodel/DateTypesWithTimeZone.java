@@ -20,6 +20,9 @@ public class DateTypesWithTimeZone {
 	@Column
 	@ColumnDefinition(precision = 3) // to milliseconds 
 	private java.time.ZonedDateTime timeZonedDateTime;
+	
+	@Column
+	private java.time.OffsetTime timeOffsetTimeWithoutPrecision;
 
 	public Long getId() {
 		return id;
@@ -43,6 +46,14 @@ public class DateTypesWithTimeZone {
 
 	public void setTimeZonedDateTime(java.time.ZonedDateTime timeZonedDateTime) {
 		this.timeZonedDateTime = timeZonedDateTime;
+	}
+
+	public java.time.OffsetTime getTimeOffsetTimeWithoutPrecision() {
+		return timeOffsetTimeWithoutPrecision;
+	}
+
+	public void setTimeOffsetTimeWithoutPrecision(java.time.OffsetTime timeOffsetTimeWithoutPrecision) {
+		this.timeOffsetTimeWithoutPrecision = timeOffsetTimeWithoutPrecision;
 	}
 
 }

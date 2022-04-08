@@ -526,12 +526,14 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		DateTypesWithTimeZone entity = new DateTypesWithTimeZone();
 		entity.setTimeOffsetTime(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)));
 		entity.setTimeZonedDateTime(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()));
+		entity.setTimeOffsetTimeWithoutPrecision(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)));
 		
 		entity = lcClient.save(entity).block();
 		
 		entity = SelectQuery.from(DateTypesWithTimeZone.class, "e").execute(lcClient).blockFirst();
 		Assertions.assertEquals(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)), entity.getTimeOffsetTime());
 		Assertions.assertEquals(java.time.ZonedDateTime.ofInstant(instant, ZoneId.systemDefault()).toEpochSecond(), entity.getTimeZonedDateTime().toEpochSecond());
+		Assertions.assertEquals(java.time.OffsetTime.of(hour, minute, second, nano, ZoneOffset.ofHours(4)), entity.getTimeOffsetTimeWithoutPrecision());
 	}
 
 	@Test
@@ -1116,6 +1118,7 @@ public abstract class AbstractTestSimpleModel extends AbstractLcReactiveDataRela
 		
 		// test update
 		entity2.setE1(EnumEntity.Enum1.V3);
+		entity2.setE2(EnumEntity.Enum1.V1);
 		lcClient.save(entity2).block();
 		
 		// no more V2

@@ -6,8 +6,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mapping.MappingException;
 import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
 import net.lecousin.reactive.data.relational.annotations.CompositeId;
+import net.lecousin.reactive.data.relational.annotations.JoinTable;
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelException;
@@ -54,4 +56,24 @@ class TestModelErrors {
 		}
 	}
 
+	
+	@Table
+	public static class JoinFrom {
+		@SuppressWarnings("unused")
+		private EntityState _lcState;
+
+		@JoinTable
+		private JoinTo join;
+	}
+	
+	@Table
+	public static class JoinTo {
+		@SuppressWarnings("unused")
+		private EntityState _lcState;
+	}
+
+	@Test
+	void testInvalidJoinTable() throws Exception {
+		EntityStaticMetadata.setClasses(Arrays.asList(JoinFrom.class, JoinTo.class));
+	}
 }

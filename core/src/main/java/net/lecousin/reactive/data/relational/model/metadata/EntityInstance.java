@@ -28,7 +28,7 @@ import org.springframework.lang.Nullable;
 
 import net.lecousin.reactive.data.relational.enhance.EntityState;
 import net.lecousin.reactive.data.relational.model.CompositeIdValue;
-import net.lecousin.reactive.data.relational.model.InvalidEntityStateException;
+import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
 import net.lecousin.reactive.data.relational.query.SqlQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
@@ -138,7 +138,7 @@ public class EntityInstance<T> {
 	public @NonNull Object getRequiredPrimaryKey() {
 		Object id = getValue(meta.getRequiredIdProperty());
 		if (id == null)
-			throw new InvalidEntityStateException("Entity is supposed to be persisted to database, but it's Id property is null");
+			throw new ModelAccessException("Entity is supposed to be persisted to database, but it's Id property is null");
 		return id;
 	}
 	

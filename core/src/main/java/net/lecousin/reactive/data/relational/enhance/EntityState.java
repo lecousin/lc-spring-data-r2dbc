@@ -148,11 +148,7 @@ public class EntityState {
 		persistedValues.clear();
 		for (PropertyMetadata property : entityType.getProperties()) {
 			Field f = property.getStaticMetadata().getField();
-			try {
-				savePersistedValue(f, f.get(entity));
-			} catch (Exception e) {
-				throw new ModelAccessException("Error saving value for field " + f.getName(), e);
-			}
+			savePersistedValue(f, ModelUtils.getFieldValue(entity, f));
 		}
 	}
 	

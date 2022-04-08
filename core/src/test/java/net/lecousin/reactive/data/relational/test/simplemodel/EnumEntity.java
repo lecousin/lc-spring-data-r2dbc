@@ -4,6 +4,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import net.lecousin.reactive.data.relational.annotations.ColumnDefinition;
 import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 
 @Table
@@ -21,7 +22,12 @@ public class EnumEntity {
 	private int i;
 	
 	@Column
+	@ColumnDefinition(nullable = false)
 	private Enum1 e1;
+	
+	@Column
+	@ColumnDefinition(nullable = true)
+	private Enum1 e2;
 
 	public Long getId() {
 		return id;
@@ -45,6 +51,14 @@ public class EnumEntity {
 
 	public void setE1(Enum1 e1) {
 		this.e1 = e1;
+	}
+
+	public Enum1 getE2() {
+		return e2;
+	}
+
+	public void setE2(Enum1 e2) {
+		this.e2 = e2;
 	}
 	
 }
