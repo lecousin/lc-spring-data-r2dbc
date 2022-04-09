@@ -3,9 +3,7 @@
 <a href="https://search.maven.org/artifact/net.lecousin.reactive-data-relational/core"><img src="https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg"></a> &nbsp;
 <a href="https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/${project.version}"><img src="https://img.shields.io/badge/javadoc-${project.version}-brightgreen.svg"></a> &nbsp;
 <a href="https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml?query=branch%3Amaster"><img src="https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml/badge.svg?branch=master"></a>
-
 <br/>
-
 <a href="https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master"><img src="https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg"></a> &nbsp;
 <a href="https://sonarcloud.io/project/overview?id=lecousin_lc-spring-data-r2dbc"><img src="https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=coverage"></a> &nbsp;
 <a href="https://sonarcloud.io/project/overview?id=lecousin_lc-spring-data-r2dbc"><img src="https://sonarcloud.io/api/project_badges/measure?project=lecousin_lc-spring-data-r2dbc&metric=bugs"></a> &nbsp;
