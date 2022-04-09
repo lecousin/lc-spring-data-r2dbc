@@ -49,7 +49,7 @@ public abstract class LcR2dbcEntityOperationsBuilder {
 		LcMappingR2dbcConverter converter = new LcMappingR2dbcConverter(mappingContext, customConversions);
 		LcReactiveDataAccessStrategy dataAccessStrategy = new LcReactiveDataAccessStrategy(dialect, converter);
 		DatabaseClient client = buildDatabaseClient(connectionFactory, dialect);
-		LcReactiveDataRelationalClient lcClient = new LcReactiveDataRelationalClient(client, mappingContext, getLcDialect(dialect), dataAccessStrategy, converter);
+		LcReactiveDataRelationalClient lcClient = new LcReactiveDataRelationalClient(client, getLcDialect(dialect), dataAccessStrategy);
 		return new LcR2dbcEntityTemplate(lcClient);
 	}
 	

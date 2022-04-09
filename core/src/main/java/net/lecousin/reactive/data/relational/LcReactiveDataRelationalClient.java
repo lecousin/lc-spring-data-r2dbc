@@ -26,10 +26,8 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.reactivestreams.Publisher;
-import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.r2dbc.dialect.R2dbcDialect;
 import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -76,20 +74,18 @@ public class LcReactiveDataRelationalClient {
 	
 	public LcReactiveDataRelationalClient(
 		DatabaseClient client,
-		MappingContext<RelationalPersistentEntity<?>, ? extends RelationalPersistentProperty> mappingContext,
 		RelationalDatabaseSchemaDialect schemaDialect,
-		LcReactiveDataAccessStrategy dataAccess,
-		LcMappingR2dbcConverter mapper
+		LcReactiveDataAccessStrategy dataAccess
 	) {
 		this.client = client;
 		this.schemaDialect = schemaDialect;
 		this.dataAccess = dataAccess;
-		this.mapper = mapper;
+		this.mapper = (LcMappingR2dbcConverter) dataAccess.getConverter();
 		this.mapper.setLcClient(this);
 		// ensure all declared entities have been detected by Spring, and load them
 		this.entities = new HashMap<>();
 		for (Class<?> type : EntityStaticMetadata.addGeneratedJoinTables(EntityStaticMetadata.getClasses())) {
-			RelationalPersistentEntity<?> entity = mappingContext.getRequiredPersistentEntity(type);
+			RelationalPersistentEntity<?> entity = mapper.getMappingContext().getRequiredPersistentEntity(type);
 			this.entities.put(entity.getType(), new EntityMetadata(this, entity));
 		}
 	}
