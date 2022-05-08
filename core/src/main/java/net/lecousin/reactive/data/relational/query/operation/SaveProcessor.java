@@ -17,7 +17,6 @@ import java.lang.reflect.Field;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -375,8 +374,7 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 	
 	private static void mapGeneratedValues(Row row, RowMetadata meta, EntityInstance<?> entity, List<PropertyMetadata> generated) {
 		if (!generated.isEmpty()) {
-			Collection<String> names = meta.getColumnNames();
-			if (names.size() == generated.size()) {
+			if (meta.getColumnMetadatas().size() == generated.size()) {
 				int index = 0;
 				for (PropertyMetadata property : generated)
 					entity.setValue(property, entity.getMetadata().getClient().getSchemaDialect().convertFromDataBase(row.get(index++), property.getType()));
