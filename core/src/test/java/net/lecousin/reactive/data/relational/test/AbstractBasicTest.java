@@ -49,8 +49,18 @@ public abstract class AbstractBasicTest extends AbstractLcReactiveDataRelational
 	@Test
 	public void testEnhanceAgain() throws Exception {
 		Collection<Class<?>> entities = getAllCompatibleEntities();
-		Enhancer.enhance(Arrays.asList(entities.iterator().next().getName()));
-		Enhancer.enhance(Arrays.asList(entities.iterator().next().getName()));
+		try {
+			Enhancer.enhance(Arrays.asList(entities.iterator().next().getName()));
+			throw new AssertionError();
+		} catch (Throwable t) {
+			// expected
+		}
+		try {
+			Enhancer.enhance(Arrays.asList(entities.iterator().next().getName()));
+			throw new AssertionError();
+		} catch (Throwable t) {
+			// expected
+		}
 	}
 	
 	@Test
