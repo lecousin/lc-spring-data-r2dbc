@@ -10,12 +10,12 @@
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>core</artifactId>
+      <artifactId>h2</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>h2</artifactId>
+      <artifactId>core</artifactId>
       <version>${project.version}</version>
     </dependency>
     
@@ -24,6 +24,14 @@
       <artifactId>spring-boot-starter-webflux</artifactId>
       <version>${spring-boot.version}</version>
     </dependency>
+    
+    <!--
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-devtools</artifactId>
+        <version>${spring-boot.version}</version>
+    </dependency>
+    -->
   </dependencies>
   
   <build>

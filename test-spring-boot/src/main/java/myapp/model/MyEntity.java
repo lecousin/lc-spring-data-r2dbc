@@ -12,7 +12,7 @@ public class MyEntity {
 	@Id @GeneratedValue
 	private Long id;
 	
-	@Column
+	@Column("value")
 	private String value;
 
 	public Long getId() {
@@ -29,6 +29,10 @@ public class MyEntity {
 
 	public void setValue(String value) {
 		this.value = value;
+	}
+	
+	public boolean entityLoaded() {
+		return false;
 	}
 	
 }

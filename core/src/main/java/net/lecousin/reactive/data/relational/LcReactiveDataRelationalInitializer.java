@@ -50,10 +50,6 @@ public class LcReactiveDataRelationalInitializer {
 		}
 	}
 	
-	private LcReactiveDataRelationalInitializer() {
-		// no instance
-	}
-	
 	public static void init() {
 		if (initialized)
 			return;

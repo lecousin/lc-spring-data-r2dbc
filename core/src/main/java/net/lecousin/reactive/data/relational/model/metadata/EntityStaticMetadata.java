@@ -54,6 +54,7 @@ public class EntityStaticMetadata {
 	private List<PropertyStaticMetadata> joinTables = new LinkedList<>();
 	
 	public static void setClasses(Collection<Class<?>> classes) throws ModelException {
+		cache.clear();
 		for (Class<?> cl : classes)
 			cache.put(cl, new EntityStaticMetadata(cl));
 	}

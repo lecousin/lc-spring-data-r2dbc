@@ -13,13 +13,13 @@
  */
 package net.lecousin.reactive.data.relational.enhance;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -46,6 +46,7 @@ import javassist.bytecode.annotation.StringMemberValue;
 import net.lecousin.reactive.data.relational.annotations.ForeignKey;
 import net.lecousin.reactive.data.relational.annotations.ForeignTable;
 import net.lecousin.reactive.data.relational.annotations.JoinTable;
+import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelException;
 import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
 import reactor.core.publisher.Mono;
@@ -69,18 +70,23 @@ public final class Enhancer {
 	
 	private ClassPool classPool;
 	private Map<String, CtClass> classes;
+	private List<String> alreadyEnhanced = new LinkedList<>();
 	private Map<CtClass, Map<String, JoinTableInfo>> joinTableFields = new HashMap<>();
 	
 	private Enhancer() {
-		classPool = ClassPool.getDefault();
+		classPool = new ClassPool(true);
 	}
 	
 	public static void enhance(Collection<String> entityClasses) throws ModelException {
-		new Enhancer().enhanceClasses(entityClasses);
+		enhance(entityClasses, Enhancer::loadIntoJvm);
+	}
+	
+	public static void enhance(Collection<String> entityClasses, Function<Collection<CtClass>, List<Class<?>>> loadIntoJvm) throws ModelException {
+		new Enhancer().enhanceClasses(entityClasses, loadIntoJvm);
 	}
 	
 	@SuppressWarnings("java:S1141")
-	private void enhanceClasses(Collection<String> entityClasses) throws ModelException {
+	private void enhanceClasses(Collection<String> entityClasses, Function<Collection<CtClass>, List<Class<?>>> loadIntoJvm) throws ModelException {
 		logger.info("Enhancing " + entityClasses.size() + " entity classe(s)");
 		
 		// read class files
@@ -107,30 +113,42 @@ public final class Enhancer {
 		}
 		
 		// load classes into JVM
-		List<Class<?>> result = loadIntoJvm(classes.values());
+		List<Class<?>> result = loadIntoJvm.apply(classes.values());
+
+		if (!alreadyEnhanced.isEmpty()) {
+			logger.info(result.size() + " class(es) enhanced + " + alreadyEnhanced.size() + " already enhanced = " + (result.size() + alreadyEnhanced.size()) + " entity class(es) ready");
+			for (String className : alreadyEnhanced)
+				try {
+					result.add(Thread.currentThread().getContextClassLoader().loadClass(className));
+				} catch (ClassNotFoundException e) {
+					throw new ModelException("Error loading class " + className, e);
+				}
+		} else {
+			logger.info(result.size() + " class(es) enhanced");
+		}
 		
 		// set to cache
 		EntityStaticMetadata.setClasses(result);
 	}
 	
-	private List<Class<?>> loadIntoJvm(Collection<CtClass> classes) throws ModelException {
-		List<Class<?>> result = new ArrayList<>(classes.size());
+	private static List<Class<?>> loadIntoJvm(Collection<CtClass> classes) throws ModelAccessException {
+		List<Class<?>> result = new LinkedList<>();
 		Map<String, Class<?>> neighborByPackage = new HashMap<>();
 		for (CtClass cl : classes) {
 			try {
-	        	Class<?> neighbor = neighborByPackage.computeIfAbsent(cl.getPackageName(), this::searchNeighbor);
+	        	Class<?> neighbor = neighborByPackage.computeIfAbsent(cl.getPackageName(), Enhancer::searchNeighbor);
 	        	if (neighbor == null && getJavaVersion() >= 17)
 	        		logger.error("Starting from Java 17, you must have a non entity class (without @Table annotation) on your entities packages, but we cannot find one in '" + cl.getPackageName() + "': you should add an empty interface 'AllowEnhancer' in the package.");
 		        Class<?> newClass = neighbor != null ? cl.toClass(neighbor) : cl.toClass();
 		        result.add(newClass);
 			} catch (Exception e) {
-				throw new ModelException("Unable to load enhanced class " + cl.getName() + " into JVM", e);
+				throw new ModelAccessException("Unable to load enhanced class " + cl.getName() + " into JVM", e);
 			}
 		}
 		return result;
 	}
 	
-	private Class<?> searchNeighbor(String packageName) {
+	private static Class<?> searchNeighbor(String packageName) {
     	Class<?> neighbor = null;
     	try {
     		neighbor = Enhancer.class.getClassLoader().loadClass(packageName + ".AllowEnhancer");
@@ -166,7 +184,7 @@ public final class Enhancer {
 				if (!cl.hasAnnotation(Table.class))
 					throw new ModelException("Class is not an entity (no @Table annotation): " + className);
 				if (hasField(cl, STATE_FIELD_NAME)) {
-					logger.warn("Entity already enhanced: " + className);
+					alreadyEnhanced.add(className);
 					return;
 				}
 				cl.defrost();
