@@ -70,11 +70,36 @@ public class SchemaStatements {
 	}
 	
 	private Flux<String> execute(LcReactiveDataRelationalClient client, List<SchemaStatement> statements) {
-		return Flux.fromIterable(statements)
+		Flux<SchemaStatement> flux = Flux.fromIterable(statements);
+		if (LOGGER.isDebugEnabled()) {
+			flux = flux.doOnSubscribe(subscriber -> {
+				StringBuilder log = new StringBuilder(2048);
+				log.append("Executing schema statements:");
+				for (SchemaStatement s : statements) {
+					log.append("\n - ").append(s.getSql());
+				}
+				LOGGER.debug(log.toString());
+			}).doOnComplete(() -> {
+				StringBuilder log = new StringBuilder(2048);
+				log.append("Schema statements successfully executed:");
+				for (SchemaStatement s : statements) {
+					log.append("\n - ").append(s.getSql());
+				}
+				LOGGER.debug(log.toString());
+			}).doOnError(err -> {
+				StringBuilder log = new StringBuilder(2048);
+				log.append("Schema statements in error:");
+				for (SchemaStatement s : statements) {
+					log.append("\n - ").append(s.getSql());
+				}
+				LOGGER.error(log.toString(), err);
+			});
+		}
+		return flux
 			.subscribeOn(Schedulers.parallel()).publishOn(Schedulers.parallel())
 			.parallel()
 			.runOn(Schedulers.parallel())
-			.flatMap(s -> client.getSpringClient().sql(log(s.getSql())).fetch().rowsUpdated().doOnError(e -> log(s, e)).thenReturn(s))
+			.flatMap(s -> client.getSpringClient().sql(s.getSql()).fetch().rowsUpdated().doOnError(e -> log(s, e)).thenReturn(s))
 			.sequential(1)
 			.doOnNext(this::done)
 			.map(s -> "");
@@ -90,12 +115,6 @@ public class SchemaStatements {
 		}
 	}
 
-	private static String log(String sql) {
-		if (LOGGER.isDebugEnabled())
-			LOGGER.debug(sql);
-		return sql;
-	}
-	
 	private static void log(SchemaStatement s, Throwable error) {
 		LOGGER.error("Error executing " + s.getSql(), error);
 	}
