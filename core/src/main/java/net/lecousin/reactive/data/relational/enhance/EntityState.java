@@ -269,7 +269,7 @@ public class EntityState {
 		return lazyGetForeignTableCollectionField(entity, joinFieldName + "_join", Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + joinFieldKeyNumber)
 			.map(joinEntity -> {
 				try {
-					Field f = joinEntity.getClass().getDeclaredField(Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + joinFieldKeyNumber);
+					Field f = joinEntity.getClass().getDeclaredField(Enhancer.JOIN_TABLE_ATTRIBUTE_PREFIX + (joinFieldKeyNumber == 1 ? 2 : 1));
 					f.setAccessible(true);
 					return (T) f.get(joinEntity);
 				} catch (Exception e) {

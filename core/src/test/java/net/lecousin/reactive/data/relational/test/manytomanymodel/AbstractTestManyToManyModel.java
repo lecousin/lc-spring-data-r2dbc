@@ -155,6 +155,7 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 	}
 
 	
+	@SuppressWarnings("cast")
 	@Test
 	public void testAutomaticJoin() {
 		/*
@@ -314,11 +315,17 @@ public abstract class AbstractTestManyToManyModel extends AbstractLcReactiveData
 		Assertions.assertEquals(1, list1.stream().filter(e -> "1.3".equals(e.getValue())).findFirst().get().getLinks().size());
 		Assertions.assertEquals(1, list1.stream().filter(e -> "1.4".equals(e.getValue())).findFirst().get().getLinks().size());
 		Assertions.assertEquals(1, list1.stream().filter(e -> "1.5".equals(e.getValue())).findFirst().get().getLinks().size());
+		for (Entity3 e : list1) {
+			Assertions.assertTrue(e.lazyGetLinks().all(linked -> linked instanceof Entity4).block());
+		}
 		List<Entity4> list2 = SelectQuery.from(Entity4.class, "entity").execute(lcClient).collectList().block();
 		Assertions.assertEquals(3, list2.size());
 		Assertions.assertEquals(2, list2.stream().filter(e -> "2.1".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
 		Assertions.assertEquals(1, list2.stream().filter(e -> "2.2".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
 		Assertions.assertEquals(3, list2.stream().filter(e -> "2.3".equals(e.getValue())).findFirst().get().lazyGetLinks().collectList().block().size());
+		for (Entity4 e : list2) {
+			Assertions.assertTrue(e.lazyGetLinks().all(linked -> linked instanceof Entity3).block());
+		}
 		
 		
 		// remove link e1_3 -> e2_2 ==> e1_3 and e2_2 become orphans
