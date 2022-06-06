@@ -1,7 +1,7 @@
 # lc-spring-data-r2dbc
 
 <a href="https://search.maven.org/artifact/net.lecousin.reactive-data-relational/core"><img src="https://img.shields.io/maven-central/v/net.lecousin.reactive-data-relational/core.svg"></a> &nbsp;
-<a href="https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.10.1"><img src="https://img.shields.io/badge/javadoc-0.10.1-brightgreen.svg"></a> &nbsp;
+<a href="https://www.javadoc.io/doc/net.lecousin.reactive-data-relational/core/0.10.2"><img src="https://img.shields.io/badge/javadoc-0.10.2-brightgreen.svg"></a> &nbsp;
 <a href="https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml?query=branch%3Amaster"><img src="https://github.com/lecousin/lc-spring-data-r2dbc/actions/workflows/maven.yml/badge.svg?branch=master"></a>
 <br/>
 <a href="https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master"><img src="https://codecov.io/gh/lecousin/lc-spring-data-r2dbc/branch/master/graph/badge.svg"></a> &nbsp;
@@ -101,13 +101,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>h2</artifactId>
-  <version>0.10.1</version>
+  <version>0.10.2</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '0.10.1'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'h2', version: '0.10.2'
 ```
 
 ### Postgres
@@ -117,13 +117,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>postgres</artifactId>
-  <version>0.10.1</version>
+  <version>0.10.2</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '0.10.1'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'postgres', version: '0.10.2'
 ```
 
 ### MySql
@@ -133,13 +133,13 @@ Maven
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>mysql</artifactId>
-  <version>0.10.1</version>
+  <version>0.10.2</version>
 </dependency>
 ```
 
 Gradle
 ```groovy
-implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '0.10.1'
+implementation group: 'net.lecousin.reactive-data-relational', name: 'mysql', version: '0.10.2'
 ```
 
 ## Spring Boot configuration
@@ -281,7 +281,7 @@ In order to make sure the initializer is launched before any test class is loade
 <dependency>
   <groupId>net.lecousin.reactive-data-relational</groupId>
   <artifactId>test-junit-5</artifactId>
-  <version>0.10.1</version>
+  <version>0.10.2</version>
   <scope>test</scope>
 </dependency>
 ```
