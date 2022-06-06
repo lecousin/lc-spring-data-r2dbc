@@ -19,7 +19,7 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.data.convert.CustomConversions;
 import org.springframework.data.mapping.MappingException;
-import org.springframework.data.mapping.PreferredConstructor.Parameter;
+import org.springframework.data.mapping.Parameter;
 import org.springframework.data.mapping.model.ConvertingPropertyAccessor;
 import org.springframework.data.mapping.model.ParameterValueProvider;
 import org.springframework.data.r2dbc.convert.R2dbcConverter;

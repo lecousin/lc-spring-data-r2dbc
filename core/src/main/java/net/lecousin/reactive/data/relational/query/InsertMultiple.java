@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.data.relational.core.dialect.InsertRenderContext;
+import org.springframework.data.relational.core.dialect.InsertRenderContexts;
 import org.springframework.data.relational.core.sql.Column;
 import org.springframework.data.relational.core.sql.Expression;
 import org.springframework.data.relational.core.sql.IdentifierProcessing;
@@ -117,6 +119,11 @@ public class InsertMultiple {
 		@Override
 		public RenderNamingStrategy getNamingStrategy() {
 			return this.namingStrategy;
+		}
+		
+		@Override
+		public InsertRenderContext getInsertRenderContext() {
+			return InsertRenderContexts.DEFAULT;
 		}
 
 		enum DefaultSelectRenderContext implements SelectRenderContext {
