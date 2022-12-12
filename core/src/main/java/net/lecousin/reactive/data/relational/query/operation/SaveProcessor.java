@@ -459,10 +459,6 @@ class SaveProcessor extends AbstractInstanceProcessor<SaveProcessor.SaveRequest>
 	private static boolean needsUpdate(SaveRequest request, PropertyMetadata property) {
 		Object persisted = request.entity.getState().getPersistedValue(property.getName());
 		Object actual = request.entity.getValue(property);
-		if (persisted != actual)
-			return true;
-		if (persisted == null)
-			return false;
 		return !Objects.deepEquals(persisted, actual);
 	}
 	
