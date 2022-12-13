@@ -13,22 +13,6 @@
  */
 package net.lecousin.reactive.data.relational.enhance;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
-import org.apache.commons.lang3.mutable.MutableObject;
-import org.springframework.core.CollectionFactory;
-import org.springframework.data.mapping.MappingException;
-import org.springframework.lang.NonNull;
-import org.springframework.lang.Nullable;
-
 import net.lecousin.reactive.data.relational.LcReactiveDataRelationalClient;
 import net.lecousin.reactive.data.relational.model.ModelAccessException;
 import net.lecousin.reactive.data.relational.model.ModelUtils;
@@ -38,14 +22,28 @@ import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
 import net.lecousin.reactive.data.relational.model.metadata.PropertyStaticMetadata;
 import net.lecousin.reactive.data.relational.query.SelectQuery;
 import net.lecousin.reactive.data.relational.query.criteria.Criteria;
+import org.apache.commons.lang3.mutable.MutableObject;
+import org.springframework.core.CollectionFactory;
+import org.springframework.data.mapping.MappingException;
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import reactor.core.CorePublisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Internal state of an entity, allowing to implement features such as lazy loading, updated attributes detection...
  * 
  * @author Guillaume Le Cousin
+ * @author Sebastian Nawrocki
  *
  */
 public class EntityState {
@@ -154,9 +152,10 @@ public class EntityState {
 	
 	private void savePersistedValue(Field field, Object value) {
 		if (value != null && ModelUtils.isCollection(field)) {
-			List<Object> list = new LinkedList<>();
-			list.addAll(ModelUtils.getAsCollection(value));
-			persistedValues.put(field.getName(), list);
+			Collection<Object> valueAsCollection = ModelUtils.getAsCollection(value);
+			Collection<Object> collection = CollectionFactory.createApproximateCollection(valueAsCollection, 10);
+			collection.addAll(valueAsCollection);
+			persistedValues.put(field.getName(), collection);
 		} else {
 			persistedValues.put(field.getName(), value);
 		}

@@ -1,18 +1,18 @@
 package net.lecousin.reactive.data.relational.test.arraycolumns;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-
+import net.lecousin.reactive.data.relational.query.SelectQuery;
+import net.lecousin.reactive.data.relational.query.criteria.Criteria;
+import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
+import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 
-import net.lecousin.reactive.data.relational.query.SelectQuery;
-import net.lecousin.reactive.data.relational.query.criteria.Criteria;
-import net.lecousin.reactive.data.relational.repository.LcR2dbcRepositoryFactoryBean;
-import net.lecousin.reactive.data.relational.test.AbstractLcReactiveDataRelationalTest;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 
 @EnableR2dbcRepositories(repositoryFactoryBeanClass = LcR2dbcRepositoryFactoryBean.class)
 public abstract class AbstractTestArrayColumns extends AbstractLcReactiveDataRelationalTest {
@@ -22,7 +22,7 @@ public abstract class AbstractTestArrayColumns extends AbstractLcReactiveDataRel
 	
 	@Override
 	protected Collection<Class<?>> usedEntities() {
-		return Arrays.asList(EntityWithArrays.class);
+		return Arrays.asList(EntityWithArrays.class, UpdateableCollectionProperties.class);
 	}
 	
 	@Test
@@ -33,6 +33,7 @@ public abstract class AbstractTestArrayColumns extends AbstractLcReactiveDataRel
 		entity = repo1.findAll().blockFirst();
 		Assertions.assertTrue(entity.getIntegers() == null || entity.getIntegers().length == 0);
 		Assertions.assertTrue(entity.getPrimitiveIntegers() == null || entity.getPrimitiveIntegers().length == 0);
+		Assertions.assertTrue(entity.getIntegerList() == null || entity.getIntegerList().size() == 0);
 	}
 	
 	@Test
@@ -58,6 +59,7 @@ public abstract class AbstractTestArrayColumns extends AbstractLcReactiveDataRel
 		entity.setDoubleList(Arrays.asList(4.5d));
 		entity.setStrings(new String[] { "test1" });
 		entity.setStringList(Arrays.asList("test2"));
+		entity.setStringSet(Set.of("test3"));
 		repo1.save(entity).block();
 		
 		entity = repo1.findAll().blockFirst();
@@ -141,6 +143,10 @@ public abstract class AbstractTestArrayColumns extends AbstractLcReactiveDataRel
 		Assertions.assertNotNull(entity.getStringList());
 		Assertions.assertEquals(1, entity.getStringList().size());
 		Assertions.assertEquals("test2", entity.getStringList().get(0));
+
+		Assertions.assertNotNull(entity.getStringSet());
+		Assertions.assertEquals(1, entity.getStringSet().size());
+		Assertions.assertEquals("test3", entity.getStringSet().iterator().next());
 		
 		// update an element in the array
 		entity.getIntegers()[0] = 12345;
@@ -196,5 +202,40 @@ public abstract class AbstractTestArrayColumns extends AbstractLcReactiveDataRel
 			.execute(lcClient)
 			.collectList().block();
 		Assertions.assertEquals(2, list.size());
+	}
+
+	@Test
+	public void testArraysWithUpdateableCollectionProperties() {
+		UpdateableCollectionProperties entity = new UpdateableCollectionProperties();
+		entity.setStrings1(List.of("1.1"));
+		entity.setStrings2(Set.of("2.1"));
+		entity.setStrings3(List.of("3.1"));
+		entity.setStrings4(Set.of("4.1"));
+
+		entity = lcClient.save(entity).block();
+		Assertions.assertEquals(List.of("1.1"), entity.getStrings1());
+		Assertions.assertEquals(Set.of("2.1"), entity.getStrings2());
+		Assertions.assertEquals(List.of("3.1"), entity.getStrings3());
+		Assertions.assertEquals(Set.of("4.1"), entity.getStrings4());
+		long id = entity.getId();
+
+		entity.setStrings1(List.of("1.2"));
+		entity.setStrings2(Set.of("2.2"));
+		entity.setStrings3(List.of("3.2"));
+		entity.setStrings4(Set.of("4.2"));
+
+		entity = lcClient.save(entity).block();
+		Assertions.assertEquals(id, entity.getId());
+		Assertions.assertEquals(List.of("1.2"), entity.getStrings1());
+		Assertions.assertEquals(Set.of("2.2"), entity.getStrings2());
+		Assertions.assertEquals(List.of("3.1"), entity.getStrings3());
+		Assertions.assertEquals(Set.of("4.1"), entity.getStrings4());
+
+		entity = SelectQuery.from(UpdateableCollectionProperties.class, "entity").execute(lcClient).blockFirst();
+		Assertions.assertEquals(id, entity.getId());
+		Assertions.assertEquals(List.of("1.2"), entity.getStrings1());
+		Assertions.assertEquals(Set.of("2.2"), entity.getStrings2());
+		Assertions.assertEquals(List.of("3.1"), entity.getStrings3());
+		Assertions.assertEquals(Set.of("4.1"), entity.getStrings4());
 	}
 }

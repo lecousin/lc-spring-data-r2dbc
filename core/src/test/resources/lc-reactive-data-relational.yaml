@@ -65,4 +65,5 @@ entities:
         - MultipleDbEntity2
     - arraycolumns:
       - EntityWithArrays
+      - UpdateableCollectionProperties
         
