@@ -1,12 +1,12 @@
 package net.lecousin.reactive.data.relational.test.arraycolumns;
 
-import java.util.List;
-
+import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import net.lecousin.reactive.data.relational.annotations.GeneratedValue;
+import java.util.List;
+import java.util.Set;
 
 @Table
 public class EntityWithArrays {
@@ -73,6 +73,9 @@ public class EntityWithArrays {
 	
 	@Column
 	private List<String> stringList;
+
+	@Column
+	private Set<String> stringSet;
 
 	public Long getId() {
 		return id;
@@ -241,5 +244,12 @@ public class EntityWithArrays {
 	public void setStringList(List<String> stringList) {
 		this.stringList = stringList;
 	}
-	
+
+	public Set<String> getStringSet() {
+		return stringSet;
+	}
+
+	public void setStringSet(Set<String> stringSet) {
+		this.stringSet = stringSet;
+	}
 }

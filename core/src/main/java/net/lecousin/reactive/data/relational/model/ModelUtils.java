@@ -13,6 +13,20 @@
  */
 package net.lecousin.reactive.data.relational.model;
 
+import net.lecousin.reactive.data.relational.annotations.CompositeId;
+import net.lecousin.reactive.data.relational.enhance.EntityState;
+import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
+import net.lecousin.reactive.data.relational.model.metadata.PropertyStaticMetadata;
+import org.apache.commons.lang3.ArrayUtils;
+import org.springframework.core.CollectionFactory;
+import org.springframework.data.mapping.MappingException;
+import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
+import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
@@ -24,21 +38,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
-
-import org.apache.commons.lang3.ArrayUtils;
-import org.springframework.core.CollectionFactory;
-import org.springframework.data.mapping.MappingException;
-import org.springframework.data.relational.core.mapping.RelationalPersistentEntity;
-import org.springframework.data.relational.core.mapping.RelationalPersistentProperty;
-import org.springframework.lang.NonNull;
-import org.springframework.lang.Nullable;
-
-import net.lecousin.reactive.data.relational.annotations.CompositeId;
-import net.lecousin.reactive.data.relational.enhance.EntityState;
-import net.lecousin.reactive.data.relational.model.metadata.EntityMetadata;
-import net.lecousin.reactive.data.relational.model.metadata.EntityStaticMetadata;
-import net.lecousin.reactive.data.relational.model.metadata.PropertyMetadata;
-import net.lecousin.reactive.data.relational.model.metadata.PropertyStaticMetadata;
 
 /**
  * Utility methods.
@@ -120,9 +119,7 @@ public class ModelUtils {
 	public static boolean isCollectionType(Class<?> type) {
 		if (type.isArray())
 			return !char[].class.equals(type);
-		if (Collection.class.isAssignableFrom(type))
-			return true;
-		return false;
+		return Collection.class.isAssignableFrom(type);
 	}
 	
 	/** Return the given object as a collection.
@@ -164,11 +161,9 @@ public class ModelUtils {
 	 * @return type of elements
 	 */
 	public static Class<?> getRequiredCollectionType(Field field) {
-		if (field.getType().isArray())
-			return field.getType().getComponentType();
-		Type genType = field.getGenericType();
-		if (genType instanceof ParameterizedType)
-			return (Class<?>) ((ParameterizedType)genType).getActualTypeArguments()[0];
+		Class<?> collectionType = getCollectionType(field);
+		if (collectionType != null)
+			return collectionType;
 		throw new MappingException("Field is not a collection: " + field.getDeclaringClass().getName() + "." + field.getName());
 	}
 	
