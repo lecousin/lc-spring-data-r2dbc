@@ -264,7 +264,9 @@ public class SelectExecution<T> {
 				Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, Criteria.property(query.from.alias, idPropertyName).in(ids), false, true).execute().fetch().all();
 				return Flux.create((Consumer<FluxSink<T>>)sink -> {
 					RowHandlerSorted handler = new RowHandlerSorted(mapping, sink, ids);
-					fromDb.doOnComplete(handler::handleEnd).subscribe(handler::handleRow, sink::error);
+					fromDb.contextWrite(sink.contextView())
+							.doOnComplete(handler::handleEnd)
+							.subscribe(handler::handleRow, sink::error);
 				});
 			});
 	}
@@ -274,7 +276,9 @@ public class SelectExecution<T> {
 		Flux<Map<String, Object>> fromDb = buildFinalSql(mapping, query.where, true, hasJoinMany()).execute().fetch().all();
 		return Flux.create((Consumer<FluxSink<T>>)sink -> {
 			RowHandler handler = new RowHandler(mapping, sink);
-			fromDb.doOnComplete(handler::handleEnd).subscribe(handler::handleRow, sink::error);
+			fromDb.contextWrite(sink.contextView())
+					.doOnComplete(handler::handleEnd)
+					.subscribe(handler::handleRow, sink::error);
 		});
 	}
 	
